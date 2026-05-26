@@ -1,0 +1,198 @@
+# =============================================================================
+# PKM-rebuild .gitignore
+# =============================================================================
+# Reihenfolge nach Wichtigkeit:
+# 1. Sicherheit (Persona, Secrets)
+# 2. Daten (außerhalb Git per Entscheidung B6, aber sicher ist sicher)
+# 3. Lokale Settings
+# 4. Python-Standard
+# 5. macOS / Editor / Tooling
+# =============================================================================
+
+
+# =============================================================================
+# 1. SICHERHEIT — Persona und Secrets
+# =============================================================================
+
+# Persona-Dokument enthält personenbezogene Daten (Entscheidung N1)
+docs/00_persona_muente.md
+
+# Lokale Snapshot-Files aus Claude-Code-Sessions können privates enthalten
+.claude-context-snapshot.md
+.claude/snapshots/
+
+# Lokale Claude-Code-Settings (Hooks könnten lokale Pfade enthalten)
+.claude/settings.local.json
+.claude/settings.json
+
+# Beliebige Secret-Files
+*.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+.bw_session
+
+
+# =============================================================================
+# 2. DATEN — sollte sowieso außerhalb des Repos liegen, aber Sicherheitsnetz
+# =============================================================================
+
+# Falls jemand das Data-Verzeichnis ins Repo verschiebt: blockieren
+data/01_corpus_input/
+data/02_pipeline_output/
+data/03_drafts/
+data/04_vault/
+backups/
+
+# Output-Verzeichnisse generell
+output/
+outputs/
+.cache/
+
+
+# =============================================================================
+# 3. LOKALE SETTINGS
+# =============================================================================
+
+# Pipeline-State (lokal, regenerierbar)
+pipeline_state.json
+*.meta.json
+
+# Test-Coverage-Outputs
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Editor-spezifische lokale Settings (optional — entferne wenn shared)
+.vscode/settings.json
+.zed/settings.json
+
+
+# =============================================================================
+# 4. PYTHON
+# =============================================================================
+
+# Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / Packaging
+build/
+dist/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# mise / pyenv local
+.python-version
+.tool-versions
+
+# pytest / coverage
+.pytest_cache/
+.tox/
+.nox/
+.hypothesis/
+
+# mypy / ruff
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# PEP 582
+__pypackages__/
+
+
+# =============================================================================
+# 5. macOS / EDITOR / TOOLING
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Zed
+.zed/
+
+# JetBrains IDEs (falls jemand IntelliJ/PyCharm nutzt)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Direnv
+.direnv/
+.envrc
+
+
+# =============================================================================
+# 6. PROJEKT-SPEZIFISCH
+# =============================================================================
+
+# Generierte Cluster-Visualisierungen
+*.html
+!docs/**/*.html
+
+# Embeddings-Cache (groß, regenerierbar)
+*.parquet
+
+# Logs
+*.log
+logs/
+
+# Temporäre Skripte
+scratch/
+tmp/
+*.tmp
+
+# Benchmarks
+benchmark_results/
+
+
+# =============================================================================
+# 7. AUSNAHMEN — Files die DOCH committet werden sollen
+# =============================================================================
+
+# Beispiel-Configs sollen mit ins Repo
+!.env.example
+!pipeline/pipeline.config.example.yaml
+
+# Test-Fixtures mit kleinen Sample-Daten
+!tests/fixtures/sample_corpus/
+!tests/fixtures/qwen_clusters/

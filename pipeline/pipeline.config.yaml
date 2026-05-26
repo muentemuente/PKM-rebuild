@@ -1,0 +1,189 @@
+# =============================================================================
+# PKM-rebuild Pipeline-Konfiguration
+# =============================================================================
+# Stand: 2026-05-25
+# Konsumiert von: pipeline/config.py (Pydantic-Settings)
+# Doku: docs/02_pipeline_spec.md
+#
+# WICHTIG: Schwellwerte hier — nicht im Code. Magic Numbers sind verboten.
+# =============================================================================
+
+
+# === Pfade ====================================================================
+# Daten liegen außerhalb des Git-Repos. Default: ~/projects/aktiv/PKM_rebuild/data
+# Override per Env-Variable: PKM_DATA_ROOT
+paths:
+  data_root: "~/projects/aktiv/PKM_rebuild/data"
+  corpus_input: "${data_root}/01_corpus_input"
+  pipeline_output: "${data_root}/02_pipeline_output"
+  drafts: "${data_root}/03_drafts"
+  vault: "${data_root}/04_vault"
+  backups: "~/projects/aktiv/PKM_rebuild/backups"
+
+
+# === Pipeline-Versionierung ===================================================
+pipeline:
+  version: "0.1.0"
+  schema_version: "v1"          # bei Schema-Bump in pipeline/schemas.py inkrementieren
+
+
+# === Sample-Modus =============================================================
+sample:
+  enabled: false                # via CLI-Flag --sample N überschreibbar
+  count: 10
+
+
+# === Inventar (Phase 1) =======================================================
+inventory:
+  recursive: true
+  follow_symlinks: false
+  exclude_patterns:
+    - ".*"                      # Hidden Files
+    - "_*"                      # Underscore-Prefix (Index-Files etc.)
+    - "node_modules/*"
+    - ".git/*"
+  include_extensions:
+    - ".md"
+
+
+# === Normalisierung (Phase 2) =================================================
+normalization:
+  target_encoding: "utf-8"
+  line_endings: "lf"            # CRLF/CR → LF
+  tab_replacement: "    "       # Tab → 4 Spaces (außer in Code-Blöcken)
+  max_blank_lines: 3            # 4+ Leerzeilen werden auf 3 reduziert
+  strip_trailing_whitespace: true
+  parse_frontmatter: true       # YAML-Frontmatter extrahieren
+
+
+# === Strukturextraktion (Phase 3) =============================================
+structure:
+  extract_headings: true
+  extract_code_blocks: true
+  extract_tables: true
+  extract_links: true
+  extract_images: true
+  guess_doc_type: true          # heuristische Typ-Vermutung (Pipeline-intern, nicht im Vault)
+
+
+# === Segmentierung (Phase 4) ==================================================
+segmentation:
+  min_words_per_segment: 50
+  max_words_per_segment: 1500
+  target_words_per_segment: 900
+  preserve_code_blocks: true    # Code-Block niemals zerreißen
+  preserve_tables: true
+  preserve_lists: true
+  split_by_headings: true       # primäre Trenn-Strategie
+
+
+# === Redundanz-Erkennung (Phase 5) ============================================
+redundancy:
+  # Stufe 1: SHA-256 auf normalisiertem Doc-Text
+  exact_match:
+    enabled: true
+
+  # Stufe 2: TF-IDF auf Segment-Ebene
+  tfidf:
+    enabled: true
+    threshold: 0.72             # Cosine-Similarity ab der Kanten gezogen werden
+    ngram_range: [1, 2]
+    max_features: 20000
+    min_df: 2                   # Term muss in ≥2 Docs vorkommen
+
+
+# === Embeddings (Phase 6) =====================================================
+embeddings:
+  enabled: true
+  model: "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+  batch_size: 32
+  device: "mps"                 # macOS MPS-Backend; Fallback "cpu"
+  similarity_threshold: 0.85    # für semantische Ähnlichkeits-Kanten
+  cache_path: "${pipeline_output}/embeddings.parquet"
+
+
+# === Cluster (Phase 6/7) ======================================================
+clustering:
+  min_cluster_size: 3           # bottom-up Regel: <3 Files → "unsortiert/"
+  initial_strategy: "greedy"    # für Phase 6, einfache erste Cluster
+
+  # Phase 7b — UMAP+HDBSCAN (optional, nicht DoD-blockierend)
+  umap_hdbscan:
+    enabled: false
+    umap:
+      n_neighbors: 15
+      min_dist: 0.1
+      n_components: 2
+      metric: "cosine"
+    hdbscan:
+      min_cluster_size: 3
+      min_samples: 2
+      cluster_selection_epsilon: 0.0
+    output_visualization: "${pipeline_output}/cluster_visualization.html"
+
+
+# === LLM-Batch-Bildung (Phase 7) ==============================================
+batching:
+  max_input_tokens: 100000      # Reserve für Output ~30K bei 128K-Context
+  token_estimation_model: "qwen-3.6-27b"
+  split_oversized_clusters: true
+
+
+# === Qwen (Phase 8) ===========================================================
+qwen:
+  endpoint: "http://localhost:1234/v1"   # LM Studio default
+  model: "qwen-3.6-27b"
+  context_window: 131072        # 128K — Pflicht-Minimum (sonst Gibberish)
+  prompt_version: "v1"          # aktive Version, korrespondiert mit prompts/v1/
+  json_mode: true
+  max_retries: 2
+  retry_backoff_seconds: 5
+  timeout_seconds: 600
+
+  # Temperaturen pro Stage (siehe docs/04_qwen_prompts.md)
+  temperature:
+    stage1_cluster_analysis: 0.3
+    stage2_merge_proposal: 0.2
+    stage3_synthesis: 0.4
+    stage4_frontmatter: 0.1
+
+
+# === Vault-Aufbau (Phase 9) ===================================================
+vault:
+  use_cluster_number_prefix: true   # Ordner heißen "02_Webentwicklung/" (UX)
+  generate_cluster_index: true      # _index.md pro Cluster automatisch
+  validate_wikilinks: true          # broken links → Warning
+  attic_folder: "_attic"            # für deprecated
+  unsorted_folder: "unsortiert"     # für Mikrocluster < min_cluster_size
+
+
+# === Tag-Vokabular ============================================================
+tags:
+  vocabulary_file: "${vault}/00_Meta/tag-system.md"
+  strict_vocabulary: false      # initial false (Vokabular wird aus Phase 9 gebaut)
+  max_tags_per_article: 10
+  min_tags_per_article: 2
+
+
+# === Logging ==================================================================
+logging:
+  level: "INFO"                 # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  console_rich: true            # rich-Formatierung in der Konsole
+  file_json: true               # strukturierte JSON-Logs
+  file_path: "${pipeline_output}/pipeline.log"
+  log_meta_files: true          # *.meta.json pro Output (Idempotenz-Tracking)
+
+
+# === Idempotenz ===============================================================
+idempotency:
+  enabled: true
+  hash_algorithm: "sha256"
+  meta_file_suffix: ".meta.json"
+
+
+# === Memory-Pressure-Detection (macOS) ========================================
+memory_watch:
+  enabled: true
+  warn_threshold_percent: 85    # bei >85% Memory-Used: Warning
+  pause_threshold_percent: 95   # bei >95%: Pipeline pausiert, User-Prompt
+  check_interval_seconds: 30

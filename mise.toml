@@ -1,0 +1,43 @@
+[tools]
+python = "3.12"
+node = "22"          # für ggf. spätere JS-Tools (z.B. Mermaid-Renderer)
+
+[env]
+# Hinweis: Daten-Root außerhalb des Repos
+PKM_DATA_ROOT = "{{ env.HOME }}/projects/aktiv/PKM_rebuild/data"
+
+# Python-spezifisch
+PYTHONDONTWRITEBYTECODE = "1"     # keine .pyc-Files im Source-Baum
+PYTHONUNBUFFERED = "1"            # bei langen Läufen sofortige Logs sehen
+
+[tasks.setup]
+description = "Initiales Setup nach git clone: venv + deps"
+run = [
+    "python -m venv .venv",
+    "./.venv/bin/pip install --upgrade pip",
+    "./.venv/bin/pip install -e '.[dev]'",
+]
+
+[tasks.test]
+description = "Tests laufen lassen"
+run = "pytest -v"
+
+[tasks.lint]
+description = "Linter + Formatter + Typchecker"
+run = [
+    "ruff check pipeline/ tests/",
+    "ruff format --check pipeline/ tests/",
+    "mypy pipeline/",
+]
+
+[tasks.format]
+description = "Code formatieren"
+run = "ruff format pipeline/ tests/"
+
+[tasks.sample]
+description = "Pipeline Sample-Run (10 Files)"
+run = "python -m pipeline run --sample 10"
+
+[tasks.status]
+description = "Pipeline-Status"
+run = "python -m pipeline status"

@@ -45,6 +45,16 @@ class IdempotencyConfig(BaseModel):
     meta_file_suffix: str
 
 
+class SegmentationConfig(BaseModel):
+    min_words_per_segment: int
+    max_words_per_segment: int
+    target_words_per_segment: int
+    preserve_code_blocks: bool
+    preserve_tables: bool
+    preserve_lists: bool
+    split_by_headings: bool
+
+
 class StructureConfig(BaseModel):
     extract_headings: bool
     extract_code_blocks: bool
@@ -73,6 +83,7 @@ class PipelineConfig(BaseModel):
     idempotency: IdempotencyConfig
     normalization: NormalizationConfig
     structure: StructureConfig
+    segmentation: SegmentationConfig
 
 
 def _substitute_vars(text: str, context: dict[str, str]) -> str:

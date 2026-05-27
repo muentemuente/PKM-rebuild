@@ -9,11 +9,12 @@ from pipeline.config import load_config
 from pipeline.phase_1_inventory import run_phase_1
 from pipeline.phase_2_normalize import run_phase_2
 from pipeline.phase_3_structure import run_phase_3
+from pipeline.phase_4_segment import run_phase_4
 
 console = Console()
 
 _ALL_PHASES = list(range(1, 11))
-_IMPLEMENTED_PHASES = {1, 2, 3}
+_IMPLEMENTED_PHASES = {1, 2, 3, 4}
 _DEFAULT_CONFIG = "pipeline/pipeline.config.yaml"
 
 
@@ -117,6 +118,25 @@ def run(
                 console.print(f"[green]✓ Phase 3:[/green] {len(records)} Dokumente → {output_path}")
             except FileNotFoundError as exc:
                 console.print(f"[red]Fehler Phase 3:[/red] {exc}")
+                raise SystemExit(1) from exc
+
+        elif p == 4:
+            cleaned_path = cfg.paths.pipeline_output / "cleaned_documents.jsonl"
+            manifest_path = cfg.paths.pipeline_output / "files_manifest.jsonl"
+            output_path = cfg.paths.pipeline_output / "segments.jsonl"
+            try:
+                records = run_phase_4(
+                    cleaned_path=cleaned_path,
+                    manifest_path=manifest_path,
+                    output_path=output_path,
+                    force=force,
+                    min_words=cfg.segmentation.min_words_per_segment,
+                    max_words=cfg.segmentation.max_words_per_segment,
+                    pipeline_version=cfg.pipeline.version,
+                )
+                console.print(f"[green]✓ Phase 4:[/green] {len(records)} Segmente → {output_path}")
+            except FileNotFoundError as exc:
+                console.print(f"[red]Fehler Phase 4:[/red] {exc}")
                 raise SystemExit(1) from exc
 
 

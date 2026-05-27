@@ -72,6 +72,13 @@ class RedundancyConfig(BaseModel):
     tfidf: TfIdfRedundancyConfig
 
 
+class BatchingConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    max_input_tokens: int
+    split_oversized_clusters: bool
+
+
 class EmbeddingsConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -121,6 +128,7 @@ class PipelineConfig(BaseModel):
     redundancy: RedundancyConfig
     embeddings: EmbeddingsConfig
     clustering: ClusteringConfig
+    batching: BatchingConfig
 
 
 def _substitute_vars(text: str, context: dict[str, str]) -> str:

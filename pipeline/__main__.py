@@ -13,11 +13,12 @@ from pipeline.phase_3_structure import run_phase_3
 from pipeline.phase_4_segment import run_phase_4
 from pipeline.phase_5_redundancy import run_phase_5
 from pipeline.phase_6_embeddings import run_phase_6
+from pipeline.phase_7_batches import run_phase_7
 
 console = Console()
 
 _ALL_PHASES = list(range(1, 11))
-_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6}
+_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6, 7}
 _DEFAULT_CONFIG = "pipeline/pipeline.config.yaml"
 
 
@@ -115,6 +116,21 @@ def _dispatch_phase_5(cfg: PipelineConfig, force: bool) -> None:
     )
 
 
+def _dispatch_phase_7(cfg: PipelineConfig, force: bool) -> None:
+    out = cfg.paths.pipeline_output
+    batch_paths = run_phase_7(
+        segments_path=out / "segments.jsonl",
+        clusters_path=out / "cluster_proposals.json",
+        edges_path=out / "near_duplicate_edges.jsonl",
+        output_dir=out / "batches",
+        force=force,
+        max_input_tokens=cfg.batching.max_input_tokens,
+        split_oversized_clusters=cfg.batching.split_oversized_clusters,
+        pipeline_version=cfg.pipeline.version,
+    )
+    console.print(f"[green]✓ Phase 7:[/green] {len(batch_paths)} Batch-Files → {out / 'batches'}")
+
+
 def _dispatch_phase_6(cfg: PipelineConfig, force: bool) -> None:
     out = cfg.paths.pipeline_output
     emb = cfg.embeddings
@@ -146,6 +162,7 @@ _PHASE_DISPATCH: dict[int, Any] = {
     4: _dispatch_phase_4,
     5: _dispatch_phase_5,
     6: _dispatch_phase_6,
+    7: _dispatch_phase_7,
 }
 
 

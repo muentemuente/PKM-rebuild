@@ -12,11 +12,12 @@ from pipeline.phase_2_normalize import run_phase_2
 from pipeline.phase_3_structure import run_phase_3
 from pipeline.phase_4_segment import run_phase_4
 from pipeline.phase_5_redundancy import run_phase_5
+from pipeline.phase_6_embeddings import run_phase_6
 
 console = Console()
 
 _ALL_PHASES = list(range(1, 11))
-_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5}
+_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6}
 _DEFAULT_CONFIG = "pipeline/pipeline.config.yaml"
 
 
@@ -114,12 +115,37 @@ def _dispatch_phase_5(cfg: PipelineConfig, force: bool) -> None:
     )
 
 
+def _dispatch_phase_6(cfg: PipelineConfig, force: bool) -> None:
+    out = cfg.paths.pipeline_output
+    emb = cfg.embeddings
+    n_emb, proposals = run_phase_6(
+        segments_path=out / "segments.jsonl",
+        embeddings_path=out / "embeddings.parquet",
+        clusters_path=out / "cluster_proposals.json",
+        force=force,
+        model_name=emb.model,
+        batch_size=emb.batch_size,
+        device=emb.device,
+        similarity_threshold=emb.similarity_threshold,
+        min_cluster_size=cfg.clustering.min_cluster_size,
+        pipeline_version=cfg.pipeline.version,
+    )
+    named = sum(1 for p in proposals if p.cluster_id != "C_unsortiert")
+    unsorted = next((p for p in proposals if p.cluster_id == "C_unsortiert"), None)
+    unsorted_count = len(unsorted.segment_ids) if unsorted else 0
+    console.print(
+        f"[green]✓ Phase 6:[/green] {n_emb} Embeddings, "
+        f"{named} Cluster, {unsorted_count} unsortiert"
+    )
+
+
 _PHASE_DISPATCH: dict[int, Any] = {
     1: _dispatch_phase_1,
     2: _dispatch_phase_2,
     3: _dispatch_phase_3,
     4: _dispatch_phase_4,
     5: _dispatch_phase_5,
+    6: _dispatch_phase_6,
 }
 
 

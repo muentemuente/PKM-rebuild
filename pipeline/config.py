@@ -72,6 +72,23 @@ class RedundancyConfig(BaseModel):
     tfidf: TfIdfRedundancyConfig
 
 
+class EmbeddingsConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    enabled: bool
+    model: str
+    batch_size: int
+    device: str
+    similarity_threshold: float
+
+
+class ClusteringConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    min_cluster_size: int
+    initial_strategy: str
+
+
 class StructureConfig(BaseModel):
     extract_headings: bool
     extract_code_blocks: bool
@@ -102,6 +119,8 @@ class PipelineConfig(BaseModel):
     structure: StructureConfig
     segmentation: SegmentationConfig
     redundancy: RedundancyConfig
+    embeddings: EmbeddingsConfig
+    clustering: ClusteringConfig
 
 
 def _substitute_vars(text: str, context: dict[str, str]) -> str:

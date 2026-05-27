@@ -55,6 +55,23 @@ class SegmentationConfig(BaseModel):
     split_by_headings: bool
 
 
+class ExactMatchConfig(BaseModel):
+    enabled: bool
+
+
+class TfIdfRedundancyConfig(BaseModel):
+    enabled: bool
+    threshold: float
+    ngram_range: list[int]
+    max_features: int
+    min_df: int
+
+
+class RedundancyConfig(BaseModel):
+    exact_match: ExactMatchConfig
+    tfidf: TfIdfRedundancyConfig
+
+
 class StructureConfig(BaseModel):
     extract_headings: bool
     extract_code_blocks: bool
@@ -84,6 +101,7 @@ class PipelineConfig(BaseModel):
     normalization: NormalizationConfig
     structure: StructureConfig
     segmentation: SegmentationConfig
+    redundancy: RedundancyConfig
 
 
 def _substitute_vars(text: str, context: dict[str, str]) -> str:

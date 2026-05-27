@@ -93,6 +93,24 @@ class SegmentRecord(BaseModel):
     contains_table: bool
 
 
+# === Phase 5: Redundanz-Erkennung =============================================
+
+
+class ExactDuplicateGroup(BaseModel):
+    """Gruppe exakt identischer Dokumente (SHA-256 auf normalisiertem Text)."""
+
+    sha256: str
+    doc_ids: list[str]
+
+
+class NearDuplicateEdge(BaseModel):
+    """Kante im Ähnlichkeitsgraph: zwei Segmente mit Cosine-Similarity >= Threshold."""
+
+    segment_id_a: str
+    segment_id_b: str
+    similarity: float
+
+
 # === Phase 6: Embeddings + Cluster ============================================
 
 

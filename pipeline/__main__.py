@@ -1,20 +1,22 @@
 """CLI-Entry-Point der PKM-rebuild Pipeline."""
 
 from pathlib import Path
+from typing import Any
 
 import click
 from rich.console import Console
 
-from pipeline.config import load_config
+from pipeline.config import PipelineConfig, load_config
 from pipeline.phase_1_inventory import run_phase_1
 from pipeline.phase_2_normalize import run_phase_2
 from pipeline.phase_3_structure import run_phase_3
 from pipeline.phase_4_segment import run_phase_4
+from pipeline.phase_5_redundancy import run_phase_5
 
 console = Console()
 
 _ALL_PHASES = list(range(1, 11))
-_IMPLEMENTED_PHASES = {1, 2, 3, 4}
+_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5}
 _DEFAULT_CONFIG = "pipeline/pipeline.config.yaml"
 
 
@@ -24,6 +26,101 @@ def _phases_to_run(phase: int | None, from_phase: int | None) -> list[int]:
     if from_phase is not None:
         return [p for p in _ALL_PHASES if p >= from_phase]
     return _ALL_PHASES
+
+
+def _dispatch_phase_1(cfg: PipelineConfig, force: bool, sample: int | None) -> None:
+    effective_sample = (
+        sample if sample is not None else (cfg.sample.count if cfg.sample.enabled else None)
+    )
+    output_path = cfg.paths.pipeline_output / "files_manifest.jsonl"
+    records = run_phase_1(
+        corpus_input=cfg.paths.corpus_input,
+        output_path=output_path,
+        force=force,
+        sample=effective_sample,
+        recursive=cfg.inventory.recursive,
+        exclude_patterns=cfg.inventory.exclude_patterns,
+        include_extensions=cfg.inventory.include_extensions,
+        pipeline_version=cfg.pipeline.version,
+    )
+    console.print(f"[green]✓ Phase 1:[/green] {len(records)} Dokumente → {output_path}")
+
+
+def _dispatch_phase_2(cfg: PipelineConfig, force: bool) -> None:
+    out = cfg.paths.pipeline_output
+    records = run_phase_2(
+        manifest_path=out / "files_manifest.jsonl",
+        output_path=out / "cleaned_documents.jsonl",
+        force=force,
+        max_blank_lines=cfg.normalization.max_blank_lines,
+        tab_replacement=cfg.normalization.tab_replacement,
+        strip_trailing_whitespace=cfg.normalization.strip_trailing_whitespace,
+        parse_frontmatter=cfg.normalization.parse_frontmatter,
+        pipeline_version=cfg.pipeline.version,
+    )
+    console.print(
+        f"[green]✓ Phase 2:[/green] {len(records)} Dokumente → {out / 'cleaned_documents.jsonl'}"
+    )
+
+
+def _dispatch_phase_3(cfg: PipelineConfig, force: bool) -> None:
+    out = cfg.paths.pipeline_output
+    records = run_phase_3(
+        cleaned_path=out / "cleaned_documents.jsonl",
+        output_path=out / "documents_structured.jsonl",
+        force=force,
+        pipeline_version=cfg.pipeline.version,
+    )
+    console.print(
+        f"[green]✓ Phase 3:[/green] {len(records)} Dokumente → {out / 'documents_structured.jsonl'}"
+    )
+
+
+def _dispatch_phase_4(cfg: PipelineConfig, force: bool) -> None:
+    out = cfg.paths.pipeline_output
+    records = run_phase_4(
+        cleaned_path=out / "cleaned_documents.jsonl",
+        manifest_path=out / "files_manifest.jsonl",
+        output_path=out / "segments.jsonl",
+        force=force,
+        min_words=cfg.segmentation.min_words_per_segment,
+        max_words=cfg.segmentation.max_words_per_segment,
+        pipeline_version=cfg.pipeline.version,
+    )
+    console.print(f"[green]✓ Phase 4:[/green] {len(records)} Segmente → {out / 'segments.jsonl'}")
+
+
+def _dispatch_phase_5(cfg: PipelineConfig, force: bool) -> None:
+    out = cfg.paths.pipeline_output
+    tfidf = cfg.redundancy.tfidf
+    exact_groups, edges = run_phase_5(
+        cleaned_path=out / "cleaned_documents.jsonl",
+        segments_path=out / "segments.jsonl",
+        exact_output_path=out / "exact_duplicates.json",
+        edges_output_path=out / "near_duplicate_edges.jsonl",
+        force=force,
+        tfidf_enabled=tfidf.enabled,
+        tfidf_threshold=tfidf.threshold,
+        ngram_range=(tfidf.ngram_range[0], tfidf.ngram_range[1]),
+        max_features=tfidf.max_features,
+        min_df=tfidf.min_df,
+        pipeline_version=cfg.pipeline.version,
+    )
+    exact_doc_count = sum(len(g.doc_ids) for g in exact_groups)
+    console.print(
+        f"[green]✓ Phase 5:[/green] "
+        f"{exact_doc_count} exakte Duplikate in {len(exact_groups)} Gruppen, "
+        f"{len(edges)} nahe-Duplikat-Kanten"
+    )
+
+
+_PHASE_DISPATCH: dict[int, Any] = {
+    1: _dispatch_phase_1,
+    2: _dispatch_phase_2,
+    3: _dispatch_phase_3,
+    4: _dispatch_phase_4,
+    5: _dispatch_phase_5,
+}
 
 
 @click.group()
@@ -65,79 +162,15 @@ def run(
             console.print(f"[cyan]--dry-run:[/cyan] würde Phase {p} ausführen")
             continue
 
-        if p == 1:
-            effective_sample = (
-                sample if sample is not None else (cfg.sample.count if cfg.sample.enabled else None)
-            )
-            output_path = cfg.paths.pipeline_output / "files_manifest.jsonl"
-            try:
-                records = run_phase_1(
-                    corpus_input=cfg.paths.corpus_input,
-                    output_path=output_path,
-                    force=force,
-                    sample=effective_sample,
-                    recursive=cfg.inventory.recursive,
-                    exclude_patterns=cfg.inventory.exclude_patterns,
-                    include_extensions=cfg.inventory.include_extensions,
-                    pipeline_version=cfg.pipeline.version,
-                )
-                console.print(f"[green]✓ Phase 1:[/green] {len(records)} Dokumente → {output_path}")
-            except FileNotFoundError as exc:
-                console.print(f"[red]Fehler Phase 1:[/red] {exc}")
-                raise SystemExit(1) from exc
-
-        elif p == 2:
-            manifest_path = cfg.paths.pipeline_output / "files_manifest.jsonl"
-            output_path = cfg.paths.pipeline_output / "cleaned_documents.jsonl"
-            try:
-                records = run_phase_2(
-                    manifest_path=manifest_path,
-                    output_path=output_path,
-                    force=force,
-                    max_blank_lines=cfg.normalization.max_blank_lines,
-                    tab_replacement=cfg.normalization.tab_replacement,
-                    strip_trailing_whitespace=cfg.normalization.strip_trailing_whitespace,
-                    parse_frontmatter=cfg.normalization.parse_frontmatter,
-                    pipeline_version=cfg.pipeline.version,
-                )
-                console.print(f"[green]✓ Phase 2:[/green] {len(records)} Dokumente → {output_path}")
-            except FileNotFoundError as exc:
-                console.print(f"[red]Fehler Phase 2:[/red] {exc}")
-                raise SystemExit(1) from exc
-
-        elif p == 3:
-            cleaned_path = cfg.paths.pipeline_output / "cleaned_documents.jsonl"
-            output_path = cfg.paths.pipeline_output / "documents_structured.jsonl"
-            try:
-                records = run_phase_3(
-                    cleaned_path=cleaned_path,
-                    output_path=output_path,
-                    force=force,
-                    pipeline_version=cfg.pipeline.version,
-                )
-                console.print(f"[green]✓ Phase 3:[/green] {len(records)} Dokumente → {output_path}")
-            except FileNotFoundError as exc:
-                console.print(f"[red]Fehler Phase 3:[/red] {exc}")
-                raise SystemExit(1) from exc
-
-        elif p == 4:
-            cleaned_path = cfg.paths.pipeline_output / "cleaned_documents.jsonl"
-            manifest_path = cfg.paths.pipeline_output / "files_manifest.jsonl"
-            output_path = cfg.paths.pipeline_output / "segments.jsonl"
-            try:
-                records = run_phase_4(
-                    cleaned_path=cleaned_path,
-                    manifest_path=manifest_path,
-                    output_path=output_path,
-                    force=force,
-                    min_words=cfg.segmentation.min_words_per_segment,
-                    max_words=cfg.segmentation.max_words_per_segment,
-                    pipeline_version=cfg.pipeline.version,
-                )
-                console.print(f"[green]✓ Phase 4:[/green] {len(records)} Segmente → {output_path}")
-            except FileNotFoundError as exc:
-                console.print(f"[red]Fehler Phase 4:[/red] {exc}")
-                raise SystemExit(1) from exc
+        dispatch = _PHASE_DISPATCH[p]
+        try:
+            if p == 1:
+                dispatch(cfg, force, sample)
+            else:
+                dispatch(cfg, force)
+        except FileNotFoundError as exc:
+            console.print(f"[red]Fehler Phase {p}:[/red] {exc}")
+            raise SystemExit(1) from exc
 
 
 @cli.command()

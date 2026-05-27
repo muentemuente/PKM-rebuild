@@ -3,7 +3,7 @@ title: PKM-rebuild Pipeline-Spezifikation
 slug: 02-pipeline-spec
 status: stable
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-05-27
 ---
 
 # Pipeline-Spezifikation
@@ -142,14 +142,14 @@ clustering:
 # === Qwen ===
 qwen:
   endpoint: "http://localhost:1234/v1"   # LM Studio default
-  model: "qwen-3.6-27b"
-  context_window: 131072
+  model: "qwen/qwen3.6-27b"
+  context_window: 49152
   temperature_stage1: 0.3
   temperature_stage2: 0.2
   temperature_stage3: 0.4
   temperature_stage4: 0.1
   max_retries: 2
-  json_mode: true
+  json_mode: false
 
 # === Sample-Modus ===
 sample:
@@ -370,8 +370,8 @@ python -m pipeline reports
 **Logik:**
 - Pro Cluster ein Batch-File
 - Inhalt: Metadaten, enthaltene Dokumente, bekannte Ähnlichkeiten (TF-IDF + Embeddings), alle Segmente mit IDs + Heading-Pfaden
-- Token-Schätzung pro Batch (Ziel: < 100K Token Input, damit Output-Raum bleibt)
-- Batches > 100K werden in Sub-Batches geteilt
+- Token-Schätzung pro Batch (Ziel: < 35K Token Input, damit Reasoning-Raum für Qwen bleibt)
+- Batches > 35K werden in Sub-Batches geteilt
 
 **Akzeptanzkriterien:**
 - [ ] Jeder Batch ist ein valides Markdown
@@ -622,7 +622,7 @@ Review-UI: Markdown-Files in Zed öffnen + `git diff` für Vergleich.
 | Phase 1–4 | < 30 s gesamt |
 | Phase 5 (TF-IDF) | < 5 min |
 | Phase 6 (Embeddings) | 5–15 min (mpnet-base auf MPS) |
-| Phase 8 (Qwen pro Batch) | 5–30 min, abhängig von Batch-Größe und Stage |
+| Phase 8 (Qwen pro Batch) | 13–37 min pro Cluster (alle 4 Stages); ~4–12h gesamt bei ~20 Clustern (7.45 t/s gemessen, ~10× Reasoning-Overhead) |
 | Phase 9 | < 1 min |
 
 ---

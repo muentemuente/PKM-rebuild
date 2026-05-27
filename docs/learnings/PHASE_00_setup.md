@@ -5,8 +5,8 @@ status: living-document
 created: 2026-05-27
 updated: 2026-05-27
 phase: 0
-phase_status: in_progress
-last_block_completed: 0.D
+phase_status: done
+last_block_completed: 0.E
 ---
 
 # Phase 0 — Setup & Sicherung
@@ -23,7 +23,7 @@ Reflexion zur Setup-Phase. Wird inkrementell ergänzt: jetzt nach Block 0.C, fin
 | 0.B | GitHub: Repo public, LICENSE, Topics | ✅ abgeschlossen |
 | 0.C | Backup-Setup: snapshot.sh, restore.sh, Recovery-Drill | ✅ abgeschlossen (mit offenen DoD-Punkten) |
 | 0.D | LM Studio + Qwen Hardware-Test (Memory, Tokens/sek, Health-Check) | ✅ abgeschlossen (mit Pipeline-Spec-Korrekturbedarf) |
-| 0.E | Phase-Skeleton (`pipeline/phase_1_inventory.py` Stub) + Reflexion finalisieren | 🔜 anstehend |
+| 0.E | Phase-Skeleton (`pipeline/phase_1_inventory.py` Stub) + Reflexion finalisieren | ✅ abgeschlossen |
 
 ---
 
@@ -184,20 +184,42 @@ Folgende Stellen müssen vor Phase 8 angepasst werden:
 
 ## 7. Reflexion — Arbeitsweise
 
-Wird nach Block 0.E final gefüllt. Stichworte für Erinnerung:
+### 7.1 Was funktioniert hat
 
-- ADHS-Schutz funktioniert: kleinteilige Schritte (5.1 → 5.6) verhindern Drift
-- Output-Vergleich gegen Erwartung war goldwert (Script-Versions-Falle erkannt)
-- `present_files`-Workflow ist aktuell fragil — macOS-Security + Browser-Cache + alte Versionen in Downloads sind zusammen ein Stolperdraht
-- Token-Verbrauch in dieser Session: nicht gemessen, gefühlt moderat (kein File-Upload-Massendump)
+**Kleinteilige Blöcke verhindern ADHS-Drift.** Die Aufteilung in 0.A → 0.B → 0.C → 0.D → 0.E mit je klarem Output hat dafür gesorgt, dass jeder Schritt abgeschlossen wirkte — kein diffuses „noch nicht fertig"-Gefühl. Blocks mit konkretem Akzeptanzkriterium (Recovery-Drill läuft durch) sind besser als Blocks mit vagem Ziel.
+
+**Output-Vergleich gegen Erwartung ist Pflicht.** Die Script-Versions-Falle (Lesson 4.1) wäre ohne Vergleich des tatsächlichen Outputs mit dem erwarteten Verhalten unbemerkt geblieben. Regel für künftige Sessions: Jedes neu importierte oder generierte File einmal `head -10` zeigen lassen.
+
+**Hardware-Test vor Pipeline-Code war die richtige Entscheidung.** Die Qwen-Befunde (50K-Kontext, json_mode-Problem, Reasoning-Overhead) hätten Phase-8-Code fundamental invalidiert, wenn sie erst in Phase 8 aufgefallen wären. Block 0.D als eigenständiger Block hat sich gelohnt.
+
+### 7.2 Was holprig war
+
+**`present_files`-Workflow ist fragil.** macOS-Quarantäne + Browser-Cache + keine intrinsischen Dateidaten in `present_files`-Dateinamen ergeben zusammen einen Stolperdraht. Finder-Drag-and-Drop als Workaround funktioniert, ist aber kein sauberer Workflow. Sollte vor Phase 1 mit `pkm-import`-Helper-Funktion gelöst werden (Sektion 6).
+
+**Ghostty-Festplattenvollzugriff nicht sauber.** Problem ist reproduzierbar, Ursache unklar (mehrere Ghostty-Instanzen oder TCC-Cache). Offener Punkt, bis Phase 1 lösen.
+
+### 7.3 Token-Management
+
+Kein bewusstes Limit-Management nötig in Phase 0 — Sessions waren kurz, kein Multi-File-Dump. Phase 8 wird anders: dann sind Snapshot-Pattern und Memory-Workflow entscheidend.
+
+### 7.4 Lernziel-Fortschritt (Phase 0)
+
+| Lernziel | Stand |
+|---|---|
+| Software-Projektaufbau, Repo-Struktur | gut — Drei-Ebenen-CLAUDE.md, Sub-CLAUDE.md verstanden |
+| GitHub-Workflow | Basis gesetzt, PR-Hygiene noch nicht geübt |
+| Claude Code im Editor produktiv | erste Sessions mit Zed-ACP — funktioniert |
+| CLAUDE.md-Patterns | verstanden, inkl. Anti-Pattern (imperative Formulierungen) |
 
 ---
 
 ## 8. Nächste Aktionen
 
-1. Block 0.E starten: Doku-Korrekturen aus Sektion 4.5 umsetzen (Persona + Pipeline-Spec + Qwen-Prompts)
-2. Erstes Phase-Skeleton (`pipeline/phase_1_inventory.py` Stub mit Pydantic-Schema)
-3. `PHASE_00_setup.md` finalisieren: `phase_status: done`, Reflexion in Sektion 7 ausfüllen
+Phase 0 abgeschlossen. Nächste Session: **Phase 1 — Inventar**.
+
+Offene Pre-Phase-1-TODOs (kein Blocker, aber erledigen):
+- [ ] Ghostty Festplattenvollzugriff sauber lösen (Sektion 5, Lesson 4.2)
+- [ ] `pkm-import` Helper in `~/.zshrc.local` anlegen
 
 ---
 
@@ -205,3 +227,4 @@ Wird nach Block 0.E final gefüllt. Stichworte für Erinnerung:
 
 - 2026-05-27 — Initial-Version, Status nach Abschluss Block 0.C
 - 2026-05-27 — Block 0.D ergänzt: Hardware-Test, Reasoning-Modell-Charakteristik, Korrekturbedarf in Pipeline-Doku
+- 2026-05-27 — Block 0.E abgeschlossen: Doku-Korrekturen (7 Stellen in 3 Docs + config.yaml), schemas.py + phase_1_inventory.py Stub, Reflexion finalisiert

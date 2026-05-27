@@ -124,18 +124,18 @@ clustering:
 
 # === LLM-Batch-Bildung (Phase 7) ==============================================
 batching:
-  max_input_tokens: 100000      # Reserve für Output ~30K bei 128K-Context
-  token_estimation_model: "qwen-3.6-27b"
+  max_input_tokens: 35000       # 50K-Kontext − Reasoning-Output-Raum (gemessen Block 0.D)
+  token_estimation_model: "qwen/qwen3.6-27b"
   split_oversized_clusters: true
 
 
 # === Qwen (Phase 8) ===========================================================
 qwen:
   endpoint: "http://localhost:1234/v1"   # LM Studio default
-  model: "qwen-3.6-27b"
-  context_window: 131072        # 128K — Pflicht-Minimum (sonst Gibberish)
+  model: "qwen/qwen3.6-27b"
+  context_window: 49152         # ~50K — Hard Limit auf 32 GB RAM (gemessen Block 0.D)
   prompt_version: "v1"          # aktive Version, korrespondiert mit prompts/v1/
-  json_mode: true
+  json_mode: false               # inkompatibel mit LM Studio + Reasoning-Modell (Block 0.D)
   max_retries: 2
   retry_backoff_seconds: 5
   timeout_seconds: 600

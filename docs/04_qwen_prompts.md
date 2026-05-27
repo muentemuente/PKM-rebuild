@@ -3,7 +3,7 @@ title: PKM-rebuild Qwen-Prompt-Spezifikation
 slug: 04-qwen-prompts
 status: stable
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-05-27
 ---
 
 # Qwen-Prompt-Spezifikation
@@ -27,10 +27,12 @@ Gilt für alle Prompts in `prompts/v1/` und nachfolgende Versionen (`v2/`, `v3/`
 | Modell | Qwen 3.6 27B (4-bit) |
 | Runner | LM Studio (default) / Ollama (alternativ) |
 | Endpoint | `http://localhost:1234/v1` (OpenAI-kompatibel) |
-| Kontext-Window | **mindestens 128K** (sonst Gibberish) |
+| Kontext-Window | **~49152 (50K)** (Hard Limit auf 32 GB RAM) |
 | RAM-Footprint | ~26–28 GB inkl. KV-Cache |
 | Verbleibend macOS | ~4 GB |
-| JSON-Mode | aktiviert, wo verfügbar |
+| JSON-Mode | **deaktiviert** (LM Studio inkompatibel mit Reasoning-Modell; JSON im Prompt erzwingen + Python parsen) |
+
+**Reasoning-Charakter:** Qwen 3.6 27B denkt vor jeder Antwort (ähnlich o1). Gemessener Overhead: ~91–93 % der generierten Tokens sind Thinking-Tokens, nicht Content. `max_tokens` muss **10× die geplante Content-Größe** betragen, sonst wird die Antwort abgeschnitten (`finish_reason: length`).
 
 **Memory-Workflow während Qwen-Läufen:** nur Zed + Ghostty + LM Studio offen. Browser/Mail/Slack zu. Memory-Pressure in Aktivitätsanzeige im Blick behalten.
 
@@ -352,12 +354,12 @@ Pipeline (Phase 8) validiert jeden Qwen-Output:
 
 | Stage | Input-Tokens (Range) | Output-Tokens | Kommentar |
 |---|---|---|---|
-| 1 | 10K–80K | 2K–8K | abhängig von Cluster-Größe |
+| 1 | 10K–35K | 2K–8K | abhängig von Cluster-Größe; 35K wegen 50K-Kontext + Reasoning-Output-Raum |
 | 2 | 5K–15K | 1K–4K | kompakter, da nur Strukturentscheidung |
 | 3 | 15K–60K | 3K–10K | Synthese kostet Output-Tokens |
 | 4 | 5K–15K | 1K–3K | strukturiertes JSON |
 
-**Bei Überschreitung 100K Input:** Cluster splitten, in Phase 7 (Batch-Bildung) nachjustieren.
+**Bei Überschreitung 35K Input (Stage 1):** Cluster splitten, in Phase 7 (Batch-Bildung) nachjustieren. Stages 2–4 haben kleinere Inputs und bleiben im 50K-Limit.
 
 ---
 

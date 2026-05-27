@@ -45,6 +45,15 @@ class IdempotencyConfig(BaseModel):
     meta_file_suffix: str
 
 
+class StructureConfig(BaseModel):
+    extract_headings: bool
+    extract_code_blocks: bool
+    extract_tables: bool
+    extract_links: bool
+    extract_images: bool
+    guess_doc_type: bool
+
+
 class NormalizationConfig(BaseModel):
     target_encoding: str
     line_endings: str
@@ -63,6 +72,7 @@ class PipelineConfig(BaseModel):
     inventory: InventoryConfig
     idempotency: IdempotencyConfig
     normalization: NormalizationConfig
+    structure: StructureConfig
 
 
 def _substitute_vars(text: str, context: dict[str, str]) -> str:

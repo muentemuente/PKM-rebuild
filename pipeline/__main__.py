@@ -8,11 +8,12 @@ from rich.console import Console
 from pipeline.config import load_config
 from pipeline.phase_1_inventory import run_phase_1
 from pipeline.phase_2_normalize import run_phase_2
+from pipeline.phase_3_structure import run_phase_3
 
 console = Console()
 
 _ALL_PHASES = list(range(1, 11))
-_IMPLEMENTED_PHASES = {1, 2}
+_IMPLEMENTED_PHASES = {1, 2, 3}
 _DEFAULT_CONFIG = "pipeline/pipeline.config.yaml"
 
 
@@ -101,6 +102,21 @@ def run(
                 console.print(f"[green]✓ Phase 2:[/green] {len(records)} Dokumente → {output_path}")
             except FileNotFoundError as exc:
                 console.print(f"[red]Fehler Phase 2:[/red] {exc}")
+                raise SystemExit(1) from exc
+
+        elif p == 3:
+            cleaned_path = cfg.paths.pipeline_output / "cleaned_documents.jsonl"
+            output_path = cfg.paths.pipeline_output / "documents_structured.jsonl"
+            try:
+                records = run_phase_3(
+                    cleaned_path=cleaned_path,
+                    output_path=output_path,
+                    force=force,
+                    pipeline_version=cfg.pipeline.version,
+                )
+                console.print(f"[green]✓ Phase 3:[/green] {len(records)} Dokumente → {output_path}")
+            except FileNotFoundError as exc:
+                console.print(f"[red]Fehler Phase 3:[/red] {exc}")
                 raise SystemExit(1) from exc
 
 

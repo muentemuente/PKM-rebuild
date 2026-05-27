@@ -1,75 +1,99 @@
 #!/usr/bin/env bash
-# =============================================================================
-# PKM-rebuild Snapshot-Script
-# =============================================================================
-# Erstellt einen Zeitstempel-Snapshot von Korpus + Vault.
-# Aufruf: bash scripts/snapshot.sh
+# ============================================================================
+# snapshot.sh — Backup-Snapshot für PKM-rebuild
+# ----------------------------------------------------------------------------
+# Erstellt einen Snapshot von 01_corpus_input/ und (falls vorhanden) 04_vault/
+# als .tar.gz, plus SHA-256-Manifest für Integritäts-Check beim Restore.
 #
-# Siehe docs/07_backup_strategy.md Sektion 3 fuer die Strategie.
-# =============================================================================
+# Aufruf:   bash scripts/snapshot.sh
+# Output:   ~/projects/aktiv/PKM_rebuild/backups/snapshot_YYYY-MM-DD_HHMM/
+# ============================================================================
 
 set -euo pipefail
 
-# === Pfade ===================================================================
-DATA_ROOT="${HOME}/projects/aktiv/PKM_rebuild"
-TIMESTAMP=$(date +%Y-%m-%d_%H%M)
-SNAPSHOT_DIR="${DATA_ROOT}/backups/snapshot_${TIMESTAMP}"
+# --- Konfiguration ---
+readonly DATA_ROOT="${HOME}/projects/aktiv/PKM_rebuild"
+readonly DATA_DIR="${DATA_ROOT}/data"
+readonly BACKUPS_DIR="${DATA_ROOT}/backups"
+readonly TIMESTAMP=$(date +%Y-%m-%d_%H%M)
+readonly SNAPSHOT_DIR="${BACKUPS_DIR}/snapshot_${TIMESTAMP}"
 
-# === Vorbedingungen ==========================================================
-if [[ ! -d "${DATA_ROOT}/data" ]]; then
-    echo "FEHLER: Daten-Verzeichnis ${DATA_ROOT}/data nicht gefunden." >&2
-    echo "Erst Daten-Struktur anlegen (Block 0.C Schritt 1)." >&2
-    exit 1
+# --- Vorbedingungen prüfen ---
+if [[ ! -d "${DATA_DIR}" ]]; then
+  echo "✗ Fehler: ${DATA_DIR} existiert nicht" >&2
+  exit 1
 fi
 
+if [[ ! -d "${DATA_DIR}/01_corpus_input" ]]; then
+  echo "✗ Fehler: ${DATA_DIR}/01_corpus_input fehlt" >&2
+  exit 1
+fi
+
+# --- Snapshot-Verzeichnis anlegen ---
 mkdir -p "${SNAPSHOT_DIR}"
+echo "→ Snapshot-Ziel: ${SNAPSHOT_DIR}"
 
-# === Korpus snapshotten ======================================================
-if [[ -d "${DATA_ROOT}/data/01_corpus_input" ]] && \
-   [[ -n "$(ls -A "${DATA_ROOT}/data/01_corpus_input" 2>/dev/null)" ]]; then
-    echo "→ Snapshotting Korpus-Input..."
-    tar -czf "${SNAPSHOT_DIR}/corpus_input.tar.gz" \
-        -C "${DATA_ROOT}/data" "01_corpus_input"
+# --- Funktion: Archiv + SHA-256 erstellen ---
+make_archive() {
+  local label="$1"      # z.B. "corpus_input"
+  local source_subdir="$2"  # z.B. "01_corpus_input"
+  local archive="${SNAPSHOT_DIR}/${label}.tar.gz"
 
-    # SHA-256 fuer spaetere Integritaets-Checks
-    (cd "${DATA_ROOT}/data" && \
-     find "01_corpus_input" -type f -name "*.md" -exec sha256sum {} \; | \
-     sort > "${SNAPSHOT_DIR}/corpus_input.sha256")
+  if [[ ! -d "${DATA_DIR}/${source_subdir}" ]]; then
+    echo "⊘ Übersprungen (nicht vorhanden): ${source_subdir}"
+    return 0
+  fi
 
-    echo "  ✓ corpus_input.tar.gz + corpus_input.sha256"
-else
-    echo "→ Korpus leer/fehlt, ueberspringe."
+  echo "→ Archiviere: ${source_subdir} → ${label}.tar.gz"
+  tar -czf "${archive}" -C "${DATA_DIR}" "${source_subdir}"
+
+  # SHA-256 des Archivs
+  shasum -a 256 "${archive}" | awk '{print $1}' > "${archive}.sha256"
+
+  # SHA-256-Manifest aller Inhalte (für Restore-Verifikation)
+  (
+    cd "${DATA_DIR}/${source_subdir}"
+    find . -type f -print0 \
+      | sort -z \
+      | xargs -0 shasum -a 256 \
+      > "${SNAPSHOT_DIR}/${label}.manifest.sha256"
+  )
+
+  local size
+  size=$(du -h "${archive}" | awk '{print $1}')
+  echo "  ✓ ${label}.tar.gz (${size})"
+}
+
+# --- Korpus immer mitnehmen (read-only, sollte sich nie ändern) ---
+make_archive "corpus_input" "01_corpus_input"
+
+# --- Vault optional (existiert nur ab Phase 9) ---
+make_archive "vault" "04_vault"
+
+# --- Drafts optional ---
+make_archive "drafts" "03_drafts"
+
+# --- Pipeline-State falls vorhanden ---
+readonly PIPELINE_STATE="${DATA_DIR}/02_pipeline_output/pipeline_state.json"
+if [[ -f "${PIPELINE_STATE}" ]]; then
+  cp "${PIPELINE_STATE}" "${SNAPSHOT_DIR}/"
+  echo "  ✓ pipeline_state.json kopiert"
 fi
 
-# === Vault snapshotten =======================================================
-if [[ -d "${DATA_ROOT}/data/04_vault" ]] && \
-   [[ -n "$(ls -A "${DATA_ROOT}/data/04_vault" 2>/dev/null)" ]]; then
-    echo "→ Snapshotting Vault..."
-    tar -czf "${SNAPSHOT_DIR}/vault.tar.gz" \
-        -C "${DATA_ROOT}/data" "04_vault"
-    echo "  ✓ vault.tar.gz"
-else
-    echo "→ Vault leer/fehlt, ueberspringe."
-fi
-
-# === Pipeline-State snapshotten ==============================================
-STATE_FILE="${DATA_ROOT}/data/02_pipeline_output/pipeline_state.json"
-if [[ -f "${STATE_FILE}" ]]; then
-    cp "${STATE_FILE}" "${SNAPSHOT_DIR}/"
-    echo "  ✓ pipeline_state.json"
-fi
-
-# === Metadaten ===============================================================
-cat > "${SNAPSHOT_DIR}/SNAPSHOT_INFO.txt" << EOF
-PKM-rebuild Snapshot
-Timestamp:  ${TIMESTAMP}
-Created:    $(date)
-Hostname:   $(hostname)
-DataRoot:   ${DATA_ROOT}
+# --- Metadaten-File ---
+cat > "${SNAPSHOT_DIR}/snapshot.meta.json" <<EOF
+{
+  "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "hostname": "$(hostname -s)",
+  "user": "${USER}",
+  "data_root": "${DATA_ROOT}",
+  "script_version": "0.1.0"
+}
 EOF
 
-# === Zusammenfassung =========================================================
-echo
-echo "✓ Snapshot abgeschlossen: ${SNAPSHOT_DIR}"
-echo
+# --- Abschlussbericht ---
+echo ""
+echo "─────────────────────────────────────────"
+echo "✓ Snapshot fertig: ${SNAPSHOT_DIR}"
+echo "─────────────────────────────────────────"
 ls -lah "${SNAPSHOT_DIR}"

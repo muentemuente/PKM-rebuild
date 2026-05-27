@@ -1,82 +1,127 @@
 #!/usr/bin/env bash
-# =============================================================================
-# PKM-rebuild Restore-Script
-# =============================================================================
-# Stellt Korpus + Vault aus einem Snapshot wieder her.
+# ============================================================================
+# restore.sh — Recovery-Drill für PKM-rebuild Snapshots
+# ----------------------------------------------------------------------------
+# Stellt einen Snapshot in ein temporäres Verzeichnis wieder her UND
+# verifiziert die Integrität gegen das SHA-256-Manifest aus snapshot.sh.
 #
-# Aufruf:
-#   bash scripts/restore.sh <snapshot-name>
-#   bash scripts/restore.sh snapshot_2026-05-26_2200
-#
-# Wenn kein Snapshot-Name uebergeben wird, listet das Script verfuegbare auf.
-# =============================================================================
+# Aufruf:   bash scripts/restore.sh snapshot_YYYY-MM-DD_HHMM
+# Output:   ~/tmp/pkm-restore-test_HHMMSS/
+# ============================================================================
 
 set -euo pipefail
 
-DATA_ROOT="${HOME}/projects/aktiv/PKM_rebuild"
-BACKUPS_DIR="${DATA_ROOT}/backups"
-
-# === Snapshot-Name pruefen ===================================================
+# --- Argument prüfen ---
 if [[ $# -lt 1 ]]; then
-    echo "Usage: bash scripts/restore.sh <snapshot-name>"
-    echo
-    echo "Verfuegbare Snapshots:"
-    ls -1 "${BACKUPS_DIR}" 2>/dev/null | grep "^snapshot_" || echo "  (keine gefunden)"
-    exit 1
+  echo "Usage: $0 <snapshot_name>" >&2
+  echo "Verfügbare Snapshots:" >&2
+  ls -1 "${HOME}/projects/aktiv/PKM_rebuild/backups/" 2>/dev/null | grep -E '^snapshot_' >&2 || echo "  (keine vorhanden)" >&2
+  exit 1
 fi
 
-SNAPSHOT_NAME="$1"
-SNAPSHOT_DIR="${BACKUPS_DIR}/${SNAPSHOT_NAME}"
+readonly SNAPSHOT_NAME="$1"
+readonly DATA_ROOT="${HOME}/projects/aktiv/PKM_rebuild"
+readonly SNAPSHOT_DIR="${DATA_ROOT}/backups/${SNAPSHOT_NAME}"
+readonly RESTORE_TIMESTAMP=$(date +%H%M%S)
+readonly RESTORE_DIR="${HOME}/tmp/pkm-restore-test_${RESTORE_TIMESTAMP}"
 
+# --- Vorbedingungen ---
 if [[ ! -d "${SNAPSHOT_DIR}" ]]; then
-    echo "FEHLER: Snapshot ${SNAPSHOT_DIR} nicht gefunden." >&2
-    exit 1
+  echo "✗ Fehler: Snapshot nicht gefunden: ${SNAPSHOT_DIR}" >&2
+  exit 1
 fi
 
-# === Restore-Ziel: TEMPORAERES Verzeichnis (nie direkt ins echte Data!) =====
-RESTORE_DIR="${HOME}/tmp/pkm-restore-test_$(date +%H%M%S)"
 mkdir -p "${RESTORE_DIR}"
-
 echo "→ Restore-Ziel: ${RESTORE_DIR}"
-echo
+echo "→ Quelle:       ${SNAPSHOT_DIR}"
+echo ""
 
-# === Korpus wiederherstellen ================================================
-if [[ -f "${SNAPSHOT_DIR}/corpus_input.tar.gz" ]]; then
-    echo "→ Stelle Korpus wieder her..."
-    tar -xzf "${SNAPSHOT_DIR}/corpus_input.tar.gz" -C "${RESTORE_DIR}"
-    echo "  ✓ Korpus entpackt"
-fi
+# --- Funktion: Archiv entpacken + verifizieren ---
+restore_archive() {
+  local label="$1"
+  local archive="${SNAPSHOT_DIR}/${label}.tar.gz"
+  local manifest="${SNAPSHOT_DIR}/${label}.manifest.sha256"
+  local archive_hash="${SNAPSHOT_DIR}/${label}.tar.gz.sha256"
 
-# === Vault wiederherstellen =================================================
-if [[ -f "${SNAPSHOT_DIR}/vault.tar.gz" ]]; then
-    echo "→ Stelle Vault wieder her..."
-    tar -xzf "${SNAPSHOT_DIR}/vault.tar.gz" -C "${RESTORE_DIR}"
-    echo "  ✓ Vault entpackt"
-fi
+  if [[ ! -f "${archive}" ]]; then
+    echo "⊘ Übersprungen (nicht im Snapshot): ${label}.tar.gz"
+    return 0
+  fi
 
-# === Integritaets-Check (Hash-Vergleich) ====================================
-if [[ -f "${SNAPSHOT_DIR}/corpus_input.sha256" ]]; then
-    echo
-    echo "→ Pruefe Hash-Integritaet..."
-    (cd "${RESTORE_DIR}" && \
-     find "01_corpus_input" -type f -name "*.md" -exec sha256sum {} \; | \
-     sort > "/tmp/pkm-restore-actual.sha256")
+  # 1. Hash des Archivs prüfen
+  echo "→ Verifiziere Archiv-Hash: ${label}.tar.gz"
+  local expected actual
+  expected=$(cat "${archive_hash}")
+  actual=$(shasum -a 256 "${archive}" | awk '{print $1}')
+  if [[ "${expected}" != "${actual}" ]]; then
+    echo "  ✗ Archiv-Hash mismatch!" >&2
+    echo "    Expected: ${expected}" >&2
+    echo "    Actual:   ${actual}" >&2
+    return 1
+  fi
+  echo "  ✓ Archiv-Hash ok"
 
-    if diff -q "${SNAPSHOT_DIR}/corpus_input.sha256" "/tmp/pkm-restore-actual.sha256" > /dev/null; then
-        echo "  ✓ Hash-Verifikation erfolgreich"
-    else
-        echo "  ✗ HASH-MISMATCH!" >&2
-        diff "${SNAPSHOT_DIR}/corpus_input.sha256" "/tmp/pkm-restore-actual.sha256" >&2
-        exit 2
+  # 2. Entpacken
+  echo "→ Entpacke: ${label}.tar.gz"
+  tar -xzf "${archive}" -C "${RESTORE_DIR}"
+
+  # 3. Datei-Hashes gegen Manifest prüfen
+  if [[ -f "${manifest}" ]]; then
+    # Subdir-Name aus Manifest-Pfaden ableiten (z.B. "01_corpus_input")
+    local subdir
+    subdir=$(tar -tzf "${archive}" | head -1 | cut -d/ -f1)
+
+    echo "→ Verifiziere Datei-Hashes: ${label}"
+    local failed=0
+    while IFS= read -r line; do
+      local hash file
+      hash=$(echo "${line}" | awk '{print $1}')
+      file=$(echo "${line}" | sed 's/^[a-f0-9]*  //')
+
+      local restored_file="${RESTORE_DIR}/${subdir}/${file#./}"
+      if [[ ! -f "${restored_file}" ]]; then
+        echo "  ✗ Fehlt: ${file}" >&2
+        failed=$((failed + 1))
+        continue
+      fi
+
+      local restored_hash
+      restored_hash=$(shasum -a 256 "${restored_file}" | awk '{print $1}')
+      if [[ "${hash}" != "${restored_hash}" ]]; then
+        echo "  ✗ Hash mismatch: ${file}" >&2
+        failed=$((failed + 1))
+      fi
+    done < "${manifest}"
+
+    if [[ ${failed} -gt 0 ]]; then
+      echo "  ✗ ${failed} Datei(en) korrupt oder fehlend" >&2
+      return 1
     fi
-    rm -f /tmp/pkm-restore-actual.sha256
-fi
 
-# === Zusammenfassung ========================================================
-echo
-echo "✓ Restore abgeschlossen in: ${RESTORE_DIR}"
-echo
-echo "Naechste Schritte:"
-echo "  1. Manuelle Stichprobe: ls ${RESTORE_DIR}/"
-echo "  2. Mit Original vergleichen: diff -r ${DATA_ROOT}/data/01_corpus_input ${RESTORE_DIR}/01_corpus_input"
-echo "  3. Wenn OK: rm -rf ${RESTORE_DIR}"
+    local count
+    count=$(wc -l < "${manifest}" | tr -d ' ')
+    echo "  ✓ ${count} Dateien verifiziert"
+  else
+    echo "  ⚠ Kein Manifest vorhanden für ${label} — nur Archiv-Hash geprüft"
+  fi
+}
+
+# --- Alle Archive im Snapshot wiederherstellen ---
+for archive in "${SNAPSHOT_DIR}"/*.tar.gz; do
+  [[ -f "${archive}" ]] || continue
+  label=$(basename "${archive}" .tar.gz)
+  restore_archive "${label}"
+done
+
+# --- Abschlussbericht ---
+echo ""
+echo "─────────────────────────────────────────"
+echo "✓ Restore fertig: ${RESTORE_DIR}"
+echo "─────────────────────────────────────────"
+ls -la "${RESTORE_DIR}"
+echo ""
+echo "→ Vergleichs-Befehl:"
+echo "  diff -r ${DATA_ROOT}/data/01_corpus_input ${RESTORE_DIR}/01_corpus_input"
+echo ""
+echo "→ Aufräumen nach Drill:"
+echo "  rm -rf ${RESTORE_DIR}"

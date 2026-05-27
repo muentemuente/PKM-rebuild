@@ -45,6 +45,15 @@ class IdempotencyConfig(BaseModel):
     meta_file_suffix: str
 
 
+class NormalizationConfig(BaseModel):
+    target_encoding: str
+    line_endings: str
+    tab_replacement: str
+    max_blank_lines: int
+    strip_trailing_whitespace: bool
+    parse_frontmatter: bool
+
+
 class PipelineConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -53,6 +62,7 @@ class PipelineConfig(BaseModel):
     sample: SampleConfig
     inventory: InventoryConfig
     idempotency: IdempotencyConfig
+    normalization: NormalizationConfig
 
 
 def _substitute_vars(text: str, context: dict[str, str]) -> str:

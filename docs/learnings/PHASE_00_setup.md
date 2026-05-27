@@ -6,6 +6,7 @@ created: 2026-05-27
 updated: 2026-05-27
 phase: 0
 phase_status: in_progress
+last_block_completed: 0.D
 ---
 
 # Phase 0 — Setup & Sicherung
@@ -21,7 +22,7 @@ Reflexion zur Setup-Phase. Wird inkrementell ergänzt: jetzt nach Block 0.C, fin
 | 0.A | Foundation: Git, pyproject.toml, mise, pytest, ruff, mypy | ✅ abgeschlossen |
 | 0.B | GitHub: Repo public, LICENSE, Topics | ✅ abgeschlossen |
 | 0.C | Backup-Setup: snapshot.sh, restore.sh, Recovery-Drill | ✅ abgeschlossen (mit offenen DoD-Punkten) |
-| 0.D | LM Studio + Qwen Hardware-Test (Memory, Tokens/sek, Health-Check) | 🔜 anstehend |
+| 0.D | LM Studio + Qwen Hardware-Test (Memory, Tokens/sek, Health-Check) | ✅ abgeschlossen (mit Pipeline-Spec-Korrekturbedarf) |
 | 0.E | Phase-Skeleton (`pipeline/phase_1_inventory.py` Stub) + Reflexion finalisieren | 🔜 anstehend |
 
 ---
@@ -54,7 +55,77 @@ Bezug: `docs/01_strategy.md` Sektion 3, `docs/07_backup_strategy.md` Sektion 8.
 
 ---
 
-## 4. Lessons Learned
+## 4. Block 0.D — Hardware-Test Ergebnisse
+
+### 4.1 Setup-Realität
+
+| Aspekt | Annahme (Persona / Spec) | Realität |
+|---|---|---|
+| Modell | Qwen 3.6 27B 4-bit | ✅ läuft |
+| Modell-ID | `qwen-3.6-27b` | `qwen/qwen3.6-27b` (Präfix beachten) |
+| Kontext-Fenster | mind. 128K | **~50K** (Hard Limit auf 32 GB RAM) |
+| RAM-Verbrauch | 26–28 GB | 28 GB belegt, 0.08 GB Free, kein Swap |
+| Memory-Pressure | grün/gelb erwartet | **grün** stabil |
+| Inference-Speed | nicht spezifiziert | **7.45 t/s** stabil über Test-Lauf |
+| Embedding-Modell | `paraphrase-multilingual-mpnet-base-v2` | aktuell `nomic-embed-text-v1.5` geladen — falsches Modell für DE |
+
+### 4.2 Reasoning-Modell-Charakteristik (kritisch)
+
+Qwen 3.6 27B ist ein **Reasoning-Modell** (denkt vor Antwort, ähnlich o1).
+
+**Beobachtete Ratios:**
+- Test 1 (kurze Tech-Frage): 948 Reasoning / 90 Content = **91 % Reasoning-Overhead**
+- Test 3 (kurzer JSON): 311 Reasoning / 23 Content = **93 % Reasoning-Overhead**
+
+**Konsequenz:** `max_tokens` muss in der Pipeline-Config mindestens **10× die geplante Content-Größe** sein. Bei `max_tokens: 300` (initialer Test) wurde die Antwort vor dem eigentlichen Content abgeschnitten (`finish_reason: "length"`).
+
+### 4.3 Token-Budget-Hochrechnung (Phase 8 realistisch)
+
+Mit 7.45 t/s und 10× Reasoning-Overhead:
+
+| Stage | Content-Output (Spec) | + Reasoning | Zeit pro Cluster |
+|---|---|---|---|
+| 1 (Cluster-Analyse) | 2K–8K | 20K–80K | 3–12 min |
+| 2 (Merge) | 1K–4K | 10K–40K | 2–6 min |
+| 3 (Synthese) | 3K–10K | 30K–100K | 6–15 min |
+| 4 (Frontmatter) | 1K–3K | 10K–30K | 2–4 min |
+| **Pro Cluster (4 Stages)** | | | **13–37 min** |
+
+Bei ~20 erwarteten Clustern: Phase 8 = **4–12 Stunden** Inferenz. Deckt sich grob mit Strategy-Schätzung (8–30h+), nur jetzt mit echten Daten.
+
+### 4.4 Test-Auffälligkeit: `response_format: json_object`
+
+Bei Test 2 (`response_format: {"type": "json_object"}` in der API-Payload) blieb der Request hängen ohne Antwort. Beim Wiederholen ohne dieses Feld lief der gleiche Inhalts-Test durch. **Ursache unklar.** Mögliche Hypothesen:
+- LM-Studio-Bug mit `response_format` und Reasoning-Modell
+- Schema-Validierung internal blockiert Reasoning-Stream
+- Mein Prompt war zu komplex für 50K-Kontext + Reasoning-Tokens
+
+**Konsequenz:** Pipeline darf nicht auf `response_format` setzen. Stattdessen JSON-Output im Prompt erzwingen + Python-seitig parsen + Retry-Loop (siehe Spec Sektion 9 „Failure-Handling").
+
+### 4.5 Korrekturbedarf in Projekt-Doku
+
+Folgende Stellen müssen vor Phase 8 angepasst werden:
+
+| Datei | Stelle | Was ändern |
+|---|---|---|
+| `00_persona_muente.md` | Sektion 6 (Kontext-Setting) | „mind. 128K" → „~49152 (50K) auf dieser Hardware" |
+| `02_pipeline_spec.md` | Sektion 3 (Config) | `context_window: 131072` → `49152`, `model: "qwen-3.6-27b"` → `"qwen/qwen3.6-27b"`, `json_mode: true` → `false` |
+| `02_pipeline_spec.md` | Sektion 9 (Token-Budget) | Reasoning-Overhead 10× hinzufügen |
+| `02_pipeline_spec.md` | Sektion 12 (Performance) | Stage-Zeiten aktualisieren auf 7.5 t/s + Reasoning |
+| `04_qwen_prompts.md` | Sektion 9 (Token-Budget) | Output-Tokens × 10 für Reasoning |
+| `04_qwen_prompts.md` | Sektion 7 Stage 1 (Constraints) | „100K Input" → „35K Input" (Output-Raum für Reasoning) |
+| `04_qwen_prompts.md` | Generell | Hinweis auf Reasoning-Charakter ergänzen |
+
+**Diese Korrekturen sind Block 0.E Pflichtaufgabe, vor Phase 1-Start.**
+
+### 4.6 Strategisch nicht jetzt entschieden
+
+- Embedding-Modell-Wechsel auf `paraphrase-multilingual-mpnet-base-v2` — geschieht in Pipeline Phase 6, nicht in LM Studio
+- Kleineres Reasoning-freies Modell als Alternative (z.B. Llama-3.1-70B Nicht-Reasoning) — wird erst evaluiert, wenn Qwen Quality in Phase 8 nicht genügt
+
+---
+
+## 5. Lessons Learned
 
 ### 4.1 Script-Versionierungs-Falle
 
@@ -94,8 +165,9 @@ Bezug: `docs/01_strategy.md` Sektion 3, `docs/07_backup_strategy.md` Sektion 8.
 
 ---
 
-## 5. Offene Punkte (nicht für Phase 0, aber zu erledigen)
+## 6. Offene Punkte (nicht für Phase 0, aber zu erledigen)
 
+**Backup / Sicherheit (aus Block 0.C):**
 - [ ] Time Machine Backup-Volume wieder mounten, `tmutil latestbackup` erfolgreich
 - [ ] Externe SSD oder Cloud-Option für Ebene-3-Backup entscheiden + einrichten
 - [ ] `pkm-import` Helper in `~/.zshrc.local` anlegen (Handover Sektion 12.2)
@@ -103,9 +175,14 @@ Bezug: `docs/01_strategy.md` Sektion 3, `docs/07_backup_strategy.md` Sektion 8.
 - [ ] `snapshot.sh` um Skip-Logik für leere Verzeichnisse erweitern (kosmetisch)
 - [ ] `preflight.sh` dokumentieren oder entfernen (steht im Repo, Zweck aus Handover nicht ersichtlich)
 
+**Pipeline / Modell (aus Block 0.D):**
+- [ ] Embedding-Modell-Wechsel: `nomic-embed-text-v1.5` → `paraphrase-multilingual-mpnet-base-v2` (geschieht in Pipeline Phase 6)
+- [ ] `response_format: json_object`-Issue weiter untersuchen oder dauerhaft umgehen (siehe Sektion 4.4)
+- [ ] Alternativ-Modell-Liste pflegen falls Qwen-Quality in Phase 8 enttäuscht (z.B. Llama-3.1-70B non-reasoning)
+
 ---
 
-## 6. Reflexion — Arbeitsweise
+## 7. Reflexion — Arbeitsweise
 
 Wird nach Block 0.E final gefüllt. Stichworte für Erinnerung:
 
@@ -116,14 +193,15 @@ Wird nach Block 0.E final gefüllt. Stichworte für Erinnerung:
 
 ---
 
-## 7. Nächste Aktionen
+## 8. Nächste Aktionen
 
-1. Block 0.D starten: LM Studio öffnen, Qwen 3.6 27B 4-bit laden, 128K-Kontext setzen, Memory-Pressure beobachten, Health-Check via `curl http://localhost:1234/v1/models`
-2. Erkenntnisse Block 0.D in Sektion 4 ergänzen
-3. Block 0.E: erstes Phase-Skeleton (`pipeline/phase_1_inventory.py` Stub), `PHASE_00` finalisieren
+1. Block 0.E starten: Doku-Korrekturen aus Sektion 4.5 umsetzen (Persona + Pipeline-Spec + Qwen-Prompts)
+2. Erstes Phase-Skeleton (`pipeline/phase_1_inventory.py` Stub mit Pydantic-Schema)
+3. `PHASE_00_setup.md` finalisieren: `phase_status: done`, Reflexion in Sektion 7 ausfüllen
 
 ---
 
 ## Änderungs-Log
 
 - 2026-05-27 — Initial-Version, Status nach Abschluss Block 0.C
+- 2026-05-27 — Block 0.D ergänzt: Hardware-Test, Reasoning-Modell-Charakteristik, Korrekturbedarf in Pipeline-Doku

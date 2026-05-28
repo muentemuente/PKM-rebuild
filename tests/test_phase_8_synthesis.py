@@ -13,13 +13,14 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from pipeline.config import load_config
 from pipeline.phase_8_synthesis import (
-    _QwenStageConfig,
     _build_stage3_user_message,
     _build_stage4_user_message,
     _extract_json,
     _extract_markdown_body,
     _is_cached,
+    _QwenStageConfig,
     _run_stage2,
     _sha256_str,
     _slugify_ck,
@@ -731,9 +732,7 @@ def test_merge_decisions_override_wins_over_cache(tmp_path: Path) -> None:
     input_hash = _sha256_str(json.dumps(stage1_data, ensure_ascii=False))
 
     cached_content = {"proposed_concepts": [{"ck_id": "CK_from-cache", "title": "From Cache"}]}
-    (output_dir / "stage2_merges.json").write_text(
-        json.dumps(cached_content), encoding="utf-8"
-    )
+    (output_dir / "stage2_merges.json").write_text(json.dumps(cached_content), encoding="utf-8")
     (output_dir / ".stage2.meta.json").write_text(
         json.dumps({"input_hash": input_hash}), encoding="utf-8"
     )
@@ -761,9 +760,23 @@ def test_merge_decisions_override_wins_over_cache(tmp_path: Path) -> None:
         temp_stage2=0.2,
         temp_stage3=0.4,
         temp_stage4=0.1,
+        max_tokens_stage1=20000,
+        max_tokens_stage2=14000,
+        max_tokens_stage3=24000,
+        max_tokens_stage4=10000,
     )
 
     result = _run_stage2(batch_path, stage1_data, output_dir, cfg)
 
     assert result is not None
     assert result["proposed_concepts"][0]["ck_id"] == "CK_from-decisions"
+
+
+def test_max_tokens_loaded_from_config() -> None:
+    """pipeline.config.yaml max_tokens-Sektion wird korrekt ins Pydantic-Modell geladen."""
+    repo_root = Path(__file__).parent.parent
+    cfg = load_config(repo_root / "pipeline" / "pipeline.config.yaml")
+    assert cfg.qwen.max_tokens.stage1 == 20000
+    assert cfg.qwen.max_tokens.stage2 == 14000
+    assert cfg.qwen.max_tokens.stage3 == 24000
+    assert cfg.qwen.max_tokens.stage4 == 10000

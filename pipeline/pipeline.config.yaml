@@ -147,6 +147,14 @@ qwen:
     stage3_synthesis: 0.4
     stage4_frontmatter: 0.1
 
+  # max_tokens pro Stage: Reasoning-Overhead ~93%, daher 10× erwarteter Content
+  # Context-Window 49152 — Stage 3 höchster Bedarf (Markdown-Body)
+  max_tokens:
+    stage1: 20000
+    stage2: 14000
+    stage3: 24000
+    stage4: 10000
+
 
 # === Vault-Aufbau (Phase 9) ===================================================
 vault:

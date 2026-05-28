@@ -41,14 +41,6 @@ from pipeline.schemas import FrontmatterDraft, SegmentRecord
 
 log = structlog.get_logger()
 
-# === Token-Budget pro Stage (max_tokens = Reasoning + Content) ==================
-# Basis: context_window 49152, Reasoning-Overhead ~93%, Content je Stage
-_MAX_TOKENS_STAGE1 = 24000   # JSON-Analyse, Content ~2K
-_MAX_TOKENS_STAGE2 = 16000   # JSON-Merges, Content ~2K
-_MAX_TOKENS_STAGE3 = 32000   # Markdown-Body, Content ~3K
-_MAX_TOKENS_STAGE4 = 12000   # JSON-Frontmatter, Content ~1K
-
-
 # === Dataclass fuer Stage-Konfiguration =========================================
 
 
@@ -72,6 +64,11 @@ class _QwenStageConfig:
     temp_stage2: float
     temp_stage3: float
     temp_stage4: float
+    # Token-Budgets (aus Config, Reasoning-Overhead ~93%)
+    max_tokens_stage1: int
+    max_tokens_stage2: int
+    max_tokens_stage3: int
+    max_tokens_stage4: int
     # Slug-Kollisionsschutz
     used_slugs: set[str] = field(default_factory=set)
 
@@ -349,7 +346,7 @@ def _run_stage1(
     try:
         data = _run_json_stage(
             cfg.client, cfg.model, messages, cfg.temp_stage1,
-            _MAX_TOKENS_STAGE1, cfg.max_retries, cfg.backoff_seconds,
+            cfg.max_tokens_stage1, cfg.max_retries, cfg.backoff_seconds,
         )
     except (ValueError, Exception) as exc:
         log.error("phase_8_stage1_error", batch=batch_path.stem, error=str(exc)[:200])
@@ -394,7 +391,7 @@ def _run_stage2(
     try:
         data = _run_json_stage(
             cfg.client, cfg.model, messages, cfg.temp_stage2,
-            _MAX_TOKENS_STAGE2, cfg.max_retries, cfg.backoff_seconds,
+            cfg.max_tokens_stage2, cfg.max_retries, cfg.backoff_seconds,
         )
     except (ValueError, Exception) as exc:
         log.error("phase_8_stage2_error", batch=batch_path.stem, error=str(exc)[:200])
@@ -469,7 +466,7 @@ def _run_stage3_concept(
 
     body = _run_text_stage(
         cfg.client, cfg.model, messages, cfg.temp_stage3,
-        _MAX_TOKENS_STAGE3, cfg.max_retries, cfg.backoff_seconds,
+        cfg.max_tokens_stage3, cfg.max_retries, cfg.backoff_seconds,
     )
 
     if not body:
@@ -537,7 +534,7 @@ def _run_stage4_concept(
     try:
         raw_fm = _run_json_stage(
             cfg.client, cfg.model, messages, cfg.temp_stage4,
-            _MAX_TOKENS_STAGE4, cfg.max_retries, cfg.backoff_seconds,
+            cfg.max_tokens_stage4, cfg.max_retries, cfg.backoff_seconds,
         )
     except (ValueError, Exception) as exc:
         log.error("phase_8_stage4_error", slug=slug, error=str(exc)[:200])
@@ -618,6 +615,10 @@ def run_phase_8(
     max_retries: int,
     retry_backoff_seconds: int,
     timeout_seconds: int,
+    max_tokens_stage1: int = 20000,
+    max_tokens_stage2: int = 14000,
+    max_tokens_stage3: int = 24000,
+    max_tokens_stage4: int = 10000,
     force: bool = False,
     pipeline_version: str = "0.1.0",
 ) -> dict[str, Any]:
@@ -684,6 +685,10 @@ def run_phase_8(
         temp_stage2=temperature_stage2,
         temp_stage3=temperature_stage3,
         temp_stage4=temperature_stage4,
+        max_tokens_stage1=max_tokens_stage1,
+        max_tokens_stage2=max_tokens_stage2,
+        max_tokens_stage3=max_tokens_stage3,
+        max_tokens_stage4=max_tokens_stage4,
     )
 
     log.info(

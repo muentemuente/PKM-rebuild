@@ -177,6 +177,10 @@ def _dispatch_phase_8(cfg: PipelineConfig, force: bool) -> None:
         max_retries=qwen.max_retries,
         retry_backoff_seconds=qwen.retry_backoff_seconds,
         timeout_seconds=qwen.timeout_seconds,
+        max_tokens_stage1=qwen.max_tokens.stage1,
+        max_tokens_stage2=qwen.max_tokens.stage2,
+        max_tokens_stage3=qwen.max_tokens.stage3,
+        max_tokens_stage4=qwen.max_tokens.stage4,
         force=force,
         pipeline_version=cfg.pipeline.version,
     )

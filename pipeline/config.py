@@ -86,6 +86,13 @@ class QwenTemperatureConfig(BaseModel):
     stage4_frontmatter: float
 
 
+class QwenMaxTokensConfig(BaseModel):
+    stage1: int
+    stage2: int
+    stage3: int
+    stage4: int
+
+
 class QwenConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -98,6 +105,7 @@ class QwenConfig(BaseModel):
     retry_backoff_seconds: int
     timeout_seconds: int
     temperature: QwenTemperatureConfig
+    max_tokens: QwenMaxTokensConfig
 
 
 class EmbeddingsConfig(BaseModel):

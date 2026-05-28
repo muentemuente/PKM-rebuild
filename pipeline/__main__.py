@@ -14,11 +14,12 @@ from pipeline.phase_4_segment import run_phase_4
 from pipeline.phase_5_redundancy import run_phase_5
 from pipeline.phase_6_embeddings import run_phase_6
 from pipeline.phase_7_batches import run_phase_7
+from pipeline.phase_8_synthesis import run_phase_8
 
 console = Console()
 
 _ALL_PHASES = list(range(1, 11))
-_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6, 7}
+_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6, 7, 8}
 _DEFAULT_CONFIG = "pipeline/pipeline.config.yaml"
 
 
@@ -155,6 +156,37 @@ def _dispatch_phase_6(cfg: PipelineConfig, force: bool) -> None:
     )
 
 
+def _dispatch_phase_8(cfg: PipelineConfig, force: bool) -> None:
+    out = cfg.paths.pipeline_output
+    drafts = cfg.paths.drafts
+    qwen = cfg.qwen
+    summary = run_phase_8(
+        batches_dir=out / "batches",
+        segments_path=out / "segments.jsonl",
+        qwen_output_dir=out / "qwen",
+        drafts_dir=drafts,
+        endpoint=qwen.endpoint,
+        model=qwen.model,
+        context_window=qwen.context_window,
+        prompt_version=qwen.prompt_version,
+        prompts_dir=Path("prompts"),
+        temperature_stage1=qwen.temperature.stage1_cluster_analysis,
+        temperature_stage2=qwen.temperature.stage2_merge_proposal,
+        temperature_stage3=qwen.temperature.stage3_synthesis,
+        temperature_stage4=qwen.temperature.stage4_frontmatter,
+        max_retries=qwen.max_retries,
+        retry_backoff_seconds=qwen.retry_backoff_seconds,
+        timeout_seconds=qwen.timeout_seconds,
+        force=force,
+        pipeline_version=cfg.pipeline.version,
+    )
+    console.print(
+        f"[green]✓ Phase 8:[/green] {summary['batches_processed']} Batches verarbeitet, "
+        f"{summary['concepts_drafted']} Konzepte, {summary['needs_human']} needs_human, "
+        f"{summary['errors']} Errors ({summary['duration_seconds']}s)"
+    )
+
+
 _PHASE_DISPATCH: dict[int, Any] = {
     1: _dispatch_phase_1,
     2: _dispatch_phase_2,
@@ -163,6 +195,7 @@ _PHASE_DISPATCH: dict[int, Any] = {
     5: _dispatch_phase_5,
     6: _dispatch_phase_6,
     7: _dispatch_phase_7,
+    8: _dispatch_phase_8,
 }
 
 

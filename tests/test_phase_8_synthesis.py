@@ -376,9 +376,7 @@ def test_build_stage3_skips_missing_segments() -> None:
 # === Bug-B4: Halluzinierte Segment-IDs ==========================================
 
 
-def test_stage3_logs_missing_segment_ids(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_stage3_logs_missing_segment_ids(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     """Fehlende Segment-IDs werden als warning geloggt, aufgeloeste nicht."""
     concept = {
         "ck_id": "CK_test",

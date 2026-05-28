@@ -345,8 +345,13 @@ def _run_stage1(
 
     try:
         data = _run_json_stage(
-            cfg.client, cfg.model, messages, cfg.temp_stage1,
-            cfg.max_tokens_stage1, cfg.max_retries, cfg.backoff_seconds,
+            cfg.client,
+            cfg.model,
+            messages,
+            cfg.temp_stage1,
+            cfg.max_tokens_stage1,
+            cfg.max_retries,
+            cfg.backoff_seconds,
         )
     except (ValueError, Exception) as exc:
         log.error("phase_8_stage1_error", batch=batch_path.stem, error=str(exc)[:200])
@@ -355,8 +360,11 @@ def _run_stage1(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     _write_stage_meta(meta_path, input_hash, "stage1")
-    log.info("phase_8_stage1_done", batch=batch_path.stem,
-             concepts=len(data.get("structure_proposal", {}).get("concept_candidates", [])))
+    log.info(
+        "phase_8_stage1_done",
+        batch=batch_path.stem,
+        concepts=len(data.get("structure_proposal", {}).get("concept_candidates", [])),
+    )
     return data
 
 
@@ -390,8 +398,13 @@ def _run_stage2(
 
     try:
         data = _run_json_stage(
-            cfg.client, cfg.model, messages, cfg.temp_stage2,
-            cfg.max_tokens_stage2, cfg.max_retries, cfg.backoff_seconds,
+            cfg.client,
+            cfg.model,
+            messages,
+            cfg.temp_stage2,
+            cfg.max_tokens_stage2,
+            cfg.max_retries,
+            cfg.backoff_seconds,
         )
     except (ValueError, Exception) as exc:
         log.error("phase_8_stage2_error", batch=batch_path.stem, error=str(exc)[:200])
@@ -399,8 +412,11 @@ def _run_stage2(
 
     output_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     _write_stage_meta(meta_path, input_hash, "stage2")
-    log.info("phase_8_stage2_done", batch=batch_path.stem,
-             proposed=len(data.get("proposed_concepts", [])))
+    log.info(
+        "phase_8_stage2_done",
+        batch=batch_path.stem,
+        proposed=len(data.get("proposed_concepts", [])),
+    )
     return data
 
 
@@ -475,8 +491,11 @@ def _run_stage3_concept(
             missing=missing,
         )
         _log_needs_human(
-            cfg.needs_human_path, batch_id, concept["ck_id"],
-            "stage3", "all_source_chunks_missing",
+            cfg.needs_human_path,
+            batch_id,
+            concept["ck_id"],
+            "stage3",
+            "all_source_chunks_missing",
             f"{missing} von {total_chunks} Segment-IDs nicht aufloesbar",
         )
         return None
@@ -497,13 +516,20 @@ def _run_stage3_concept(
     ]
 
     body = _run_text_stage(
-        cfg.client, cfg.model, messages, cfg.temp_stage3,
-        cfg.max_tokens_stage3, cfg.max_retries, cfg.backoff_seconds,
+        cfg.client,
+        cfg.model,
+        messages,
+        cfg.temp_stage3,
+        cfg.max_tokens_stage3,
+        cfg.max_retries,
+        cfg.backoff_seconds,
     )
 
     if not body:
         log.error("phase_8_stage3_empty", slug=slug)
-        _log_needs_human(cfg.needs_human_path, batch_id, concept["ck_id"], "stage3", "empty_body", "")
+        _log_needs_human(
+            cfg.needs_human_path, batch_id, concept["ck_id"], "stage3", "empty_body", ""
+        )
         return None
 
     drafts_dir.mkdir(parents=True, exist_ok=True)
@@ -565,13 +591,19 @@ def _run_stage4_concept(
 
     try:
         raw_fm = _run_json_stage(
-            cfg.client, cfg.model, messages, cfg.temp_stage4,
-            cfg.max_tokens_stage4, cfg.max_retries, cfg.backoff_seconds,
+            cfg.client,
+            cfg.model,
+            messages,
+            cfg.temp_stage4,
+            cfg.max_tokens_stage4,
+            cfg.max_retries,
+            cfg.backoff_seconds,
         )
     except (ValueError, Exception) as exc:
         log.error("phase_8_stage4_error", slug=slug, error=str(exc)[:200])
-        _log_needs_human(cfg.needs_human_path, batch_id, concept["ck_id"], "stage4",
-                         "api_error", str(exc)[:200])
+        _log_needs_human(
+            cfg.needs_human_path, batch_id, concept["ck_id"], "stage4", "api_error", str(exc)[:200]
+        )
         return None
 
     # Pflichtfelder erzwingen / korrigieren
@@ -596,8 +628,14 @@ def _run_stage4_concept(
         fm = FrontmatterDraft.model_validate(raw_fm)
     except Exception as exc:
         log.error("phase_8_stage4_validation_error", slug=slug, error=str(exc)[:300])
-        _log_needs_human(cfg.needs_human_path, batch_id, concept["ck_id"], "stage4",
-                         "pydantic_validation_error", str(exc)[:300])
+        _log_needs_human(
+            cfg.needs_human_path,
+            batch_id,
+            concept["ck_id"],
+            "stage4",
+            "pydantic_validation_error",
+            str(exc)[:300],
+        )
         # confidence: low setzen, trotzdem speichern
         raw_fm["confidence"] = "low"
         try:
@@ -745,9 +783,14 @@ def run_phase_8(
     batch_files = sorted(batches_dir.glob("batch_*.md"))
     if not batch_files:
         log.warning("phase_8_no_batches", batches_dir=str(batches_dir))
-        return {"batches_processed": 0, "batches_skipped": 0,
-                "concepts_drafted": 0, "needs_human": 0, "errors": 0,
-                "duration_seconds": 0.0}
+        return {
+            "batches_processed": 0,
+            "batches_skipped": 0,
+            "concepts_drafted": 0,
+            "needs_human": 0,
+            "errors": 0,
+            "duration_seconds": 0.0,
+        }
 
     client = openai.OpenAI(
         base_url=endpoint,

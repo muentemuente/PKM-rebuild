@@ -4,9 +4,10 @@ Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung
 
 ## Status
 
-- **Phase:** Planung abgeschlossen, Setup ausstehend
-- **Stand:** 2026-05-25
+- **Phase:** Phasen 1–8 implementiert, Echtlauf ausstehend (Phase 9–10 Stub)
+- **Stand:** 2026-05-28
 - **Charakter:** Lernprojekt mit produktivem Output
+- **Offene Tasks:** [`docs/tasks/README.md`](docs/tasks/README.md)
 
 ---
 
@@ -36,7 +37,7 @@ Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung
 
 ## Quick Start
 
-> Voraussetzung: macOS, `mise`, LM Studio mit geladenem Qwen 3.6 27B, Claude Code installiert.
+> Voraussetzung: macOS, `mise` installiert.
 
 ```bash
 # Repo klonen
@@ -50,14 +51,25 @@ mise use python@3.12
 # Dependencies
 pip install -e .
 
-# Sample-Run (10 Files)
-python -m pipeline run --sample 10
-
-# Vollständiger Lauf
-python -m pipeline run
+# Verifikation
+python -m pipeline --version
+python -m pipeline status
 ```
 
-Details zu Setup, Daten-Layout und Datenpfaden: siehe [`docs/02_pipeline_spec.md`](docs/02_pipeline_spec.md).
+> **Hinweis:** `python -m pipeline run` setzt Korpus-Daten unter `~/projects/aktiv/PKM_rebuild/data/` voraus (außerhalb des Repos). Pfade in `pipeline/pipeline.config.yaml` anpassen.
+
+```bash
+# Dry-Run (zeigt Phasen, schreibt nichts)
+python -m pipeline run --dry-run
+
+# Sample-Run (10 Files, setzt Daten voraus)
+python -m pipeline run --phase 1 --sample 10
+
+# Ab Phase 5 weiterlaufen
+python -m pipeline run --from-phase 5
+```
+
+Details zu Setup, Daten-Layout und Datenpfaden: [`docs/02_pipeline_spec.md`](docs/02_pipeline_spec.md).
 
 ---
 
@@ -120,6 +132,7 @@ Reihenfolge zum Einstieg (auch für Claude Code als Lese-Kontext):
 | [`docs/06_claude_code_workflow.md`](docs/06_claude_code_workflow.md) | Claude Code in Zed, Token-Management, Recovery |
 | [`docs/07_backup_strategy.md`](docs/07_backup_strategy.md) | Backup-Plan für den Vault |
 | [`docs/learnings/`](docs/learnings/) | Reflexionsdokumente pro Phase |
+| [`docs/tasks/README.md`](docs/tasks/README.md) | Offene Tasks + Blöcke (P0–P2) |
 
 ---
 

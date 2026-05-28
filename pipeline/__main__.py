@@ -204,7 +204,7 @@ _PHASE_DISPATCH: dict[int, Any] = {
 
 
 @click.group()
-@click.version_option()
+@click.version_option(package_name="pkm-rebuild")
 def cli() -> None:
     """PKM-rebuild Pipeline."""
 

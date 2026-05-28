@@ -350,10 +350,12 @@ def test_build_stage3_user_message_includes_segments() -> None:
         "source_chunks": ["D_test-S0000"],
     }
     seg_map = {"D_test-S0000": _make_segment("D_test-S0000", "Segment-Text hier.")}
-    msg = _build_stage3_user_message(concept, seg_map)
+    msg, resolved, missing = _build_stage3_user_message(concept, seg_map)
     assert "D_test-S0000" in msg
     assert "Segment-Text hier." in msg
     assert "CK_test" in msg
+    assert resolved == 1
+    assert missing == 0
 
 
 def test_build_stage3_skips_missing_segments() -> None:
@@ -365,8 +367,73 @@ def test_build_stage3_skips_missing_segments() -> None:
         "category": "grundlagen",
         "source_chunks": ["D_missing-S0000"],
     }
-    msg = _build_stage3_user_message(concept, {})
+    msg, resolved, missing = _build_stage3_user_message(concept, {})
     assert "D_missing-S0000" not in msg
+    assert resolved == 0
+    assert missing == 1
+
+
+# === Bug-B4: Halluzinierte Segment-IDs ==========================================
+
+
+def test_stage3_logs_missing_segment_ids(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Fehlende Segment-IDs werden als warning geloggt, aufgeloeste nicht."""
+    concept = {
+        "ck_id": "CK_test",
+        "title": "Test",
+        "type": "knowledge-article",
+        "doc_role": [],
+        "category": "grundlagen",
+        "source_chunks": ["D_real-S0000", "D_halluziniert-S0099"],
+    }
+    seg_map = {"D_real-S0000": _make_segment("D_real-S0000", "Echter Text.")}
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        msg, resolved, missing = _build_stage3_user_message(concept, seg_map)
+
+    assert resolved == 1
+    assert missing == 1
+    assert "D_real-S0000" in msg
+    assert "D_halluziniert-S0099" not in msg
+
+
+def test_stage3_aborts_when_all_chunks_missing(
+    tmp_path: Path, mock_openai_infinite: MagicMock
+) -> None:
+    """Wenn alle source_chunks fehlen, bricht Stage 3 ab und schreibt needs_human."""
+    batch_dir = _make_batch_file(tmp_path)
+    prompts_dir = _make_prompts_dir(tmp_path)
+
+    # segments_empty: kein Eintrag → alle source_chunks aus Stage-2-JSON fehlen
+    segs_path_empty = tmp_path / "segments_empty.jsonl"
+    segs_path_empty.write_text("", encoding="utf-8")
+
+    run_phase_8(
+        batches_dir=batch_dir,
+        segments_path=segs_path_empty,
+        qwen_output_dir=tmp_path / "qwen",
+        drafts_dir=tmp_path / "drafts",
+        endpoint="http://localhost:1234/v1",
+        model="test",
+        context_window=49152,
+        prompt_version="v1",
+        prompts_dir=prompts_dir,
+        temperature_stage1=0.3,
+        temperature_stage2=0.2,
+        temperature_stage3=0.4,
+        temperature_stage4=0.1,
+        max_retries=0,
+        retry_backoff_seconds=0,
+        timeout_seconds=30,
+    )
+    needs_human_path = tmp_path / "qwen" / "needs_human.jsonl"
+    assert needs_human_path.exists()
+    entries = [json.loads(ln) for ln in needs_human_path.read_text().splitlines() if ln.strip()]
+    reasons = [e["reason"] for e in entries]
+    assert "all_source_chunks_missing" in reasons
 
 
 # === _build_stage4_user_message ================================================

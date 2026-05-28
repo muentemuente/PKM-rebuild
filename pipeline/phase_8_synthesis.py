@@ -407,8 +407,12 @@ def _run_stage2(
 def _build_stage3_user_message(
     concept: dict[str, Any],
     seg_map: dict[str, SegmentRecord],
-) -> str:
-    """Baut User-Message fuer Stage 3 aus Konzept-Infos + Quell-Segmenten."""
+) -> tuple[str, int, int]:
+    """Baut User-Message fuer Stage 3 aus Konzept-Infos + Quell-Segmenten.
+
+    Returns:
+        (user_message, resolved_count, missing_count)
+    """
     lines = [
         "## Konzept-Informationen (aus Stage 2)",
         "",
@@ -422,10 +426,19 @@ def _build_stage3_user_message(
         lines.append(f"subcategory: {concept['subcategory']}")
     lines += ["", "## Quell-Segmente", ""]
 
+    resolved = 0
+    missing = 0
     for chunk_id in concept.get("source_chunks", []):
         seg = seg_map.get(chunk_id)
         if not seg:
+            log.warning(
+                "phase_8_segment_id_not_found",
+                segment_id=chunk_id,
+                ck_id=concept.get("ck_id"),
+            )
+            missing += 1
             continue
+        resolved += 1
         heading = " > ".join(seg.heading_path) if seg.heading_path else "(kein Heading)"
         lines += [
             "---",
@@ -436,7 +449,7 @@ def _build_stage3_user_message(
             "",
         ]
 
-    return "\n".join(lines)
+    return "\n".join(lines), resolved, missing
 
 
 def _run_stage3_concept(
@@ -451,7 +464,26 @@ def _run_stage3_concept(
     output_path = drafts_dir / f"CK_{slug}.body.md"
     meta_path = drafts_dir / f".CK_{slug}.body.meta.json"
 
-    user_message = _build_stage3_user_message(concept, seg_map)
+    user_message, resolved, missing = _build_stage3_user_message(concept, seg_map)
+    total_chunks = resolved + missing
+
+    if total_chunks > 0 and missing == total_chunks:
+        log.error(
+            "phase_8_all_chunks_missing",
+            slug=slug,
+            ck_id=concept.get("ck_id"),
+            missing=missing,
+        )
+        _log_needs_human(
+            cfg.needs_human_path, batch_id, concept["ck_id"],
+            "stage3", "all_source_chunks_missing",
+            f"{missing} von {total_chunks} Segment-IDs nicht aufloesbar",
+        )
+        return None
+
+    if total_chunks > 0 and missing >= total_chunks / 2:
+        concept["_low_confidence_chunks"] = True
+
     input_hash = _sha256_str(json.dumps(concept, ensure_ascii=False) + user_message)
 
     if not cfg.force and _is_cached(output_path, meta_path, input_hash):
@@ -543,6 +575,8 @@ def _run_stage4_concept(
         return None
 
     # Pflichtfelder erzwingen / korrigieren
+    if concept.get("_low_confidence_chunks"):
+        raw_fm["confidence"] = "low"
     raw_fm["status"] = "draft"
     raw_fm["review_status"] = "ai_drafted"
     raw_fm["last_synthesized"] = cfg.today_str

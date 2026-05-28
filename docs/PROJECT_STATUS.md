@@ -24,7 +24,7 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | 5 | Redundanz-Erkennung | ✅ done | `d9cb420` |
 | 6 | Embeddings + Cluster-Vorbereitung | ✅ done | `74de985` |
 | 7 | LLM-Batch-Bildung | ✅ done | `231a2ff` |
-| 8 | Qwen-Synthese (4-Stage) | ✅ done | `d586cb8` |
+| 8 | Qwen-Synthese (4-Stage) | 🟡 Code fertig, CLI-Wiring offen, Echtlauf ausstehend | `d586cb8` |
 | 9 | Vault-Aufbau | 🔜 nächster Schritt | — |
 | 10 | Kontroll-Berichte | 🔜 offen | — |
 
@@ -215,6 +215,8 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 
 **Tests:** 32 Tests — JSON-Extraktion (Sonderfälle), Slugify-Umlaute, Idempotenz, force-Re-Run, bad-Response-Handling, Pydantic-Validation, kombiniertes Draft-File
 
+> **Wichtig:** Phase 8 wurde noch NIE gegen den echten Korpus gelaufen. Alle 32 Tests laufen gegen Mock-Fixtures. Ein produktiver Lauf ist erst nach Block 0.F und Block 8.A geplant.
+
 ---
 
 ## 3. Schemas (`pipeline/schemas.py`)
@@ -349,25 +351,19 @@ PKM-rebuild/
 
 Gemäß CLAUDE.md Sektion 8 sollte jede Phase mit `docs/learnings/PHASE_NN_<slug>.md` abschließen. Bisher nur `PHASE_00_setup.md` vorhanden.
 
+### 7.4 Phase 8 CLI-Integration fehlt
+
+`pipeline/__main__.py` Zeile 23: `_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6, 7}`. Phase 8 ist nicht in der CLI registriert. Wird in Block 0.F behoben.
+
 ---
 
 ## 8. Nächste Schritte
 
-1. **Phase 9 — Vault-Aufbau** implementieren
-   - Draft-Files aus `data/03_drafts/` → `data/04_vault/<cluster>/<slug>.md`
-   - Cluster-Ordner mit Nummern-Präfix anlegen
-   - `_index.md` pro Cluster generieren
-   - Wikilink-Validierung (`related: [[...]]`)
-
-2. **Phase 10 — Kontroll-Berichte**
-   - `corpus_report.md`, `duplicate_report.md`, `cluster_report.md`
-
-3. **Schulden abtragen** (optional, vor erstem echten Qwen-Lauf sinnvoll)
-   - Mypy-Fehler in Phases 2, 3, 6 beheben
-   - Phase-Reflexionen (1–8) nachschreiben
+Siehe `docs/tasks/README.md` für vollständigen Master-Plan bis Phase 9. Block-Reihenfolge: 0.F → 0.G → 0.H → 0.I (parallel) → 8.A → 8.B → 8.C → 9.
 
 ---
 
 ## Änderungs-Log
 
 - 2026-05-28 — Erstellt nach Abschluss Phase 8
+- 2026-05-28 — Korrigiert: Phase 8 Status auf 🟡 (CLI-Wiring offen, kein Echtlauf), Sektion 8 → Verweis auf Master-Plan

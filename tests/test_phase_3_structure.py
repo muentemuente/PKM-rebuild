@@ -16,6 +16,7 @@ from pipeline.phase_1_inventory import run_phase_1
 from pipeline.phase_2_normalize import run_phase_2
 from pipeline.phase_3_structure import (
     _count_tables,
+    _detect_book,
     _extract_headings,
     _extract_images,
     _extract_links,
@@ -191,6 +192,7 @@ def test_guess_doc_type_returns_valid_label() -> None:
         "gedanke",
         "projektidee",
         "projektplanung",
+        "book",
         "unklar",
     }
     result = _guess_doc_type("Test", [], [], 0, 100, "test body")
@@ -225,6 +227,71 @@ def test_projektidee_from_title() -> None:
     ]
     result = _guess_doc_type("Projektnotiz: KI-Agent für PKM", headings, [], 0, 150, "")
     assert result.label == "projektidee"
+
+
+# === _detect_book ==============================================================
+
+
+def _make_headings(h1: int = 0, h2: int = 0, h3: int = 0) -> list[dict]:
+    """Hilfsfunktion: Heading-Liste mit gewünschter Anzahl pro Level."""
+    return (
+        [{"level": 1, "text": f"Kapitel {i}"} for i in range(h1)]
+        + [{"level": 2, "text": f"Abschnitt {i}"} for i in range(h2)]
+        + [{"level": 3, "text": f"Unterabschnitt {i}"} for i in range(h3)]
+    )
+
+
+def test_detect_book_true_when_large_and_many_h1_h2() -> None:
+    headings = _make_headings(h1=3, h2=4)  # 7 H1/H2
+    assert _detect_book(headings, word_count=9000, threshold=8000) is True
+
+
+def test_detect_book_false_when_too_short() -> None:
+    headings = _make_headings(h1=3, h2=4)
+    assert _detect_book(headings, word_count=5000, threshold=8000) is False
+
+
+def test_detect_book_false_when_too_few_h1_h2() -> None:
+    headings = _make_headings(h1=1, h2=2)  # nur 3 H1/H2 < 5
+    assert _detect_book(headings, word_count=10000, threshold=8000) is False
+
+
+def test_detect_book_counts_only_h1_and_h2() -> None:
+    # Viele H3, aber wenige H1/H2 → kein book
+    headings = _make_headings(h1=1, h2=2, h3=20)
+    assert _detect_book(headings, word_count=10000, threshold=8000) is False
+
+
+def test_guess_doc_type_book_has_priority() -> None:
+    """book wird zurückgegeben, auch wenn andere Heuristiken feuern würden."""
+    headings = _make_headings(h1=3, h2=4)
+    result = _guess_doc_type(
+        title="Denkschulen Überblick",
+        headings=headings,
+        code_blocks=[],
+        tables_count=0,
+        word_count=9000,
+        body_lower="",
+        book_word_threshold=8000,
+    )
+    assert result.label == "book"
+    assert result.confidence >= 0.8
+    assert any("word_count" in s for s in result.signals)
+
+
+def test_guess_doc_type_book_not_triggered_below_threshold() -> None:
+    """Unter dem Schwellwert: normaler Pfad, kein book-Label."""
+    headings = _make_headings(h1=3, h2=4)
+    result = _guess_doc_type(
+        title="Kurzes Dokument",
+        headings=headings,
+        code_blocks=[],
+        tables_count=0,
+        word_count=5000,
+        body_lower="",
+        book_word_threshold=8000,
+    )
+    assert result.label != "book"
 
 
 # === run_phase_3 ===============================================================

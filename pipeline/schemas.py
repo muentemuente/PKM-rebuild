@@ -56,6 +56,7 @@ class DocTypeGuess(BaseModel):
         "gedanke",
         "projektidee",
         "projektplanung",
+        "book",
         "unklar",
     ]
     confidence: float = Field(ge=0.0, le=1.0)

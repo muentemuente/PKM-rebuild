@@ -484,7 +484,7 @@ class DocTypeGuess(BaseModel):
     label: Literal[
         "cheat_sheet", "tutorial", "wiki", "manual",
         "how-to", "explanation", "reference", "gedanke",
-        "projektidee", "projektplanung", "unklar"
+        "projektidee", "projektplanung", "book", "unklar"
     ]
     confidence: float = Field(ge=0.0, le=1.0)
     signals: list[str]

@@ -279,6 +279,12 @@ def _build_type_rules(
     return fired
 
 
+def _detect_book(headings: list[dict], word_count: int, threshold: int) -> bool:
+    """True für Buch-artige Files: sehr lang + viele H1/H2-Überschriften."""
+    h1_h2_count = sum(1 for h in headings if h["level"] in (1, 2))
+    return word_count > threshold and h1_h2_count >= 5
+
+
 def _guess_doc_type(
     title: str,
     headings: list[dict],
@@ -286,8 +292,23 @@ def _guess_doc_type(
     tables_count: int,
     word_count: int,
     body_lower: str,
+    book_word_threshold: int = 8000,
 ) -> DocTypeGuess:
-    """Heuristische Dokumenttyp-Vermutung mit Confidence und Signalen."""
+    """Heuristische Dokumenttyp-Vermutung mit Confidence und Signalen.
+
+    Book-Erkennung hat höchste Priorität: wenn erfüllt, wird sofort zurückgegeben.
+    """
+    if _detect_book(headings, word_count, book_word_threshold):
+        h1_h2_count = sum(1 for h in headings if h["level"] in (1, 2))
+        return DocTypeGuess(
+            label="book",
+            confidence=0.9,
+            signals=[
+                f"word_count={word_count}>{book_word_threshold}",
+                f"h1_h2_count={h1_h2_count}>=5",
+            ],
+        )
+
     title_l = title.lower()
     heading_flat = " ".join(h["text"].lower() for h in headings)
     n_code = len(code_blocks)
@@ -397,6 +418,7 @@ def run_phase_3(
     *,
     force: bool = False,
     pipeline_version: str = "0.1.0",
+    book_word_threshold: int = 8000,
 ) -> list[StructuredDocumentRecord]:
     """Phase 3 ausführen: Dokumente strukturell analysieren.
 
@@ -456,6 +478,7 @@ def run_phase_3(
             tables_count=tables_count,
             word_count=word_count,
             body_lower=rec.body.lower(),
+            book_word_threshold=book_word_threshold,
         )
 
         structured.append(

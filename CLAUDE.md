@@ -23,6 +23,7 @@ Diese Dokumente werden in dieser Reihenfolge gelesen:
    - Vault / Frontmatter → `docs/03_vault_standard.md`
    - Qwen-Prompts → `docs/04_qwen_prompts.md` + `prompts/CLAUDE.md`
    - Claude-Code-Workflow → `docs/06_claude_code_workflow.md`
+   - Tool-Routing → `docs/06b_tool_routing.md`
 
 ---
 
@@ -161,11 +162,11 @@ Raten, mocken oder „so wird's schon passen"-Code sind keine Optionen.
 ```bash
 # Pipeline
 python -m pipeline run --sample 10      # Sample-Run (10 Files)
-python -m pipeline run --confirm         # Vollständig mit Bestätigung
 python -m pipeline run --from-phase 5    # Ab Phase X
+python -m pipeline run --phase 8         # Nur Phase 8
+python -m pipeline run --dry-run         # Plan zeigen, nichts schreiben
 python -m pipeline run --force           # Re-Run, Cache ignorieren
 python -m pipeline status                # Statusbericht
-python -m pipeline validate              # Output-Validierung
 
 # Qualität
 pytest                                   # Tests
@@ -178,3 +179,4 @@ mypy pipeline/                           # Type-Check
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version (faktisch-deklarativ, Hard Constraints abgegrenzt)
+- 2026-05-28 — Sektion 2: tool-routing ergänzt; Sektion 11: CLI an Realität angepasst (--confirm/validate entfernt, --phase 8/--dry-run ergänzt)

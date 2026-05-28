@@ -26,7 +26,6 @@ from pipeline.phase_8_synthesis import (
 )
 from pipeline.schemas import FrontmatterDraft, SegmentRecord
 
-
 # === Fixtures ==================================================================
 
 
@@ -205,7 +204,11 @@ def mock_openai_infinite(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
             return _make_mock_response(f"```json\n{json.dumps(STAGE4_FM)}\n```")
         if "stage3_synthesis" in content or "Quell-Segmente" in content:
             return _make_mock_response(f"```markdown\n{STAGE3_BODY}\n```")
-        if "stage2_merge" in content or "Stage-1-Analyse" in content or "proposed_concepts" in content:
+        if (
+            "stage2_merge" in content
+            or "Stage-1-Analyse" in content
+            or "proposed_concepts" in content
+        ):
             return _make_mock_response(f"```json\n{json.dumps(STAGE2_JSON)}\n```")
         return _make_mock_response(f"```json\n{json.dumps(STAGE1_JSON)}\n```")
 
@@ -229,7 +232,7 @@ def test_extract_json_from_code_block() -> None:
 
 
 def test_extract_json_strips_thinking() -> None:
-    text = "<think>Denke nach...</think>\n```json\n{\"x\": 1}\n```"
+    text = '<think>Denke nach...</think>\n```json\n{"x": 1}\n```'
     assert _extract_json(text) == {"x": 1}
 
 
@@ -422,9 +425,7 @@ def test_missing_segments_raises(tmp_path: Path) -> None:
         )
 
 
-def test_run_phase_8_produces_outputs(
-    tmp_path: Path, mock_openai: MagicMock
-) -> None:
+def test_run_phase_8_produces_outputs(tmp_path: Path, mock_openai: MagicMock) -> None:
     batches_dir = _make_batch_file(tmp_path)
     segments_path = _make_segments_file(tmp_path)
     prompts_dir = _make_prompts_dir(tmp_path)
@@ -546,9 +547,7 @@ def test_run_phase_8_combined_draft_written(tmp_path: Path, mock_openai: MagicMo
     assert "# Test Konzept" in content
 
 
-def test_run_phase_8_frontmatter_pydantic_valid(
-    tmp_path: Path, mock_openai: MagicMock
-) -> None:
+def test_run_phase_8_frontmatter_pydantic_valid(tmp_path: Path, mock_openai: MagicMock) -> None:
     batches_dir = _make_batch_file(tmp_path)
     segments_path = _make_segments_file(tmp_path)
     prompts_dir = _make_prompts_dir(tmp_path)
@@ -582,9 +581,7 @@ def test_run_phase_8_frontmatter_pydantic_valid(
     assert fm.last_synthesized != ""
 
 
-def test_run_phase_8_idempotency(
-    tmp_path: Path, mock_openai_infinite: MagicMock
-) -> None:
+def test_run_phase_8_idempotency(tmp_path: Path, mock_openai_infinite: MagicMock) -> None:
     batches_dir = _make_batch_file(tmp_path)
     segments_path = _make_segments_file(tmp_path)
     prompts_dir = _make_prompts_dir(tmp_path)
@@ -618,9 +615,7 @@ def test_run_phase_8_idempotency(
     assert calls_after_second == calls_after_first
 
 
-def test_run_phase_8_force_reruns(
-    tmp_path: Path, mock_openai_infinite: MagicMock
-) -> None:
+def test_run_phase_8_force_reruns(tmp_path: Path, mock_openai_infinite: MagicMock) -> None:
     batches_dir = _make_batch_file(tmp_path)
     segments_path = _make_segments_file(tmp_path)
     prompts_dir = _make_prompts_dir(tmp_path)
@@ -691,9 +686,7 @@ def test_run_phase_8_json_retry_on_bad_response(
     assert result["concepts_drafted"] == 0
 
 
-def test_run_phase_8_empty_batches_dir(
-    tmp_path: Path, mock_openai: MagicMock
-) -> None:
+def test_run_phase_8_empty_batches_dir(tmp_path: Path, mock_openai: MagicMock) -> None:
     empty_dir = tmp_path / "batches"
     empty_dir.mkdir()
     segments_path = _make_segments_file(tmp_path)

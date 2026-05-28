@@ -14,11 +14,14 @@ from unittest.mock import MagicMock
 
 import pytest
 from pipeline.phase_8_synthesis import (
+    _QwenStageConfig,
     _build_stage3_user_message,
     _build_stage4_user_message,
     _extract_json,
     _extract_markdown_body,
     _is_cached,
+    _run_stage2,
+    _sha256_str,
     _slugify_ck,
     _unique_slug,
     _write_stage_meta,
@@ -712,3 +715,55 @@ def test_run_phase_8_empty_batches_dir(tmp_path: Path, mock_openai: MagicMock) -
     )
     assert result["batches_processed"] == 0
     assert result["concepts_drafted"] == 0
+
+
+# === Bug-B2: merge_decisions-Vorrang vor Cache ====================================
+
+
+def test_merge_decisions_override_wins_over_cache(tmp_path: Path) -> None:
+    """merge_decisions.json überschreibt Stage-2-Cache (Review-Gate-Schutz)."""
+    batch_path = tmp_path / "batch_001_test.md"
+    batch_path.write_text("batch content", encoding="utf-8")
+    output_dir = tmp_path / "qwen" / "batch_001_test"
+    output_dir.mkdir(parents=True)
+
+    stage1_data: dict[str, object] = {"some": "stage1_data"}
+    input_hash = _sha256_str(json.dumps(stage1_data, ensure_ascii=False))
+
+    cached_content = {"proposed_concepts": [{"ck_id": "CK_from-cache", "title": "From Cache"}]}
+    (output_dir / "stage2_merges.json").write_text(
+        json.dumps(cached_content), encoding="utf-8"
+    )
+    (output_dir / ".stage2.meta.json").write_text(
+        json.dumps({"input_hash": input_hash}), encoding="utf-8"
+    )
+
+    decisions_content = {
+        "proposed_concepts": [{"ck_id": "CK_from-decisions", "title": "From Decisions"}]
+    }
+    (output_dir / "merge_decisions.json").write_text(
+        json.dumps(decisions_content), encoding="utf-8"
+    )
+
+    cfg = _QwenStageConfig(
+        client=MagicMock(),
+        model="test",
+        context_window=49152,
+        max_retries=0,
+        backoff_seconds=0,
+        prompts_dir=tmp_path / "prompts",
+        prompt_version="v1",
+        needs_human_path=tmp_path / "needs_human.jsonl",
+        pipeline_version="0.1.0",
+        force=False,
+        today_str="2026-05-28",
+        temp_stage1=0.3,
+        temp_stage2=0.2,
+        temp_stage3=0.4,
+        temp_stage4=0.1,
+    )
+
+    result = _run_stage2(batch_path, stage1_data, output_dir, cfg)
+
+    assert result is not None
+    assert result["proposed_concepts"][0]["ck_id"] == "CK_from-decisions"

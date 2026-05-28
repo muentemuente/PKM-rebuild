@@ -375,15 +375,15 @@ def _run_stage2(
     input_str = json.dumps(stage1_data, ensure_ascii=False)
     input_hash = _sha256_str(input_str)
 
-    if not cfg.force and _is_cached(output_path, meta_path, input_hash):
-        log.info("phase_8_skipped", stage=2, batch=batch_path.stem)
-        return cast(dict[str, Any], json.loads(output_path.read_text(encoding="utf-8")))
-
-    # Wenn merge_decisions.json existiert, ist die Entscheidung bereits gefallen
+    # merge_decisions.json hat Vorrang vor Cache (menschliches Review-Gate)
     decisions_path = output_dir / "merge_decisions.json"
     if decisions_path.exists():
         log.info("phase_8_merge_decisions_found", batch=batch_path.stem)
         return cast(dict[str, Any], json.loads(decisions_path.read_text(encoding="utf-8")))
+
+    if not cfg.force and _is_cached(output_path, meta_path, input_hash):
+        log.info("phase_8_skipped", stage=2, batch=batch_path.stem)
+        return cast(dict[str, Any], json.loads(output_path.read_text(encoding="utf-8")))
 
     system_prompt = _load_prompt(cfg.prompts_dir, cfg.prompt_version, "stage2_merge_proposal.md")
     messages = [

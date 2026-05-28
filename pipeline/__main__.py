@@ -15,11 +15,12 @@ from pipeline.phase_5_redundancy import run_phase_5
 from pipeline.phase_6_embeddings import run_phase_6
 from pipeline.phase_7_batches import run_phase_7
 from pipeline.phase_8_synthesis import run_phase_8
+from pipeline.phase_10_reports import run_phase_10
 
 console = Console()
 
 _ALL_PHASES = list(range(1, 11))
-_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6, 7, 8}
+_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6, 7, 8, 10}
 _DEFAULT_CONFIG = "pipeline/pipeline.config.yaml"
 
 
@@ -191,6 +192,27 @@ def _dispatch_phase_8(cfg: PipelineConfig, force: bool) -> None:
     )
 
 
+def _dispatch_phase_10(cfg: PipelineConfig, force: bool) -> None:
+    out = cfg.paths.pipeline_output
+    summary = run_phase_10(
+        manifest_path=out / "files_manifest.jsonl",
+        structured_path=out / "documents_structured.jsonl",
+        segments_path=out / "segments.jsonl",
+        exact_path=out / "exact_duplicates.json",
+        edges_path=out / "near_duplicate_edges.jsonl",
+        clusters_path=out / "cluster_proposals.json",
+        batches_dir=out / "batches",
+        output_dir=out,
+        cleaned_path=out / "cleaned_documents.jsonl",
+        force=force,
+        pipeline_version=cfg.pipeline.version,
+    )
+    console.print(
+        f"[green]✓ Phase 10:[/green] {summary['reports_generated']} Reports → {out} "
+        f"({summary['duration_seconds']}s)"
+    )
+
+
 _PHASE_DISPATCH: dict[int, Any] = {
     1: _dispatch_phase_1,
     2: _dispatch_phase_2,
@@ -200,6 +222,7 @@ _PHASE_DISPATCH: dict[int, Any] = {
     6: _dispatch_phase_6,
     7: _dispatch_phase_7,
     8: _dispatch_phase_8,
+    10: _dispatch_phase_10,
 }
 
 
@@ -278,6 +301,20 @@ def status(config: str) -> None:
         console.print(f"  files_manifest.jsonl: {len(lines)} Einträge")
     else:
         console.print("  files_manifest.jsonl: noch nicht vorhanden")
+
+
+@cli.command()
+@click.option("--force", is_flag=True, help="Cache ignorieren, Reports neu generieren")
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def reports(force: bool, config: str) -> None:
+    """Kontroll-Berichte generieren (corpus, duplicate, cluster)."""
+    cfg = load_config(Path(config))
+    _dispatch_phase_10(cfg, force)
 
 
 if __name__ == "__main__":

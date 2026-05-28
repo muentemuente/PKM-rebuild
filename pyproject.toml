@@ -116,6 +116,7 @@ module = [
     "sklearn.*",
     "umap.*",
     "hdbscan.*",
+    "yaml",
 ]
 ignore_missing_imports = true
 

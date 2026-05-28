@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Stage2MergeProposal",
+  "type": "object",
+  "required": ["cluster_id", "proposed_concepts", "discarded_segments", "overall_confidence"],
+  "properties": {
+    "cluster_id": {"type": "string"},
+    "proposed_concepts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ck_id", "title", "slug", "type", "doc_role", "category", "sources_docs", "source_chunks"],
+        "properties": {
+          "ck_id": {"type": "string"},
+          "title": {"type": "string"},
+          "slug": {"type": "string"},
+          "type": {"type": "string", "enum": ["knowledge-article", "compact-reference", "process-document"]},
+          "doc_role": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "category": {"type": "string"},
+          "subcategory": {"type": ["string", "null"]},
+          "sources_docs": {"type": "array", "items": {"type": "string"}},
+          "source_chunks": {"type": "array", "items": {"type": "string"}},
+          "merged_from": {"type": "array", "items": {"type": "string"}},
+          "aliases_suggested": {"type": "array", "items": {"type": "string"}},
+          "parent_concept_suggestion": {"type": ["string", "null"]},
+          "child_concepts_suggestions": {"type": "array", "items": {"type": "string"}},
+          "rationale": {"type": "string"}
+        }
+      }
+    },
+    "discarded_segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["segment_id", "reason"],
+        "properties": {
+          "segment_id": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "overall_confidence": {"type": "string", "enum": ["low", "medium", "high"]}
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Stage1ClusterAnalysis",
+  "type": "object",
+  "required": ["cluster_id", "main_topics", "redundancies", "contradictions", "structure_proposal", "overall_confidence"],
+  "properties": {
+    "cluster_id": {"type": "string"},
+    "main_topics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["topic", "segment_ids", "confidence"],
+        "properties": {
+          "topic": {"type": "string"},
+          "segment_ids": {"type": "array", "items": {"type": "string"}},
+          "confidence": {"type": "string", "enum": ["low", "medium", "high"]}
+        }
+      }
+    },
+    "redundancies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["segments", "type"],
+        "properties": {
+          "segments": {"type": "array", "items": {"type": "string"}},
+          "type": {"type": "string", "enum": ["exact_overlap", "partial_overlap", "conflicting", "unreadable"]},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "contradictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["segments", "issue"],
+        "properties": {
+          "segments": {"type": "array", "items": {"type": "string"}},
+          "issue": {"type": "string"},
+          "suggested_resolution": {"type": "string"}
+        }
+      }
+    },
+    "structure_proposal": {
+      "type": "object",
+      "required": ["concept_candidates"],
+      "properties": {
+        "concept_candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["tentative_slug", "tentative_title", "covers_segments", "type_guess"],
+            "properties": {
+              "tentative_slug": {"type": "string"},
+              "tentative_title": {"type": "string"},
+              "covers_segments": {"type": "array", "items": {"type": "string"}},
+              "type_guess": {"type": "string", "enum": ["knowledge-article", "compact-reference", "process-document"]}
+            }
+          }
+        }
+      }
+    },
+    "overall_confidence": {"type": "string", "enum": ["low", "medium", "high"]}
+  }
+}

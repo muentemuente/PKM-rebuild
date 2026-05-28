@@ -79,6 +79,27 @@ class BatchingConfig(BaseModel):
     split_oversized_clusters: bool
 
 
+class QwenTemperatureConfig(BaseModel):
+    stage1_cluster_analysis: float
+    stage2_merge_proposal: float
+    stage3_synthesis: float
+    stage4_frontmatter: float
+
+
+class QwenConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    endpoint: str
+    model: str
+    context_window: int
+    prompt_version: str
+    json_mode: bool
+    max_retries: int
+    retry_backoff_seconds: int
+    timeout_seconds: int
+    temperature: QwenTemperatureConfig
+
+
 class EmbeddingsConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -129,6 +150,7 @@ class PipelineConfig(BaseModel):
     embeddings: EmbeddingsConfig
     clustering: ClusteringConfig
     batching: BatchingConfig
+    qwen: QwenConfig
 
 
 def _substitute_vars(text: str, context: dict[str, str]) -> str:

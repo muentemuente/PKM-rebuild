@@ -628,6 +628,62 @@ def _write_combined_draft(
     )
 
 
+def _process_batch_concepts(
+    proposed_concepts: list[dict[str, Any]],
+    seg_map: dict[str, SegmentRecord],
+    drafts_dir: Path,
+    batch_id: str,
+    force: bool,
+    cfg: _QwenStageConfig,
+) -> tuple[int, int, int]:
+    """Verarbeitet alle Konzepte eines Batches (Stage 3 + 4).
+
+    Returns:
+        (concepts_drafted, needs_human_count, errors)
+    """
+    concepts_drafted = 0
+    needs_human_count = 0
+    errors = 0
+
+    for concept in proposed_concepts:
+        raw_slug = concept.get("slug") or _slugify_ck(concept.get("title", "concept"))
+        natural = _slugify_ck(raw_slug)
+        # Stage-3-Meta existiert → Slug aus vorherigem Run übernehmen (Idempotenz-Schutz)
+        body_meta_path = drafts_dir / f".CK_{natural}.body.meta.json"
+        if not cfg.force and body_meta_path.exists():
+            slug = natural
+            cfg.used_slugs.add(slug)
+        else:
+            slug = _unique_slug(natural, cfg.used_slugs)
+
+        body = _run_stage3_concept(concept, seg_map, drafts_dir, slug, batch_id, cfg)
+        if body is None:
+            needs_human_count += 1
+            errors += 1
+            continue
+
+        fm = _run_stage4_concept(concept, body, drafts_dir, slug, batch_id, cfg)
+        if fm is None:
+            needs_human_count += 1
+            errors += 1
+            continue
+
+        combined_path = drafts_dir / f"CK_{slug}.md"
+        if force or not combined_path.exists():
+            _write_combined_draft(body, fm, combined_path)
+
+        log.info(
+            "phase_8_concept_drafted",
+            slug=slug,
+            ck_id=concept["ck_id"],
+            batch=batch_id,
+            confidence=fm.confidence,
+        )
+        concepts_drafted += 1
+
+    return concepts_drafted, needs_human_count, errors
+
+
 # === run_phase_8 ===============================================================
 
 
@@ -703,6 +759,17 @@ def run_phase_8(
     needs_human_path = qwen_output_dir / "needs_human.jsonl"
     today_str = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
+    # Crash-Resume: bestehende Slugs aus drafts_dir laden, um Kollisionen zu vermeiden
+    used_slugs: set[str] = set()
+    _slug_re = re.compile(r"^CK_(.+?)(?:\.body|\.frontmatter)?\.(md|json)$")
+    if not force and drafts_dir.exists():
+        for f in drafts_dir.iterdir():
+            m = _slug_re.match(f.name)
+            if m:
+                used_slugs.add(m.group(1))
+        if used_slugs:
+            log.info("phase_8_used_slugs_loaded", count=len(used_slugs))
+
     cfg = _QwenStageConfig(
         client=client,
         model=model,
@@ -723,6 +790,7 @@ def run_phase_8(
         max_tokens_stage2=max_tokens_stage2,
         max_tokens_stage3=max_tokens_stage3,
         max_tokens_stage4=max_tokens_stage4,
+        used_slugs=used_slugs,
     )
 
     log.info(
@@ -764,34 +832,12 @@ def run_phase_8(
             continue
 
         # === Stage 3 + 4 pro Konzept ===
-        for concept in proposed_concepts:
-            raw_slug = concept.get("slug") or _slugify_ck(concept.get("title", "concept"))
-            slug = _unique_slug(_slugify_ck(raw_slug), cfg.used_slugs)
-
-            body = _run_stage3_concept(concept, seg_map, drafts_dir, slug, batch_id, cfg)
-            if body is None:
-                needs_human_count += 1
-                errors += 1
-                continue
-
-            fm = _run_stage4_concept(concept, body, drafts_dir, slug, batch_id, cfg)
-            if fm is None:
-                needs_human_count += 1
-                errors += 1
-                continue
-
-            combined_path = drafts_dir / f"CK_{slug}.md"
-            if force or not combined_path.exists():
-                _write_combined_draft(body, fm, combined_path)
-
-            log.info(
-                "phase_8_concept_drafted",
-                slug=slug,
-                ck_id=concept["ck_id"],
-                batch=batch_id,
-                confidence=fm.confidence,
-            )
-            concepts_drafted += 1
+        drafted, nh, errs = _process_batch_concepts(
+            proposed_concepts, seg_map, drafts_dir, batch_id, force, cfg
+        )
+        concepts_drafted += drafted
+        needs_human_count += nh
+        errors += errs
 
         batches_processed += 1
 

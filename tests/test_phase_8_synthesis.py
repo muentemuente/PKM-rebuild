@@ -839,6 +839,47 @@ def test_merge_decisions_override_wins_over_cache(tmp_path: Path) -> None:
     assert result["proposed_concepts"][0]["ck_id"] == "CK_from-decisions"
 
 
+# === Bug-B5: used_slugs aus bestehenden Drafts laden ============================
+
+
+def test_used_slugs_loaded_from_existing_drafts(
+    tmp_path: Path, mock_openai_infinite: MagicMock
+) -> None:
+    """Beim Start werden bestehende CK_* Slugs aus drafts_dir in used_slugs geladen."""
+    batch_dir = _make_batch_file(tmp_path)
+    segs_path = _make_segments_file(tmp_path)
+    prompts_dir = _make_prompts_dir(tmp_path)
+    drafts_dir = tmp_path / "drafts"
+    drafts_dir.mkdir()
+
+    # Vorhandene Drafts simulieren — test-konzept ist schon vergeben
+    (drafts_dir / "CK_test-konzept.md").write_text("", encoding="utf-8")
+    (drafts_dir / "CK_test-konzept.body.md").write_text("", encoding="utf-8")
+    (drafts_dir / "CK_test-konzept.frontmatter.json").write_text("{}", encoding="utf-8")
+
+    run_phase_8(
+        batches_dir=batch_dir,
+        segments_path=segs_path,
+        qwen_output_dir=tmp_path / "qwen",
+        drafts_dir=drafts_dir,
+        endpoint="http://localhost:1234/v1",
+        model="test",
+        context_window=49152,
+        prompt_version="v1",
+        prompts_dir=prompts_dir,
+        temperature_stage1=0.3,
+        temperature_stage2=0.2,
+        temperature_stage3=0.4,
+        temperature_stage4=0.1,
+        max_retries=0,
+        retry_backoff_seconds=0,
+        timeout_seconds=30,
+    )
+    # test-konzept war belegt → neuer Draft muss test-konzept_2.md heißen
+    assert (drafts_dir / "CK_test-konzept_2.md").exists()
+    assert not (drafts_dir / "CK_test-konzept.md").read_text()  # Placeholder leer geblieben
+
+
 def test_max_tokens_loaded_from_config() -> None:
     """pipeline.config.yaml max_tokens-Sektion wird korrekt ins Pydantic-Modell geladen."""
     repo_root = Path(__file__).parent.parent

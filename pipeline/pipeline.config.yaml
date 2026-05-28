@@ -64,17 +64,20 @@ structure:
   extract_links: true
   extract_images: true
   guess_doc_type: true          # heuristische Typ-Vermutung (Pipeline-intern, nicht im Vault)
+  book_word_threshold: 8000     # files >= dieser Wortzahl + 5+ H1/H2 → label "book"
 
 
 # === Segmentierung (Phase 4) ==================================================
 segmentation:
-  min_words_per_segment: 50
+  min_words_per_segment: 150    # Gate-1 (2026-05-28): erhöht von 50, Heading-Echo eliminieren
   max_words_per_segment: 1500
   target_words_per_segment: 900
   preserve_code_blocks: true    # Code-Block niemals zerreißen
   preserve_tables: true
   preserve_lists: true
   split_by_headings: true       # primäre Trenn-Strategie
+  book_max_words_per_segment: 5000
+  book_split_levels: [1, 2]     # bei books nach H1+H2 splitten
 
 
 # === Redundanz-Erkennung (Phase 5) ============================================

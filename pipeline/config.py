@@ -143,8 +143,38 @@ class NormalizationConfig(BaseModel):
     parse_frontmatter: bool
 
 
+class VaultConfig(BaseModel):
+    use_cluster_number_prefix: bool
+    generate_cluster_index: bool
+    validate_wikilinks: bool
+    attic_folder: str
+    unsorted_folder: str
+
+
+class TagsConfig(BaseModel):
+    vocabulary_file: Path
+    strict_vocabulary: bool
+    max_tags_per_article: int
+    min_tags_per_article: int
+
+
+class LoggingConfig(BaseModel):
+    level: str
+    console_rich: bool
+    file_json: bool
+    file_path: Path
+    log_meta_files: bool
+
+
+class MemoryWatchConfig(BaseModel):
+    enabled: bool
+    warn_threshold_percent: int
+    pause_threshold_percent: int
+    check_interval_seconds: int
+
+
 class PipelineConfig(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
     paths: PathsConfig
     pipeline: PipelineVersionConfig
@@ -159,6 +189,10 @@ class PipelineConfig(BaseModel):
     clustering: ClusteringConfig
     batching: BatchingConfig
     qwen: QwenConfig
+    vault: VaultConfig
+    tags: TagsConfig
+    logging: LoggingConfig
+    memory_watch: MemoryWatchConfig
 
 
 def _substitute_vars(text: str, context: dict[str, str]) -> str:
@@ -183,6 +217,11 @@ def _resolve_paths(raw: dict[str, Any]) -> dict[str, str]:
     return context
 
 
+def _substitute_str_values(raw: dict[str, Any], context: dict[str, str]) -> dict[str, Any]:
+    """Ersetzt ${key}-Platzhalter in allen String-Werten einer Sektion (nicht rekursiv)."""
+    return {k: _substitute_vars(v, context) if isinstance(v, str) else v for k, v in raw.items()}
+
+
 def load_config(config_path: Path) -> PipelineConfig:
     """Lädt pipeline.config.yaml, löst Pfad-Variablen auf und gibt PipelineConfig zurück.
 
@@ -197,5 +236,10 @@ def load_config(config_path: Path) -> PipelineConfig:
         pydantic.ValidationError: Bei ungültiger Konfiguration.
     """
     raw: dict[str, Any] = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    raw["paths"] = _resolve_paths(raw["paths"])
+    paths_context = _resolve_paths(raw["paths"])
+    raw["paths"] = paths_context
+    # ${var}-Substitution für Sektionen mit Pfad-Referenzen
+    for section in ("tags", "logging"):
+        if section in raw and isinstance(raw[section], dict):
+            raw[section] = _substitute_str_values(raw[section], paths_context)
     return PipelineConfig.model_validate(raw)

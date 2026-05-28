@@ -17,7 +17,10 @@ from pipeline.phase_2_normalize import run_phase_2
 from pipeline.phase_4_segment import (
     _classify_lines,
     _group_into_blocks,
+    _is_heading_only,
+    _merge_undersized_segments,
     _parse_raw_sections,
+    _same_h1_section,
     _segment_document,
     _split_section_lines,
     run_phase_4,
@@ -337,3 +340,209 @@ def test_force_reruns(sample_corpus_dir: Path, tmp_path: Path) -> None:
     mtime_second = meta_path.stat().st_mtime_ns
 
     assert mtime_second > mtime_first
+
+
+# === _is_heading_only ============================================================
+
+
+def test_is_heading_only_single_heading() -> None:
+    assert _is_heading_only("## Tag-Sammlung") is True
+
+
+def test_is_heading_only_multiple_headings() -> None:
+    assert _is_heading_only("# Top\n\n## Sub") is True
+
+
+def test_is_heading_only_with_content() -> None:
+    assert _is_heading_only("## Section\n\nSome content here") is False
+
+
+def test_is_heading_only_empty() -> None:
+    assert _is_heading_only("") is False
+
+
+def test_is_heading_only_plain_text() -> None:
+    assert _is_heading_only("Just some text without headings") is False
+
+
+# === _same_h1_section ============================================================
+
+
+def test_same_h1_both_empty() -> None:
+    assert _same_h1_section([], []) is True
+
+
+def test_same_h1_one_empty() -> None:
+    assert _same_h1_section([], ["Section"]) is False
+
+
+def test_same_h1_same_first_element() -> None:
+    assert _same_h1_section(["Top", "Sub1"], ["Top", "Sub2"]) is True
+
+
+def test_same_h1_different_first_element() -> None:
+    assert _same_h1_section(["A", "Sub"], ["B", "Sub"]) is False
+
+
+def test_same_h1_single_element_match() -> None:
+    assert _same_h1_section(["Top"], ["Top"]) is True
+
+
+# === _merge_undersized_segments ==================================================
+
+
+def _make_seg(
+    doc_id: str,
+    idx: int,
+    text: str,
+    heading_path: list[str] | None = None,
+) -> SegmentRecord:
+    """Hilfsfunktion: SegmentRecord für Tests bauen."""
+    return SegmentRecord(
+        segment_id=f"{doc_id}-S{idx:04d}",
+        doc_id=doc_id,
+        source_path="/test.md",
+        heading_path=heading_path or [],
+        segment_index=idx,
+        text=text,
+        word_count=len(text.split()),
+        char_count=len(text),
+        contains_code=False,
+        contains_table=False,
+    )
+
+
+def test_merge_heading_only_merges_with_next() -> None:
+    """Heading-only-Segment wird mit NEXT gemergt."""
+    seg0 = _make_seg("D_t", 0, "## Sub", heading_path=["Top", "Sub"])
+    seg1 = _make_seg(
+        "D_t", 1, "## Sub\n\nEcht Inhalt hier, viele Wörter.", heading_path=["Top", "Sub"]
+    )
+    result, _ = _merge_undersized_segments([seg0, seg1], min_words=10, max_words=1500, doc_id="D_t")
+    assert len(result) == 1
+    assert "## Sub" in result[0].text
+    assert "Echt Inhalt hier" in result[0].text
+
+
+def test_merge_heading_only_inherits_path() -> None:
+    """Heading-only gibt seinen heading_path ans gemergte Segment weiter."""
+    seg0 = _make_seg("D_t", 0, "## SubA", heading_path=["Top", "SubA"])
+    body1 = "## SubB\n\n" + "wort " * 20
+    seg1 = _make_seg("D_t", 1, body1, heading_path=["Top", "SubB"])
+    result, _ = _merge_undersized_segments([seg0, seg1], min_words=10, max_words=1500, doc_id="D_t")
+    assert len(result) == 1
+    # heading_path vom heading-only-Segment (seg0)
+    assert result[0].heading_path == ["Top", "SubA"]
+
+
+def test_merge_undersized_segment_into_next() -> None:
+    """Undersized-Segment wird mit NEXT im gleichen H1 gemergt."""
+    seg0 = _make_seg("D_t", 0, "## A\n\nkurz", heading_path=["Top", "A"])
+    body1 = "## B\n\n" + "wort " * 30
+    seg1 = _make_seg("D_t", 1, body1, heading_path=["Top", "B"])
+    result, _ = _merge_undersized_segments([seg0, seg1], min_words=20, max_words=1500, doc_id="D_t")
+    assert len(result) == 1
+    assert "kurz" in result[0].text
+
+
+def test_merge_respects_h1_boundary() -> None:
+    """Undersized-Segment wird NICHT über H1-Grenzen gemergt."""
+    # seg0 unter H1-A (undersized), seg1 unter H1-B (gleicher H1-Check schlägt fehl)
+    seg0 = _make_seg("D_t", 0, "## Sub\n\nkurz", heading_path=["H1-A", "Sub"])
+    body1 = "## Sub\n\n" + "wort " * 30
+    seg1 = _make_seg("D_t", 1, body1, heading_path=["H1-B", "Sub"])
+    result, _ = _merge_undersized_segments([seg0, seg1], min_words=20, max_words=1500, doc_id="D_t")
+    # seg0 kann nicht mit seg1 mergen (unterschiedlicher H1), kein PREVIOUS → bleibt
+    # seg1 ist groß genug
+    assert len(result) == 2
+
+
+def test_merge_last_segment_to_previous() -> None:
+    """Letztes undersized Segment mergt mit PREVIOUS, H1-Grenze ignoriert."""
+    body0 = "# H1-A\n\n" + "wort " * 30
+    seg0 = _make_seg("D_t", 0, body0, heading_path=["H1-A"])
+    seg1 = _make_seg("D_t", 1, "# H1-B\n\nkurz", heading_path=["H1-B"])
+    result, _ = _merge_undersized_segments([seg0, seg1], min_words=20, max_words=1500, doc_id="D_t")
+    assert len(result) == 1
+    assert "kurz" in result[0].text
+
+
+def test_merge_reindexes_segments() -> None:
+    """Nach Merge: IDs sind S0000, S0001 … ohne Lücken."""
+    seg0 = _make_seg("D_t", 0, "## Only Heading", heading_path=["Top"])
+    body1 = "## Content\n\n" + "wort " * 30
+    seg1 = _make_seg("D_t", 1, body1, heading_path=["Top"])
+    body2 = "## More\n\n" + "inhalt " * 30
+    seg2 = _make_seg("D_t", 2, body2, heading_path=["Top"])
+    result, _ = _merge_undersized_segments(
+        [seg0, seg1, seg2], min_words=10, max_words=1500, doc_id="D_t"
+    )
+    for i, seg in enumerate(result):
+        assert seg.segment_id == f"D_t-S{i:04d}"
+        assert seg.segment_index == i
+
+
+def test_merge_chain_of_undersized_segments() -> None:
+    """Kette von undersized Segmenten wird iterativ gemergt."""
+    segs = [
+        _make_seg("D_t", i, f"## H{i}\n\nkurz", heading_path=["Top", f"H{i}"]) for i in range(4)
+    ]
+    result, _ = _merge_undersized_segments(segs, min_words=20, max_words=1500, doc_id="D_t")
+    assert len(result) < 4
+    # Alle Original-Texte im Merge enthalten
+    combined = " ".join(r.text for r in result)
+    for i in range(4):
+        assert f"H{i}" in combined
+
+
+def test_merge_preserves_code_blocks_after_merge() -> None:
+    """Code-Block-Flag bleibt nach Merge erhalten (OR-Kombination)."""
+    seg0 = _make_seg("D_t", 0, "## Head", heading_path=["Top"])
+    seg1 = SegmentRecord(
+        segment_id="D_t-S0001",
+        doc_id="D_t",
+        source_path="/t.md",
+        heading_path=["Top"],
+        segment_index=1,
+        text="## Section\n\n```python\nx = 1\n```",
+        word_count=5,
+        char_count=30,
+        contains_code=True,
+        contains_table=False,
+    )
+    result, _ = _merge_undersized_segments([seg0, seg1], min_words=10, max_words=1500, doc_id="D_t")
+    assert len(result) == 1
+    assert result[0].contains_code is True
+
+
+def test_oversized_after_merge_segment_is_returned() -> None:
+    """Segment das nach Merge > max_words ist, wird trotzdem zurückgegeben."""
+    body0 = "## A\n\nkurz"
+    body1 = "## B\n\n" + "wort " * 100
+    seg0 = _make_seg("D_t", 0, body0, heading_path=["Top", "A"])
+    seg1 = _make_seg("D_t", 1, body1, heading_path=["Top", "B"])
+    result, _ = _merge_undersized_segments([seg0, seg1], min_words=20, max_words=50, doc_id="D_t")
+    # Merge findet statt (seg0 < min_words), Ergebnis > max_words aber wird behalten
+    assert len(result) == 1
+    assert result[0].word_count > 50
+
+
+# === _segment_document mit Merge-Logik ==========================================
+
+
+def test_phase_4_merges_heading_only_segment() -> None:
+    """Heading-only-Segment in _segment_document wird mit Nachfolger gemergt."""
+    body = "# Top\n\n## Sub\n\n" + "inhalt " * 20
+    result = _segment_document("D_t", body, "/t.md", min_words=10, max_words=1500)
+    # "## Sub" allein ist heading-only → muss mit dem Inhalt-Segment gemergt werden
+    assert all(not _is_heading_only(r.text) for r in result)
+
+
+def test_phase_4_no_merge_when_above_min_words() -> None:
+    """Segmente über min_words bleiben unverändert (kein unnötiger Merge)."""
+    body_a = "# A\n\n" + "wort " * 60
+    body_b = "# B\n\n" + "wort " * 60
+    body = body_a + "\n\n" + body_b
+    result = _segment_document("D_t", body, "/t.md", min_words=50, max_words=1500)
+    # Zwei separate H1 mit ausreichend Inhalt → keine Merge-Reduktion
+    assert len(result) == 2

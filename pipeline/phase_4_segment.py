@@ -181,6 +181,218 @@ def _has_table(text: str) -> bool:
     return any(line.strip().startswith("|") and len(line.strip()) > 2 for line in text.splitlines())
 
 
+def _is_heading_only(text: str) -> bool:
+    """True wenn das Segment ausschließlich aus Heading-Zeilen besteht (kein Body-Text)."""
+    non_blank = [line for line in text.splitlines() if line.strip()]
+    return bool(non_blank) and all(_HEADING_LINE_RE.match(line.strip()) for line in non_blank)
+
+
+def _same_h1_section(path_a: list[str], path_b: list[str]) -> bool:
+    """True wenn beide Segmente im selben H1-Abschnitt liegen.
+
+    Zwei leere Pfade (pre-heading Inhalt) gelten als gleicher Abschnitt.
+    Ein leerer und ein nichtleerer Pfad gelten als unterschiedliche Abschnitte.
+    """
+    if not path_a and not path_b:
+        return True
+    if not path_a or not path_b:
+        return False
+    return path_a[0] == path_b[0]
+
+
+def _combine_segments(
+    a: SegmentRecord,
+    b: SegmentRecord,
+    *,
+    heading_path_override: list[str] | None = None,
+) -> SegmentRecord:
+    """Kombiniert zwei Segmente zu einem (temporäre ID, wird in _merge_undersized_segments neu vergeben).
+
+    Heading-Pfad: override hat Vorrang; sonst Segment mit mehr Wörtern; bei Gleichstand: a (erstes).
+    contains_code / contains_table: OR-Kombination.
+    """
+    text = (a.text + "\n\n" + b.text).strip()
+    if heading_path_override is not None:
+        heading_path = heading_path_override
+    elif a.word_count > b.word_count:
+        heading_path = a.heading_path
+    elif b.word_count > a.word_count:
+        heading_path = b.heading_path
+    else:
+        heading_path = a.heading_path
+    return SegmentRecord(
+        segment_id=a.segment_id,  # temporär, wird re-indiziert
+        doc_id=a.doc_id,
+        source_path=a.source_path,
+        heading_path=heading_path,
+        segment_index=a.segment_index,  # temporär
+        text=text,
+        word_count=len(text.split()),
+        char_count=len(text),
+        contains_code=a.contains_code or b.contains_code,
+        contains_table=a.contains_table or b.contains_table,
+    )
+
+
+def _merge_step_heading_only(
+    seg: SegmentRecord,
+    prov: list[str],
+    i: int,
+    segments: list[SegmentRecord],
+    provenance: list[list[str]],
+    new_segs: list[SegmentRecord],
+    new_prov: list[list[str]],
+) -> tuple[int, bool]:
+    """Heading-only: NEXT (kein H1-Check); fallback PREVIOUS. Returns (new_i, changed)."""
+    if i + 1 < len(segments):
+        new_segs.append(
+            _combine_segments(seg, segments[i + 1], heading_path_override=seg.heading_path)
+        )
+        new_prov.append(prov + provenance[i + 1])
+        return i + 2, True
+    if new_segs:
+        prev = new_segs.pop()
+        prev_prov = new_prov.pop()
+        new_segs.append(_combine_segments(prev, seg))
+        new_prov.append(prev_prov + prov)
+        return i + 1, True
+    # Einziges Segment — kein Merge möglich
+    new_segs.append(seg)
+    new_prov.append(prov)
+    return i + 1, False
+
+
+def _merge_step_undersized(
+    seg: SegmentRecord,
+    prov: list[str],
+    i: int,
+    segments: list[SegmentRecord],
+    provenance: list[list[str]],
+    new_segs: list[SegmentRecord],
+    new_prov: list[list[str]],
+) -> tuple[int, bool]:
+    """Undersized: NEXT in gleicher H1; PREVIOUS in gleicher H1; letztes → PREVIOUS. Returns (new_i, changed)."""
+    is_last = i == len(segments) - 1
+    if is_last and new_segs:
+        # Letztes Segment: mit PREVIOUS, H1-Grenze ignoriert
+        prev = new_segs.pop()
+        prev_prov = new_prov.pop()
+        new_segs.append(_combine_segments(prev, seg))
+        new_prov.append(prev_prov + prov)
+        return i + 1, True
+    next_in_h1 = i + 1 < len(segments) and _same_h1_section(
+        seg.heading_path, segments[i + 1].heading_path
+    )
+    if next_in_h1:
+        new_segs.append(_combine_segments(seg, segments[i + 1]))
+        new_prov.append(prov + provenance[i + 1])
+        return i + 2, True
+    prev_in_h1 = bool(new_segs) and _same_h1_section(new_segs[-1].heading_path, seg.heading_path)
+    if prev_in_h1:
+        prev = new_segs.pop()
+        prev_prov = new_prov.pop()
+        new_segs.append(_combine_segments(prev, seg))
+        new_prov.append(prev_prov + prov)
+        return i + 1, True
+    # Keine Merge-Option (H1-Grenzen auf beiden Seiten)
+    new_segs.append(seg)
+    new_prov.append(prov)
+    return i + 1, False
+
+
+def _merge_undersized_segments(
+    segments: list[SegmentRecord],
+    min_words: int,
+    max_words: int,
+    doc_id: str,
+) -> tuple[list[SegmentRecord], dict[str, list[str]]]:
+    """Mergt heading-only und undersized Segmente iterativ bis kein weiterer Merge möglich ist.
+
+    Regeln:
+    - Heading-only → immer mit NEXT mergen, kein H1-Check; kein NEXT → mit PREVIOUS
+    - Undersized → mit NEXT in gleichem H1; kein NEXT → mit PREVIOUS in gleichem H1
+    - Letztes Segment (undersized) → mit PREVIOUS, H1-Grenze ignoriert
+    - Einzelnes Segment → unverändert
+    - Nach Merge > max_words: akzeptieren + loggen (kein Re-Split)
+    - Re-Indizierung: S0000, S0001 … ohne Lücken
+
+    Returns:
+        (final_segments, provenance) wobei provenance neue segment_id →
+        Liste originaler segment_ids aus denen dieses Segment gemergt wurde mappt.
+    """
+    if not segments:
+        return [], {}
+
+    # provenance[i]: originale segment_ids für segments[i]
+    provenance: list[list[str]] = [[seg.segment_id] for seg in segments]
+
+    changed = True
+    while changed:
+        changed = False
+        new_segs: list[SegmentRecord] = []
+        new_prov: list[list[str]] = []
+        i = 0
+        while i < len(segments):
+            seg = segments[i]
+            prov = provenance[i]
+            if _is_heading_only(seg.text):
+                i, step_changed = _merge_step_heading_only(
+                    seg, prov, i, segments, provenance, new_segs, new_prov
+                )
+            elif seg.word_count < min_words:
+                i, step_changed = _merge_step_undersized(
+                    seg, prov, i, segments, provenance, new_segs, new_prov
+                )
+            else:
+                new_segs.append(seg)
+                new_prov.append(prov)
+                i += 1
+                step_changed = False
+            changed = changed or step_changed
+        segments = new_segs
+        provenance = new_prov
+
+    # Re-Indizierung: fortlaufend S0000, S0001 … ohne Lücken
+    final: list[SegmentRecord] = []
+    final_provenance: dict[str, list[str]] = {}
+    for new_idx, (seg, prov) in enumerate(zip(segments, provenance, strict=True)):
+        new_id = f"{doc_id}-S{new_idx:04d}"
+        final_provenance[new_id] = prov
+        final.append(
+            SegmentRecord(
+                segment_id=new_id,
+                doc_id=seg.doc_id,
+                source_path=seg.source_path,
+                heading_path=seg.heading_path,
+                segment_index=new_idx,
+                text=seg.text,
+                word_count=seg.word_count,
+                char_count=seg.char_count,
+                contains_code=seg.contains_code,
+                contains_table=seg.contains_table,
+            )
+        )
+        if seg.word_count > max_words:
+            log.info(
+                "phase_4_oversized_after_merge",
+                segment_id=new_id,
+                word_count=seg.word_count,
+                max_words=max_words,
+            )
+
+    # Provenance als Debug-Log (Mapping alte→neue IDs)
+    merged_map = {k: v for k, v in final_provenance.items() if len(v) > 1}
+    if merged_map:
+        log.debug(
+            "phase_4_merge_provenance",
+            doc_id=doc_id,
+            merged_segments=len(merged_map),
+            mapping=merged_map,
+        )
+
+    return final, final_provenance
+
+
 def _segment_document(
     doc_id: str,
     body: str,
@@ -220,7 +432,8 @@ def _segment_document(
         )
         seg_index += 1
 
-    return records
+    merged, _ = _merge_undersized_segments(records, min_words, max_words, doc_id)
+    return merged
 
 
 def _sha256_file(path: Path) -> str:

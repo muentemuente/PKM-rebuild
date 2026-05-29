@@ -1,7 +1,7 @@
 ---
 task_id: 0J
 title: Phase-4-Fix + Book-Sonderbehandlung + Re-Run
-status: open
+status: done
 owner: claude_code (autonom mit App-Checkpoints)
 priority: P0 (blockiert 8.A)
 depends_on: [0F]

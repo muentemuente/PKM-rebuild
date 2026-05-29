@@ -126,7 +126,7 @@ Kriterium 5 formal erfüllt (denkschulen-Mikrocluster weg). Kriterium 4 weiterhi
 - Cluster ≥3 Docs: 8 ❌ (Ziel ≥50)
 - Mega-Cluster C_cluster-0000: 807 Segmente / 168 Docs — Problem bleibt
 
-**Bekannte Verzerrung:** Reports-Generator (`cluster_report.md`) zeigte „Top-Cluster 8 Docs" statt tatsächlich 168. Diskrepanz aufgelöst per Direct-Query in `cluster_proposals.json`. Reports-Bug wird in Block 0.M gefixt.
+**Bekannte Verzerrung (behoben):** Reports-Generator (`cluster_report.md`) zeigte „Top-Cluster 8 Docs" statt tatsächlich 168. Diskrepanz aufgelöst per Direct-Query in `cluster_proposals.json`. Reports-Bug gefixt in Block 0.M (`fa9669c`).
 
 ## Änderungs-Log
 

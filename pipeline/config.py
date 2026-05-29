@@ -53,6 +53,8 @@ class SegmentationConfig(BaseModel):
     preserve_tables: bool
     preserve_lists: bool
     split_by_headings: bool
+    book_max_words_per_segment: int
+    book_split_levels: list[int]
 
 
 class ExactMatchConfig(BaseModel):
@@ -132,6 +134,7 @@ class StructureConfig(BaseModel):
     extract_links: bool
     extract_images: bool
     guess_doc_type: bool
+    book_word_threshold: int
 
 
 class NormalizationConfig(BaseModel):

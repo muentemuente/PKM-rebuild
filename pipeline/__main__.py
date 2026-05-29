@@ -74,6 +74,7 @@ def _dispatch_phase_3(cfg: PipelineConfig, force: bool) -> None:
         output_path=out / "documents_structured.jsonl",
         force=force,
         pipeline_version=cfg.pipeline.version,
+        book_word_threshold=cfg.structure.book_word_threshold,
     )
     console.print(
         f"[green]✓ Phase 3:[/green] {len(records)} Dokumente → {out / 'documents_structured.jsonl'}"
@@ -89,6 +90,8 @@ def _dispatch_phase_4(cfg: PipelineConfig, force: bool) -> None:
         force=force,
         min_words=cfg.segmentation.min_words_per_segment,
         max_words=cfg.segmentation.max_words_per_segment,
+        book_max_words=cfg.segmentation.book_max_words_per_segment,
+        structured_path=out / "documents_structured.jsonl",
         pipeline_version=cfg.pipeline.version,
     )
     console.print(f"[green]✓ Phase 4:[/green] {len(records)} Segmente → {out / 'segments.jsonl'}")

@@ -5,7 +5,7 @@ phase_id: 6
 phase_status: draft
 status: draft
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-05-29
 ---
 
 # Phase 6 — Embeddings + Cluster-Vorbereitung
@@ -43,6 +43,12 @@ Commit `74de985` (feat: implement Phase 6 — Embeddings + Cluster-Vorbereitung)
 - Cluster `C_cluster-0000` mit 107 Segmenten aus 59 Docs ist mit Abstand größter Named Cluster
 - 39 von 71 Named Clustern sind Mikrocluster (<3 Docs) — weitere Indikation für zu enge Clustering-Parameter
 
+**Gate-1-Entscheidung + Nach-Re-Run (2026-05-29):**
+- `546c121` — `similarity_threshold: 0.85 → 0.65`: zu enges Clustering war Mitursache für 90.8% unsortierte Segmente
+- Hauptursache war aber Phase-4 (Mini-Segmente): Nach Phase-4-Fix deutlich weniger Segmente (1.581 statt 5.368)
+- Ergebnis: **300 unsortiert / 1.581 = 19.0%** ✅ (Ziel < 40%), Mikrocluster: 39 → 8 ✅
+- Problem: `C_cluster-0000` zieht 171 Docs in einen Cluster — `denkschulen_ueberblick` dominiert durch Book-Segmente, wird in Block 0.K exkludiert
+
 ## 5. Lessons
 
 > [!todo] Inhaltliche Reflexion in App-Session 0H.4
@@ -55,3 +61,4 @@ Commit `74de985` (feat: implement Phase 6 — Embeddings + Cluster-Vorbereitung)
 ## Änderungs-Log
 
 - 2026-05-28 — Skelett generiert (Block 0.H.3)
+- 2026-05-29 — Gate-1-Entscheidung + Nach-Re-Run-Zahlen ergänzt (Sektion 4)

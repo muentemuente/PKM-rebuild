@@ -5,7 +5,7 @@ phase_id: 5
 phase_status: draft
 status: draft
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-05-29
 ---
 
 # Phase 5 — Redundanz-Erkennung
@@ -39,6 +39,12 @@ Commit `d9cb420` (feat: implement Phase 5 — Redundanz-Erkennung). Zwei-stufige
 - `min_df=1` in Config: auch einmalige Terme werden im Vokabular behalten — bei kleinem Korpus (203 Docs) sinnvoll
 - `exact_duplicates.json` mit 2 Byte (leere Liste) — Corner-Case für Phase-10-Report: "keine Duplikate" muss explizit ausgegeben werden, nicht als Fehler behandelt werden
 
+**Gate-1-Befund + Nach-Re-Run (2026-05-29):**
+- Vorher: 642 Kanten mit Sim=1.0 — Ursache: Phase-4 Mini-Segmente (Heading-Echo erzeugt identische Token-Mengen)
+- Phase-4-Fix behebt Ursache: Nach Re-Run nur noch **31 Kanten gesamt, 15 mit Sim=1.0**
+- Alle verbleibenden 1.0-Kanten stammen aus `denkschulen_ueberblick_und_einfuehrung.md` — wird in Block 0.K exkludiert
+- `similarity_threshold`-Änderung (0.85→0.65, `546c121`) betrifft Phase 6 (Clustering), nicht den TF-IDF-Threshold hier
+
 ## 5. Lessons
 
 > [!todo] Inhaltliche Reflexion in App-Session 0H.4
@@ -51,3 +57,4 @@ Commit `d9cb420` (feat: implement Phase 5 — Redundanz-Erkennung). Zwei-stufige
 ## Änderungs-Log
 
 - 2026-05-28 — Skelett generiert (Block 0.H.3)
+- 2026-05-29 — Gate-1-Befund + Nach-Re-Run-Zahlen ergänzt (Sektion 4)

@@ -5,7 +5,7 @@ phase_id: 4
 phase_status: draft
 status: draft
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-05-29
 ---
 
 # Phase 4 — Segmentierung
@@ -39,6 +39,13 @@ Commit `5444ca3` (feat: implement Phase 4 — Segmentierung). Dokumente werden i
 - 5.368 Segmente = Eingangs-Datenmenge für Embedding-Phase (Phase 6) und Redundanz-Check (Phase 5)
 - `contains_code` und `contains_table` werden pro Segment gespeichert — wird in Phase 7 für Batch-Beschreibungen genutzt
 
+**Gate-1-Befund + Block-0.J-Fix (2026-05-29):**
+- Gate-1 zeigte: Merge-Logik griff nicht bei Heading-only-Segmenten → Ø ~60 Wörter, Cluster-Qualität niedrig
+- `407a610` — Heading-only und undersized Segmente werden nun korrekt mit Nachbar gemergt
+- `16ba455` — `min_words_per_segment: 50 → 150` (harter Schwellwert erhöht)
+- `596137a` — Book-Sonderbehandlung: Files mit `doc_type=book` werden nach H1/H2 gesplittet (größere, kohärentere Segmente)
+- Ergebnis Re-Run: **5.368 → 1.581 Segmente**, Ø Wörter ~60 → ~203 ✅
+
 ## 5. Lessons
 
 > [!todo] Inhaltliche Reflexion in App-Session 0H.4
@@ -51,3 +58,4 @@ Commit `5444ca3` (feat: implement Phase 4 — Segmentierung). Dokumente werden i
 ## Änderungs-Log
 
 - 2026-05-28 — Skelett generiert (Block 0.H.3)
+- 2026-05-29 — Gate-1-Befund + Block-0.J-Fix ergänzt (Sektion 4)

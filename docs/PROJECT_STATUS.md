@@ -3,7 +3,7 @@ title: PKM-rebuild — Projektstand
 slug: project-status
 status: draft
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-05-29
 ---
 
 # PKM-rebuild — Projektstand (2026-05-28)
@@ -19,8 +19,8 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | 0 | Setup (Git, Toolchain, Backup, Doku) | ✅ done | `e1f3c35` |
 | 1 | Inventar | ✅ done | `7c9a640` |
 | 2 | Normalisierung | ✅ done | `7fd4ee3` |
-| 3 | Strukturextraktion | ✅ done | `515a61a` |
-| 4 | Segmentierung | ✅ done | `5444ca3` |
+| 3 | Strukturextraktion | ✅ done | `7af5c95` |
+| 4 | Segmentierung | ✅ done | `87e7311` |
 | 5 | Redundanz-Erkennung | ✅ done | `d9cb420` |
 | 6 | Embeddings + Cluster-Vorbereitung | ✅ done | `74de985` |
 | 7 | LLM-Batch-Bildung | ✅ done | `231a2ff` |
@@ -120,6 +120,14 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 
 **Schema:** `SegmentRecord` (segment_id, doc_id, text, word_count, heading_path, contains_code, …)  
 **Tests:** 34 Tests — Code-Block-Integrität, Heading-Pfad, min/max_words, Idempotenz
+
+**Block-0.J-Update (2026-05-29):**
+- `407a610` — Heading-only und undersized Segmente werden korrekt mit Nachbar gemergt
+- `16ba455` — `min_words_per_segment: 50 → 150`
+- `7af5c95` — Phase 3: `doc_type_guess`-Label `book` für Files > 8000 Wörter
+- `596137a` — Phase 4: Book-Sonderbehandlung: H1/H2-Split (statt H2/H3), größere Segmente
+- `87e7311` — Book-Parameter korrekt an Phase 3 + 4 durchgereicht
+- Re-Run ab Phase 3: **5.368 → 1.581 Segmente**, Ø Wörter ~60 → ~203
 
 ---
 
@@ -367,3 +375,4 @@ Siehe `docs/tasks/README.md` für vollständigen Master-Plan bis Phase 9. Block-
 
 - 2026-05-28 — Erstellt nach Abschluss Phase 8
 - 2026-05-28 — Korrigiert: Phase 8 Status auf 🟡 (CLI-Wiring offen, kein Echtlauf), Sektion 8 → Verweis auf Master-Plan
+- 2026-05-29 — Block-0.J: Phase-3/4-Commits aktualisiert, Phase-4-Notiz (Book-Sonderbehandlung + Re-Run-Ergebnis)

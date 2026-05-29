@@ -5,7 +5,7 @@ phase_id: 7
 phase_status: draft
 status: draft
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-05-29
 ---
 
 # Phase 7 — LLM-Batch-Bildung
@@ -40,6 +40,12 @@ Commit `231a2ff` (feat: implement Phase 7 — LLM-Batch-Bildung). Cluster aus Ph
 - Sub-Batch-Splitting implementiert, aber im Lauf nicht ausgelöst (kein Cluster übersteigt Token-Limit)
 - Batch-Nummerierung (`batch_001` bis `batch_071`) ist stabil und sortierbar — wichtig für Smoke-Test-Auswahl
 
+**Nach Re-Run (Block 0.J, 2026-05-29):**
+- 71 Batches → **30 Batches** nach Re-Run (weniger, aber inhaltlich dichtere Cluster)
+- Größter Batch: `batch_004` mit ~34.567 Token-Estimate — bleibt im 50K-Kontext-Fenster ✅
+- `C_unsortiert` weiterhin nicht gebatcht (300 Segmente) — korrekt; direkt in Phase 8 nur via explizitem Override möglich
+- `C_cluster-0000` mit 171 Docs (denkschulen-Problem): Batch existiert, wird in Block 0.K durch Exklusion des Mega-Files obsolet
+
 ## 5. Lessons
 
 > [!todo] Inhaltliche Reflexion in App-Session 0H.4
@@ -52,3 +58,4 @@ Commit `231a2ff` (feat: implement Phase 7 — LLM-Batch-Bildung). Cluster aus Ph
 ## Änderungs-Log
 
 - 2026-05-28 — Skelett generiert (Block 0.H.3)
+- 2026-05-29 — Nach-Re-Run-Zahlen ergänzt (Sektion 4)

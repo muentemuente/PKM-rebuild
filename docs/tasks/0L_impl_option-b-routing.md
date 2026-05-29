@@ -1,7 +1,7 @@
 ---
 title: Task 0.L-Impl — Option-B-Routing (Stage-1/2-Bypass, Pro-Doc-Veredelung)
 slug: 0L-impl-option-b-routing
-status: in_progress
+status: stable
 created: 2026-05-29
 updated: 2026-05-29
 block: 0.L-Impl (Phase II.2)
@@ -50,14 +50,14 @@ Phase 8 der Pipeline auf Option B umstellen:
 
 ## Akzeptanzkriterien
 
-- [ ] `run_phase_8` iteriert über Docs aus `segments.jsonl`, nicht über Batch-Files
-- [ ] Stage 1 + Stage 2 werden nicht aufgerufen (Funktionen bleiben als deprecated)
-- [ ] `merged_from` ist in jedem generierten Frontmatter `[]`
-- [ ] `sources_docs` enthält genau die Source-Doc-ID
-- [ ] Summary-Dict enthält `docs_processed` (statt `batches_processed`)
-- [ ] `pytest` grün (282 bestehende + neue Tests)
-- [ ] `ruff check` + `ruff format` clean
-- [ ] `mypy` clean
+- [x] `run_phase_8` iteriert über Docs aus `segments.jsonl`, nicht über Batch-Files
+- [x] Stage 1 + Stage 2 werden nicht aufgerufen (Funktionen bleiben als deprecated)
+- [x] `merged_from` ist in jedem generierten Frontmatter `[]`
+- [x] `sources_docs` enthält genau die Source-Doc-ID
+- [x] Summary-Dict enthält `docs_processed` (statt `batches_processed`)
+- [x] `pytest` grün (285 Tests)
+- [x] `ruff check` + `ruff format` clean
+- [x] `mypy` — keine neuen Fehler in geänderten Dateien
 
 ---
 

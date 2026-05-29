@@ -338,3 +338,80 @@ def test_reports_command_runs(tmp_path: Path) -> None:
     result = runner.invoke(cli, ["reports", "--help"])
     assert result.exit_code == 0
     assert "Kontroll-Berichte" in result.output
+
+
+def test_cluster_report_doc_count(tmp_path: Path) -> None:
+    """Histogramm zählt distinct Docs, nicht Segmente.
+
+    Cluster mit 10 Segmenten aus 5 verschiedenen Docs → Bin "3-5", nicht "> 50".
+    """
+    clusters = tmp_path / "cluster_proposals.json"
+    edges = tmp_path / "near_duplicate_edges.jsonl"
+    batches_dir = tmp_path / "batches"
+    batches_dir.mkdir()
+
+    # 10 Segmente aus 5 Docs
+    segment_ids = [f"D_doc{i}-S{j:04d}" for i in range(5) for j in range(2)]
+    cluster_data = [
+        {
+            "cluster_id": "C_cluster-0001",
+            "label_guess": "Test",
+            "segment_ids": segment_ids,
+            "internal_similarity_mean": 0.8,
+        }
+    ]
+    clusters.write_text(json.dumps(cluster_data), encoding="utf-8")
+    edges.write_text("", encoding="utf-8")
+
+    output = tmp_path / "cluster_report.md"
+    generate_cluster_report(clusters, batches_dir, edges, output)
+
+    content = output.read_text(encoding="utf-8")
+    # Histogramm-Sektion zeigt Docs
+    assert "Docs/Cluster" in content
+    # Bin "3-5" hat genau 1 Cluster (5 Docs)
+    assert "| 3-5 | 1 |" in content
+    # Bin "> 50" hat 0 Cluster (wäre der falsche Wert bei Segment-Count)
+    assert "| > 50 | 0 |" in content
+    # Top-20 zeigt ebenfalls 5 Docs
+    assert "| C_cluster-0001 |" in content
+    assert "| 5 |" in content or "5" in content
+
+
+def test_cluster_report_excludes_unsortiert_from_stats(tmp_path: Path) -> None:
+    """C_unsortiert fließt nicht in large/micro/Histogramm ein."""
+    clusters = tmp_path / "cluster_proposals.json"
+    edges = tmp_path / "near_duplicate_edges.jsonl"
+    batches_dir = tmp_path / "batches"
+    batches_dir.mkdir()
+
+    cluster_data = [
+        {
+            "cluster_id": "C_cluster-0001",
+            "label_guess": "Echt",
+            "segment_ids": ["D_a-S0000", "D_b-S0000", "D_c-S0000"],
+            "internal_similarity_mean": 0.8,
+        },
+        {
+            "cluster_id": "C_unsortiert",
+            "label_guess": "Unsortiert",
+            # 200 Segmente aus 100 verschiedenen Docs — darf nicht in Statistik
+            "segment_ids": [f"D_unsort{i}-S0000" for i in range(100)],
+            "internal_similarity_mean": 0.0,
+        },
+    ]
+    clusters.write_text(json.dumps(cluster_data), encoding="utf-8")
+    edges.write_text("", encoding="utf-8")
+
+    output = tmp_path / "cluster_report.md"
+    generate_cluster_report(clusters, batches_dir, edges, output)
+
+    content = output.read_text(encoding="utf-8")
+    # Übersicht: 1 Cluster gesamt (C_unsortiert zählt nicht als named)
+    assert "Cluster gesamt: 1" in content
+    # davon mit ≥3 Docs: 1 (der echte Cluster mit 3 Docs)
+    assert "davon mit ≥ 3 Docs: 1" in content
+    # Mikrocluster: 0
+    assert "Mikrocluster (< 3 Docs): 0" in content
+    # C_unsortiert-Segment-Count erscheint im Unsortiert-Zähler
+    assert "100 Segmente" in content

@@ -295,22 +295,22 @@ def _cluster_size_histogram(
     clusters: list[ClusterProposal],
     doc_counts: dict[str, int],
 ) -> dict[str, int]:
-    """Histogramm nach Segment-Anzahl pro Cluster (ohne C_unsortiert)."""
-    hist: dict[str, int] = {"3": 0, "4-5": 0, "6-10": 0, "11-20": 0, "21-50": 0, "> 50": 0}
+    """Histogramm nach Doc-Anzahl pro Cluster (ohne C_unsortiert)."""
+    hist: dict[str, int] = {"1": 0, "2": 0, "3-5": 0, "6-10": 0, "11-50": 0, "> 50": 0}
     for c in clusters:
         if c.cluster_id == _UNSORTED_ID:
             continue
-        n = len(c.segment_ids)
-        if n <= 3:
-            hist["3"] += 1
+        n = doc_counts.get(c.cluster_id, 0)
+        if n <= 1:
+            hist["1"] += 1
+        elif n <= 2:
+            hist["2"] += 1
         elif n <= 5:
-            hist["4-5"] += 1
+            hist["3-5"] += 1
         elif n <= 10:
             hist["6-10"] += 1
-        elif n <= 20:
-            hist["11-20"] += 1
         elif n <= 50:
-            hist["21-50"] += 1
+            hist["11-50"] += 1
         else:
             hist["> 50"] += 1
     return hist
@@ -628,14 +628,14 @@ pipeline_version: {pipeline_version}
 - Mikrocluster (< 3 Docs): {len(micro)}
 - Unsortiert (`C_unsortiert`): {unsorted_segs} Segmente
 
-## Cluster-Größen-Histogramm (Segmente, ohne C_unsortiert)
-| Cluster-Größe | Anzahl Cluster |
+## Cluster-Größen-Histogramm (Docs, ohne C_unsortiert)
+| Docs/Cluster | Anzahl Cluster |
 |---|---|
-| 3 | {hist["3"]} |
-| 4-5 | {hist["4-5"]} |
+| 1 | {hist["1"]} |
+| 2 | {hist["2"]} |
+| 3-5 | {hist["3-5"]} |
 | 6-10 | {hist["6-10"]} |
-| 11-20 | {hist["11-20"]} |
-| 21-50 | {hist["21-50"]} |
+| 11-50 | {hist["11-50"]} |
 | > 50 | {hist["> 50"]} |
 
 ## Top-20 Cluster nach Doc-Count

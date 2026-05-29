@@ -104,7 +104,25 @@ Begründung Akzeptanz trotz 2 Fehlern:
 
 **Beschluss:** denkschulen wird in Block 0.K aus `data/01_corpus_input/` nach `_excluded/` verschoben. Phase 1 skippt `_*`-Prefix bereits. Nach Block-0.K-Re-Run werden alle 6 Kriterien neu bewertet.
 
+## Verifikation Block 0.K (denkschulen exkludiert)
+
+Re-Run nach Exklusion von `denkschulen_ueberblick_und_einfuehrung.md`, 2026-05-29.
+
+| Kriterium | Ziel | Nach 0.J | Nach 0.K | Status |
+|---|---|---|---|---|
+| Unsortierte Segmente | < 40 % | 19.0 % | 26.1 % (310/1.187) | ✅ |
+| 1.0-Similarity-Kanten | < 100 | 15 | **0** | ✅ |
+| Mikrocluster (< 3 Docs) | < 20 | 8 | 10 | ✅ |
+| Cluster mit ≥ 3 Docs | ≥ 50 | 9 | 8 | ❌ |
+| Mega-File-Mikrocluster weg | ja | ❌ | ✅ (denkschulen-Content weg) | ✅ |
+| Ø Wörter pro Segment | 200–400 | ~203 | ~257 | ✅ |
+
+**Neuer Befund:** `C_cluster-0000` hat jetzt Label „Diagramme und Flowcharts" mit 168 Docs (83 % des Korpus). Das Mega-Cluster-Problem ist kein denkschulen-spezifisches Problem — `similarity_threshold=0.65` ist zu niedrig und zieht generell zu viel Content in einen Cluster. Nächster Schritt: Threshold-Tuning separat entscheiden (ggf. 0.72–0.78).
+
+Kriterium 5 formal erfüllt (denkschulen-Mikrocluster weg). Kriterium 4 weiterhin offen.
+
 ## Änderungs-Log
 
 - 2026-05-28 — Gate-1 abgeschlossen, Re-Run-Strategie A + Book-Sonderbehandlung beschlossen
 - 2026-05-29 — Verifikation nach Re-Run ergänzt: 4/6 Kriterien erfüllt, Gate-1 akzeptiert, denkschulen → Block 0.K
+- 2026-05-29 — Verifikation Block 0.K: denkschulen exkludiert, 5/6 Kriterien erfüllt; Mega-Cluster-Problem (`similarity_threshold`) bleibt offen

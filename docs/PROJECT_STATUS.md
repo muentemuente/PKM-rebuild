@@ -43,6 +43,8 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | 0.C | Backup: snapshot.sh, restore.sh, Recovery-Drill | ✅ technisch; Backup-DoD offen |
 | 0.D | Hardware-Test: Qwen/LM-Studio, RAM, Tokens/sek | ✅ inkl. Korrekturbedarf-Docs |
 | 0.E | Doku-Korrekturen + schemas.py + phase_1_inventory Stub | ✅ |
+| 0.J | Phase-4-Fix + Book-Sonderbehandlung + Re-Run Phasen 3–7 | ✅ |
+| 0.K | denkschulen_ueberblick aus Mainstream-Pipeline exkludiert | ✅ |
 
 **Hardware-Befunde aus Block 0.D (permanent relevant):**
 - Effektives Kontext-Window: ~50K Tokens (nicht 128K)
@@ -376,3 +378,4 @@ Siehe `docs/tasks/README.md` für vollständigen Master-Plan bis Phase 9. Block-
 - 2026-05-28 — Erstellt nach Abschluss Phase 8
 - 2026-05-28 — Korrigiert: Phase 8 Status auf 🟡 (CLI-Wiring offen, kein Echtlauf), Sektion 8 → Verweis auf Master-Plan
 - 2026-05-29 — Block-0.J: Phase-3/4-Commits aktualisiert, Phase-4-Notiz (Book-Sonderbehandlung + Re-Run-Ergebnis)
+- 2026-05-29 — Block-0.K: denkschulen_ueberblick exkludiert; Blöcke 0.J+0.K in Sektion 2 ergänzt; Befund: `C_cluster-0000` Mega-Cluster (similarity_threshold-Problem) bleibt offen

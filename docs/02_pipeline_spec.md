@@ -3,7 +3,7 @@ title: PKM-rebuild Pipeline-Spezifikation
 slug: 02-pipeline-spec
 status: stable
 created: 2026-05-25
-updated: 2026-05-27
+updated: 2026-05-29
 ---
 
 # Pipeline-Spezifikation
@@ -47,28 +47,16 @@ Technische Referenz: Architektur, Phasen, Schemas, Konfiguration, CLI, Tests.
    ┃  Mensch prüft Cluster-Karte               ┃
    ┗━━━━━━━━━━━━━━━━━━━━━┬━━━━━━━━━━━━━━━━━━━━━┛
               ┌──────────▼──────────┐
-              │ Phase 8: Qwen-Stage1│ → cluster_analysis.json
-              │ Cluster-Analyse     │
+              │ Phase 8: Stage 3    │ → drafts/CK_*.md (Body)
+              │ Pro-Doc-Veredelung  │
               └──────────┬──────────┘
               ┌──────────▼──────────┐
-              │ Phase 8: Qwen-Stage2│ → merge_proposals.json
-              │ Merge-Vorschläge    │
-              └──────────┬──────────┘
-                         │
-   ┏━━━━━━━━━━━━━━━━━━━━━▼━━━━━━━━━━━━━━━━━━━━━┓  ← REVIEW-GATE 2
-   ┃  Mensch genehmigt Merges                  ┃
-   ┗━━━━━━━━━━━━━━━━━━━━━┬━━━━━━━━━━━━━━━━━━━━━┛
-              ┌──────────▼──────────┐
-              │ Phase 8: Qwen-Stage3│ → drafts/CK_*.md (Body)
-              │ Synthese            │
-              └──────────┬──────────┘
-              ┌──────────▼──────────┐
-              │ Phase 8: Qwen-Stage4│ → drafts/CK_*.frontmatter.json
+              │ Phase 8: Stage 4    │ → drafts/CK_*.frontmatter.json
               │ Frontmatter         │
               └──────────┬──────────┘
                          │
    ┏━━━━━━━━━━━━━━━━━━━━━▼━━━━━━━━━━━━━━━━━━━━━┓  ← REVIEW-GATE 3
-   ┃  Mensch reviewt Drafts pro Cluster         ┃
+   ┃  Mensch reviewt Drafts pro Doc/Cluster     ┃
    ┗━━━━━━━━━━━━━━━━━━━━━┬━━━━━━━━━━━━━━━━━━━━━┛
               ┌──────────▼──────────┐
               │ Phase 9: Vault-Bau  │ → data/04_vault/
@@ -382,35 +370,27 @@ python -m pipeline reports
 
 ---
 
-### Phase 8: Qwen-Synthese (4 Stages)
+### Phase 8: Qwen-Veredelung (Stage 3 + Stage 4 pro Doc)
 
-Pro Batch durchlaufen alle 4 Stages. Failure in einer Stage → Retry oder Flag, kein Auto-Verwurf.
+Pro Doc durchlaufen Stage 3 und Stage 4. Failure in einer Stage → Retry oder Flag, kein Auto-Verwurf.
 
-#### Stage 1 — Cluster-Analyse
-**Prompt:** `prompts/v1/stage1_cluster_analysis.md`
-**Output:** `data/02_pipeline_output/qwen/{batch_id}/stage1_analysis.json`
-**Inhalt:** Themen-Identifikation, Redundanz-Liste, Widersprüche, Struktur-Vorschlag
+> **Option B:** Stage 1 (Cluster-Analyse) und Stage 2 (Merge-Vorschläge) entfallen vollständig. Kein Cross-Doc-Merge.
+> Historische Referenz: `prompts/v1/stage1_cluster_analysis.md` + `stage2_merge_proposal.md` (deprecated, Option A).
 
-#### Stage 2 — Merge-Vorschläge
-**Prompt:** `prompts/v1/stage2_merge_proposal.md`
-**Output:** `data/02_pipeline_output/qwen/{batch_id}/stage2_merges.json`
-**Inhalt:** Liste vorgeschlagener Concept-Notes (`CK_xxxx`), welche Source-Docs/Segmente in welches Concept fließen
-**→ REVIEW-GATE 2:** Mensch genehmigt Merges (`merge_decisions.json`)
-
-#### Stage 3 — Synthese
+#### Stage 3 — Pro-Doc-Veredelung (Body)
 **Prompt:** `prompts/v1/stage3_synthesis.md`
 **Output:** `data/03_drafts/CK_<slug>.body.md`
-**Inhalt:** Artikel-Body (ohne Frontmatter), nach Vault-Standard formatiert
+**Inhalt:** 1 Doc → 1 veredelter Artikel-Body (ohne Frontmatter), normalisiert + strukturiert nach `type`-Template aus Vault-Standard; kein Merge mit anderen Docs; Code-Blöcke 1:1 erhalten
 
 #### Stage 4 — Frontmatter-Generierung
 **Prompt:** `prompts/v1/stage4_frontmatter_json.md`
 **Output:** `data/03_drafts/CK_<slug>.frontmatter.json`
 **Inhalt:** strukturiertes JSON, Python validiert gegen Pydantic-Schema, serialisiert als YAML, fügt vor Body
 
-**→ REVIEW-GATE 3:** Mensch prüft pro Cluster: `data/03_drafts/CK_*.md` (mit Frontmatter)
+**→ REVIEW-GATE 3:** Mensch prüft pro Doc/Cluster: `data/03_drafts/CK_*.md` (mit Frontmatter; Veredelung + Frontmatter-Korrektheit prüfen)
 
 **Akzeptanzkriterien (Phase 8 gesamt):**
-- [ ] Pro Source-Doc eine Spur in `merged_from` oder `sources_docs`
+- [ ] `sources_docs` belegt (Source-Doc referenziert); `merged_from` leer (`[]`)
 - [ ] `confidence`-Feld gesetzt
 - [ ] `prompt_version` gesetzt
 - [ ] `last_synthesized` gesetzt
@@ -541,7 +521,7 @@ class FrontmatterDraft(BaseModel):
     child_concepts: list[str] = []
     sources_docs: list[str]
     source_chunks: list[str]
-    merged_from: list[str] = []
+    merged_from: list[str] = []            # immer leer in Option B (kein Cross-Doc-Merge)
     status: Literal["draft", "review", "stable", "deprecated"] = "draft"
     review_status: Literal["ai_drafted", "human_reviewed", "verified"] = "ai_drafted"
     confidence: Literal["low", "medium", "high"]
@@ -594,8 +574,9 @@ Globaler State-File: `data/02_pipeline_output/pipeline_state.json` mit aktueller
 | Gate | Nach Phase | Mensch entscheidet |
 |---|---|---|
 | 1 | Phase 6/7 (Cluster) | Cluster-Verteilung okay? Schwellwerte anpassen? Cluster manuell mergen? |
-| 2 | Phase 8 Stage 2 (Merges) | Welche Merges genehmigt? Welche ablehnen? `merge_decisions.json` |
-| 3 | Phase 8 Stage 4 (Frontmatter) | Drafts pro Cluster review-en, freigeben für Phase 9 |
+| 3 | Phase 8 Stage 4 (Frontmatter) | Drafts pro Doc prüfen (Veredelung + Frontmatter-Korrektheit), freigeben für Phase 9 |
+
+*(Gate 2 — Merge-Genehmigung — entfällt in Option B)*
 
 Review-UI: Markdown-Files in Zed öffnen + `git diff` für Vergleich.
 
@@ -636,3 +617,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version
+- 2026-05-29 — Option-B-Anpassung: Architektur-Diagramm Stage 1/2 + Gate 2 entfernt; Phase-8-Header auf Stage 3+4 pro Doc; Stage 1/2 als entfallen markiert; Stage 3 als Pro-Doc-Veredelung neu definiert; Akzeptanzkriterien merged_from→leer; FrontmatterDraft-Kommentar ergänzt; Gate-2-Zeile entfernt

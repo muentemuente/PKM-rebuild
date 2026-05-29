@@ -3,7 +3,7 @@ title: PKM-rebuild Strategie
 slug: 01-strategy
 status: stable
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-05-29
 ---
 
 # Strategie — PKM-rebuild
@@ -23,7 +23,7 @@ Aus ~200 unstrukturierten Markdown-Dateien einen kuratierten, deduplizierten Obs
 ### In Scope
 - Inventarisierung, Normalisierung, Segmentierung der bestehenden Markdown-Sammlung
 - Redundanz-Erkennung in 3 Stufen (Hash → TF-IDF → Embeddings)
-- LLM-gestützte Synthese mit Qwen 3.6 27B lokal (4 Prompt-Stages)
+- LLM-gestützte Pro-Doc-Veredelung mit Qwen 3.6 27B lokal (Stage 3 + Stage 4 pro Doc)
 - Vault-Aufbau mit Frontmatter, Tag-Vokabular, Cluster-Struktur, Wikilinks
 - Vollständige Doku-Suite (11 Files) + Reflexions-Layer
 - Backup-Strategie für den Vault (außerhalb Git)
@@ -37,6 +37,7 @@ Aus ~200 unstrukturierten Markdown-Dateien einen kuratierten, deduplizierten Obs
 - Automatisierte Wiki-Veröffentlichung des Vaults
 - Bulk-Promotion `draft → stable`
 - Ausbau des Vaults mit weiterführenden und ergänzenden Themen
+- Cross-Doc-Synthese / automatisches Merging mehrerer Docs (Option A — verworfen: Korpus hat keine inhärente Cluster-Struktur)
 
 ---
 
@@ -48,7 +49,8 @@ Alle Kriterien müssen erfüllt sein:
 - [ ] `~/projects/aktiv/PKM_rebuild/data/04_vault/` enthält strukturierten Obsidian-Vault
 - [ ] Jede `.md` im Vault hat valides Frontmatter nach `docs/03_vault_standard.md`
 - [ ] Keine SHA-256-Duplikate im Vault
-- [ ] Keine Cluster mit < 3 Artikeln (bottom-up Regel)
+- [ ] Cluster als Ablage-Heuristik für Vault-Ordner; Mikrocluster und `unsortiert/` erlaubt (bottom-up Pflicht entfällt)
+- [ ] `merged_from` leer in allen Vault-Files (kein Cross-Doc-Merge, Option B)
 - [ ] Cluster-Index-Files (`_index.md`) pro genutztem Cluster generiert
 - [ ] Alle Vault-Artikel mindestens auf Qualitätsstufe 2 (Strukturierter Artikel)
 
@@ -99,7 +101,7 @@ Keine externen Stakeholder.
 
 ## 6. Annahmen
 
-- Qwen 3.6 27B liefert mit 128K-Kontext stabile Outputs für deutsche Tech-Texte
+- Qwen 3.6 27B liefert mit 50K-Kontext stabile Outputs für deutsche Tech-Texte *(Annahme revidiert: 128K-Ziel nicht erreichbar auf 32 GB RAM — Hard Limit gemessen: `context_window: 49152`. Einfluss auf Batch-Größe + Token-Budget: `04_qwen_prompts.md` §2 + §9)*
 - ~200 Korpus-Files sind klein genug für Embedding + TF-IDF in vertretbarer Zeit auf M5
 - Bottom-up Cluster-Bildung passt zur Korpus-Realität (≥3 Files pro Cluster)
 - Pipeline-Repo darf public werden (enthält keinen Korpus-Inhalt, Persona gitignored)
@@ -112,7 +114,7 @@ Keine externen Stakeholder.
 
 | ID | Risiko | Wkt. | Impact | Gegenmaßnahme |
 |---|---|---|---|---|
-| R1 | Qwen halluziniert in Synthese | hoch | mittel | `confidence`-Feld Pflicht + Review-Gate Stage 3 + Auto-Flag bei Validierungsfehler |
+| R1 | Qwen halluziniert in Pro-Doc-Veredelung | hoch | mittel | `confidence`-Feld Pflicht + Review-Gate 3 (pro Doc) + Auto-Flag bei Validierungsfehler; kein Cross-Doc-Merge reduziert Halluzinations-Angriffsfläche, hebt Risiko aber nicht auf |
 | R2 | macOS Memory-Pressure → Qwen-Crash | mittel | hoch | App-Hygiene-Protokoll, Memory-Monitoring, Recovery-Snapshot vor Stages |
 | R3 | Token-Limit Claude Pro mitten in Session | hoch | mittel | Snapshot-Pattern + `claude --resume` (Details: doc 06) |
 | R4 | Korpus enthält Binaries/Bilder die Pipeline crasht | mittel | mittel | Phase 0: Hardware- + Korpus-Inventar als Warm-up |
@@ -160,7 +162,7 @@ Drei Szenarien pro Phase. **Realistic** ist Planungs-Basis.
 | 6. Embeddings + Cluster-Prep | 2h | 4h | 8h | `embeddings.parquet`, Cluster-Vorschläge |
 | 7. LLM-Batch-Bildung | 2h | 3h | 6h | `batches/batch_NNN_<topic>.md` |
 | 7b. UMAP+HDBSCAN *(optional)* | 1h | 2h | 4h | Cluster-Visualisierung |
-| 8. Qwen-Synthese (4 Stages) | 8h | 16h | 30h+ | `data/03_drafts/CK_*.md` |
+| 8. Qwen-Veredelung (Stage 3+4 pro Doc) | 6h | 14h | 28h | `data/03_drafts/CK_*.md` |
 | 9. Vault-Aufbau | 4h | 8h | 16h | `data/04_vault/` |
 | 10. Kontroll-Berichte | 1h | 2h | 4h | 3× `*_report.md` |
 | **SUMME** | **27h** | **51h** | **100h+** | |
@@ -178,7 +180,7 @@ Drei Szenarien pro Phase. **Realistic** ist Planungs-Basis.
 - Lernziele dokumentiert in `docs/learnings/`
 
 **Abbruch in Betracht ziehen, wenn:**
-- Phase 8 (Qwen-Synthese) liefert nach 3 Iterationen am gleichen Cluster keine brauchbaren Drafts → Modell-Wechsel oder Prompt-Re-Design
+- Phase 8 (Qwen-Veredelung) liefert nach 3 Iterationen am gleichen Doc keine brauchbaren Drafts → Modell-Wechsel oder Prompt-Re-Design
 - Hardware-Setup instabil (häufige Crashes, Memory unlösbar) → Cloud-LLM evaluieren (Claude API als Fallback)
 - Lernzielfortschritt deutlich unter Erwartung → Scope reduzieren, nicht Qualität
 
@@ -197,3 +199,4 @@ Dieses Doc wird gepflegt bei:
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version
+- 2026-05-29 — Option-B-Anpassung: In-Scope Phase 8 auf Stage 3+4 pro Doc; Out-of-Scope Cross-Doc-Synthese ergänzt; DoD Cluster-Kriterium entschärft + merged_from-Kriterium neu; Annahme Kontext-Window 128K→50K korrigiert; R1 Gegenmaßnahme auf Pro-Doc-Kontext; Phase-8-Zeitschätzung angepasst; Abbruchkriterium Cluster→Doc

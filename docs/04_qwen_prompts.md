@@ -3,7 +3,7 @@ title: PKM-rebuild Qwen-Prompt-Spezifikation
 slug: 04-qwen-prompts
 status: stable
 created: 2026-05-25
-updated: 2026-05-27
+updated: 2026-05-29
 ---
 
 # Qwen-Prompt-Spezifikation
@@ -40,12 +40,12 @@ Gilt für alle Prompts in `prompts/v1/` und nachfolgende Versionen (`v2/`, `v3/`
 
 ## 3. Stage-Übersicht
 
-| Stage | Zweck | Input | Output | Temperature |
-|---|---|---|---|---|
-| 1 | Cluster-Analyse | Batch-File (Segmente + Metadaten) | `stage1_analysis.json` | 0.3 |
-| 2 | Merge-Vorschlag | Stage-1-Output + Batch-Kontext | `stage2_merges.json` | 0.2 |
-| 3 | Synthese (Body) | Reviewte Merges + Segmente | `CK_<slug>.body.md` | 0.4 |
-| 4 | Frontmatter (JSON) | Stage-3-Output + Segment-Metadaten | `CK_<slug>.frontmatter.json` | 0.1 |
+| Stage | Zweck | Input | Output | Temperature | Status |
+|---|---|---|---|---|---|
+| ~~1~~ | ~~Cluster-Analyse~~ | ~~Batch-File (Segmente + Metadaten)~~ | ~~`stage1_analysis.json`~~ | ~~0.3~~ | **deaktiviert (Option B)** |
+| ~~2~~ | ~~Merge-Vorschlag~~ | ~~Stage-1-Output + Batch-Kontext~~ | ~~`stage2_merges.json`~~ | ~~0.2~~ | **deaktiviert (Option B)** |
+| 3 | Pro-Doc-Veredelung (Body) | Alle Segmente eines Docs | `CK_<slug>.body.md` | 0.4 | aktiv |
+| 4 | Frontmatter (JSON) | Stage-3-Output + Segment-Metadaten | `CK_<slug>.frontmatter.json` | 0.1 | aktiv |
 
 **Temperaturen-Begründung:** niedrig wo Strukturtreue Pflicht, höher wo sprachliche Eigenleistung gefragt.
 
@@ -157,7 +157,9 @@ temperature: 0.3
 
 ## 7. Stage-Details
 
-### Stage 1 — Cluster-Analyse
+### Stage 1 — Cluster-Analyse *(nicht aktiv — Option B)*
+
+> **Status: deaktiviert (Option B).** Stage 1 entfällt. Prompt-File `prompts/v1/stage1_cluster_analysis.md` als `deprecated: option-a` markiert. Historische Referenz für Lernzwecke.
 
 **Zweck:** Themen-Identifikation, Redundanz-Liste, Widersprüche, Struktur-Vorschlag innerhalb eines Cluster-Batches.
 
@@ -210,7 +212,9 @@ temperature: 0.3
 
 ---
 
-### Stage 2 — Merge-Vorschlag
+### Stage 2 — Merge-Vorschlag *(nicht aktiv — Option B)*
+
+> **Status: deaktiviert (Option B).** Stage 2 entfällt. Prompt-File `prompts/v1/stage2_merge_proposal.md` als `deprecated: option-a` markiert. Review-Gate 2 entfällt ebenfalls. Historische Referenz für Lernzwecke.
 
 **Zweck:** Konkrete Concept-Notes mit Slugs vorschlagen, Quellen-Zuordnung festlegen.
 
@@ -250,18 +254,17 @@ temperature: 0.3
 }
 ```
 
-**Review-Gate 2:** Mensch erstellt `merge_decisions.json` mit `approved: [...]`, `rejected: [...]`, `modify: [...]`.
+~~**Review-Gate 2:** Mensch erstellt `merge_decisions.json` mit `approved: [...]`, `rejected: [...]`, `modify: [...]`.~~ *(entfällt in Option B)*
 
 ---
 
-### Stage 3 — Synthese (Body)
+### Stage 3 — Pro-Doc-Veredelung (Body)
 
-**Zweck:** Artikel-Body schreiben nach Vault-Standard, ohne Frontmatter.
+**Zweck:** 1 Doc → 1 veredelter Artikel-Body nach Vault-Standard, ohne Frontmatter. Kein Merge mit anderen Docs. Normalisierung + Strukturierung nach `type`-Template.
 
 **Input:**
-- Genehmigte Merge-Decisions (welche Concepts erstellen)
-- Alle relevanten Source-Segmente (Originaltext)
-- Vault-Standard-Auszug (Sprach-Regeln, Code-Block-Regel B4)
+- Alle Segmente eines einzelnen Docs (Originaltext)
+- Vault-Standard-Auszug (Sprach-Regeln, Code-Block-Regel B4, `type`-Template)
 
 **Output:**
 - Markdown-Body (kein Frontmatter)
@@ -292,7 +295,7 @@ temperature: 0.3
 
 **Input:**
 - Stage-3-Output (Body)
-- Stage-2-Output (sources_docs, source_chunks, merged_from)
+- Segment-Metadaten des Source-Docs (sources_docs, source_chunks)
 - Vault-Standard-Auszug (Pflichtfelder, Enums, Tag-Vokabular)
 
 **Output-Schema (`stage4_output.schema.json`):**
@@ -316,7 +319,7 @@ Vollständig analog `FrontmatterDraft` aus `02_pipeline_spec.md`. Kernfelder:
   "child_concepts": ["CK_rest-methods"],
   "sources_docs": ["D_rest-intro", "D_http"],
   "source_chunks": ["D_rest-intro-S0001", "D_http-S0003"],
-  "merged_from": [],
+  "merged_from": [],                          // immer leer in Option B
   "status": "draft",
   "review_status": "ai_drafted",
   "confidence": "medium",
@@ -330,7 +333,7 @@ Vollständig analog `FrontmatterDraft` aus `02_pipeline_spec.md`. Kernfelder:
 
 **Constraints:**
 - Tags nur aus erlaubtem Vokabular (Pipeline validiert nach Output)
-- Aliases automatisch aus `merged_from`-Titeln + alternative Bezeichnungen aus Sources
+- Aliases nur aus alternativen Bezeichnungen im Source-Doc (kein `merged_from`)
 - `confidence`: ehrliche Selbsteinschätzung
 - Bei fehlender Info: Feld leer lassen, **nicht** raten (z.B. `parent_concept: null`)
 
@@ -354,12 +357,12 @@ Pipeline (Phase 8) validiert jeden Qwen-Output:
 
 | Stage | Input-Tokens (Range) | Output-Tokens | Kommentar |
 |---|---|---|---|
-| 1 | 10K–35K | 2K–8K | abhängig von Cluster-Größe; 35K wegen 50K-Kontext + Reasoning-Output-Raum |
-| 2 | 5K–15K | 1K–4K | kompakter, da nur Strukturentscheidung |
-| 3 | 15K–60K | 3K–10K | Synthese kostet Output-Tokens |
+| ~~1~~ | ~~10K–35K~~ | ~~2K–8K~~ | *deaktiviert (Option B)* |
+| ~~2~~ | ~~5K–15K~~ | ~~1K–4K~~ | *deaktiviert (Option B)* |
+| 3 | 5K–35K | 3K–10K | Pro-Doc; abhängig von Doc-Größe; 35K wegen 50K-Kontext + Reasoning-Output-Raum |
 | 4 | 5K–15K | 1K–3K | strukturiertes JSON |
 
-**Bei Überschreitung 35K Input (Stage 1):** Cluster splitten, in Phase 7 (Batch-Bildung) nachjustieren. Stages 2–4 haben kleinere Inputs und bleiben im 50K-Limit.
+**Bei Überschreitung 35K Input (Stage 3):** Doc aufteilen oder Sub-Batches bilden, in Phase 7 (Batch-Bildung) nachjustieren. Stage 4 hat kleineren Input und bleibt im 50K-Limit.
 
 ---
 
@@ -419,3 +422,4 @@ Dieses Doc wird gepflegt bei:
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version
+- 2026-05-29 — Option-B-Anpassung: Stage-Übersicht Stage 1/2 als deaktiviert markiert; Stage-1/2-Detailabschnitte mit Status-Note versehen; Review-Gate-2-Verweis gestrichen; Stage 3 zu Pro-Doc-Veredelung umbenannt + Input neu; Stage 4 Input auf Segment-Metadaten, Aliases-Constraint auf Source-Doc-only, merged_from-Kommentar

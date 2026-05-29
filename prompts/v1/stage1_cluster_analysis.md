@@ -1,8 +1,11 @@
 ---
 prompt_id: stage1_cluster_analysis
 prompt_version: v1
+status: deprecated
+deprecated: option-a
+deprecated_reason: Option B (Pro-Doc-Veredelung) — Cross-Doc-Cluster-Analyse entfällt; Korpus hat keine inhärente Cluster-Struktur
 created: 2026-05-27
-updated: 2026-05-27
+updated: 2026-05-29
 target_model: qwen/qwen3.6-27b
 expected_input: batch_file_markdown
 expected_output: json

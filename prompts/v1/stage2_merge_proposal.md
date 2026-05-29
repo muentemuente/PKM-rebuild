@@ -1,8 +1,11 @@
 ---
 prompt_id: stage2_merge_proposal
 prompt_version: v1
+status: deprecated
+deprecated: option-a
+deprecated_reason: Option B (Pro-Doc-Veredelung) — Merge-Vorschläge entfallen; kein Cross-Doc-Zusammenführen
 created: 2026-05-27
-updated: 2026-05-27
+updated: 2026-05-29
 target_model: qwen/qwen3.6-27b
 expected_input: stage1_analysis_json
 expected_output: json

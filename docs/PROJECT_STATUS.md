@@ -3,7 +3,7 @@ title: PKM-rebuild — Projektstand
 slug: project-status
 status: draft
 created: 2026-05-28
-updated: 2026-05-29
+updated: 2026-05-30
 ---
 
 # PKM-rebuild — Projektstand (2026-05-28)
@@ -45,6 +45,8 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | 0.E | Doku-Korrekturen + schemas.py + phase_1_inventory Stub | ✅ |
 | 0.J | Phase-4-Fix + Book-Sonderbehandlung + Re-Run Phasen 3–7 | ✅ |
 | 0.K | denkschulen_ueberblick aus Mainstream-Pipeline exkludiert | ✅ |
+| 0.M | Reports-Generator-Bug: cluster_report zählt Docs korrekt | ✅ |
+| 0.N | CC-Autonomie-Setup (Permissions, Hooks, Arbeitsvereinbarung) | ✅ |
 
 **Hardware-Befunde aus Block 0.D (permanent relevant):**
 - Effektives Kontext-Window: ~50K Tokens (nicht 128K)
@@ -258,7 +260,7 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | `ruff check` | ✅ clean | alle Phasen + Tests |
 | `ruff format` | ✅ clean | |
 | `mypy pipeline/` | ⚠️ 17 Fehler in 4 Dateien | Phase 8: 0 Fehler |
-| Tests gesamt | ✅ 275/275 grün | |
+| Tests gesamt | ✅ 282/282 grün | |
 
 ### Mypy-Fehler nach Datei
 
@@ -286,7 +288,7 @@ Alle 17 Fehler sind in Phasen 2, 3, 6 aus den ersten Implementierungsläufen. Ph
 | `test_phase_7_batches.py` | 24 |
 | `test_phase_8_synthesis.py` | 37 |
 | `test_sanity.py` | 5 |
-| **Gesamt** | **275** |
+| **Gesamt** | **282** |
 
 ---
 
@@ -378,15 +380,27 @@ Gemäß CLAUDE.md Sektion 8 sollte jede Phase mit `docs/learnings/PHASE_NN_<slug
 
 `C_cluster-0000` enthält 168 Docs (83 % des Korpus) bei `similarity_threshold=0.65`. Problem ist nicht denkschulen-spezifisch — agglomeratives Clustering kann bei diesem Korpus ohne HDBSCAN oder Strategie-Wechsel keinen sinnvollen Schwellwert finden (0.75 → 85.9 % unsortiert, 0.65 → Mega-Cluster). Strategieoptionen A–D in Block 0.L zu entscheiden.
 
-### 7.6 Reports-Generator-Bug Cluster-Größen (Block 0.M)
+### 7.6 ✅ Reports-Generator-Bug Cluster-Größen (Block 0.M — behoben)
 
-`cluster_report.md` zeigt „Top-Cluster 8 Docs" statt tatsächlich 168. Ursache: Doc-Count vermutlich via Segment-Count berechnet statt via distinct `doc_id`s. Fix + 2 Regressions-Tests in Block 0.M geplant.
+`cluster_report.md` zeigte „Top-Cluster 8 Docs" statt tatsächlich 168. Ursache: Doc-Count wurde via Segment-Count berechnet statt via distinct `doc_id`s. Behoben in `fa9669c` — Doc-Count via `s.rsplit('-S', 1)[0]` + 2 Regressions-Tests (`test_cluster_report_doc_count`, `test_cluster_report_excludes_unsortiert_from_stats`).
 
 ---
 
 ## 8. Nächste Schritte
 
-Siehe `docs/tasks/README.md` für vollständigen Master-Plan bis Phase 9. Block-Reihenfolge: 0.F → 0.G → 0.H → 0.I (parallel) → 8.A → 8.B → 8.C → 9.
+Laut Roadmap (`docs/tasks/0L_roadmap_option-b.md` §3) — Option B (Pro-Doc-Veredelung):
+
+```
+✅ 0.N  CC-Autonomie-Setup
+✅ 0J.8 + 0.M  Doku-Update + Reports-Bug
+→  0.L-Impl  Option-B-Routing: Stage-1/2-Bypass, Stage-3 als Pro-Doc-Veredelung
+→  0.G  Vault-Foundations (Tag-Vokabular, Templates, Gedanken-Pfad)
+→  0.I  Backup-DoD (Time Machine, 2. Medium)
+→  8.A  Phase-8-Smoke-Test (1 Batch)
+→  8.B  Phase-8-Voll-Lauf
+→  9    Vault-Aufbau
+→  10   Kontroll-Berichte final + DoD-Check
+```
 
 ---
 
@@ -397,3 +411,4 @@ Siehe `docs/tasks/README.md` für vollständigen Master-Plan bis Phase 9. Block-
 - 2026-05-29 — Block-0.J: Phase-3/4-Commits aktualisiert, Phase-4-Notiz (Book-Sonderbehandlung + Re-Run-Ergebnis)
 - 2026-05-29 — Block-0.K: denkschulen_ueberblick exkludiert; Blöcke 0.J+0.K in Sektion 2 ergänzt; Befund: `C_cluster-0000` Mega-Cluster (similarity_threshold-Problem) bleibt offen
 - 2026-05-29 — Block-0.J.8: Phase-10 done (`fd161be`), Tests 222→275, Threshold-Iteration + Block-0.K in Phase-4-Sektion, Offene Punkte 7.5+7.6 ergänzt
+- 2026-05-30 — Block-0.M abgeschlossen (`fa9669c`): §7.6 als behoben markiert; Block-0.N ergänzt (Autonomie-Setup, Permissions, Hooks); Tests 275→282; §8 Nächste Schritte auf Option-B-Roadmap aktualisiert

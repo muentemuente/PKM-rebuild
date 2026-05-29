@@ -1,7 +1,7 @@
 ---
 task_id: SESSION_2026-05-29_post-snapshot
 title: CC-Session nach Snapshot — Blocks 0J.8 + 0.M + 0.L-Vorbereitung
-status: open
+status: done
 owner: claude_code (3 Blöcke autonom mit App-Checkpoints)
 priority: P0
 depends_on: [snapshot_2026-05-29_1519]

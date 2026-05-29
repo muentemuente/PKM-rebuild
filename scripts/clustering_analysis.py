@@ -3,7 +3,7 @@
 
 Liefert:
   1. Pairwise-Similarity-Histogramm der Embeddings
-  2. Cluster-Größen-Simulation bei Thresholds 0.55–0.80
+  2. Cluster-Größen-Simulation bei Thresholds 0.55-0.80
   3. Top-10 TF-IDF-Begriffe pro Cluster (speziell C_cluster-0000)
   4. HDBSCAN-Trial (falls Library verfügbar)
 
@@ -84,7 +84,7 @@ def pairwise_sim_histogram(embeddings: np.ndarray) -> dict[str, int]:
     for lo in range(10):
         lo_f = lo / 10
         hi_f = (lo + 1) / 10
-        key = f"{lo_f:.1f}–{hi_f:.1f}"
+        key = f"{lo_f:.1f}-{hi_f:.1f}"
         if lo == 9:
             hist[key] = int(np.sum(upper >= lo_f))
         else:
@@ -247,9 +247,6 @@ def build_report(
         other_clusters_rows.append(_row([cid, c["label_guess"][:35], len(doc_ids), terms]))
     other_clusters_str = "\n".join(other_clusters_rows) if other_clusters_rows else "| — | — | — | — |"
 
-    unsorted_cluster = next((c for c in clusters if c["cluster_id"] == _UNSORTED_ID), None)
-    unsorted_segs_text = [seg_id for seg_id in (unsorted_cluster["segment_ids"] if unsorted_cluster else [])]
-
     # === Sektion 4: HDBSCAN ===
     if hdbscan_result:
         hdb_section = f"""## 4. HDBSCAN-Trial
@@ -332,7 +329,7 @@ Top-10 TF-IDF-Begriffe: {mega_terms_str}
 
 ## 5. Beobachtungen
 
-- **Similarity-Verteilung:** {sim_hist.get('0.6–0.7', 0):,} Paare im Bereich 0.6–0.7; {sim_hist.get('0.7–0.8', 0):,} im Bereich 0.7–0.8. Zeigt ob es natürliche Cluster-Grenzen gibt.
+- **Similarity-Verteilung:** {sim_hist.get('0.6-0.7', 0):,} Paare im Bereich 0.6-0.7; {sim_hist.get('0.7-0.8', 0):,} im Bereich 0.7-0.8. Zeigt ob es natürliche Cluster-Grenzen gibt.
 - **Threshold=0.65 (aktuell):** {row_065['n_clusters']} Cluster, {row_065['top_cluster_segs']} Segs im Top-Cluster, {row_065['unsorted_pct']}% unsortiert.
 - **Mega-Cluster C_cluster-0000:** {mega_seg_count} Segmente. TF-IDF-Begriffe zeigen {('heterogenes Themenspektrum' if len(set(mega_terms[:5])) >= 3 else 'engeres Themenspektrum')}.
 - **HDBSCAN:** {'Alternativer Ansatz ohne festen Threshold. Noise-Rate und Cluster-Anzahl oben.' if hdbscan_result else 'Nicht ausführbar.'}
@@ -366,7 +363,7 @@ def main() -> None:
     print("1. Pairwise-Similarity-Histogramm...")
     sim_hist = pairwise_sim_histogram(embeddings)
 
-    print("2. Threshold-Simulation (0.55–0.80)...")
+    print("2. Threshold-Simulation (0.55-0.80)...")
     thresholds = [0.55, 0.60, 0.65, 0.70, 0.75, 0.80]
     threshold_sims = [simulate_threshold(embeddings, seg_ids, t) for t in thresholds]
     for s in threshold_sims:

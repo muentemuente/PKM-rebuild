@@ -4,7 +4,6 @@ Verifiziert: Skript läuft auf echten Daten, Output-Datei hat gültiges
 Frontmatter, Hauptsektionen vorhanden.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -14,10 +13,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.clustering_analysis import (
-    _load_embeddings,
-    build_report,
     pairwise_sim_histogram,
-    run_hdbscan_trial,
     simulate_threshold,
     tfidf_top_terms,
 )

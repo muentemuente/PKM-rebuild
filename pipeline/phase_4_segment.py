@@ -393,14 +393,80 @@ def _merge_undersized_segments(
     return final, final_provenance
 
 
+def _segment_document_book(
+    doc_id: str,
+    body: str,
+    source_path: str,
+    book_max_words: int,
+) -> list[SegmentRecord]:
+    """Book-Pfad: segmentiert nur an H1+H2-Grenzen, kein min_words-Merge.
+
+    Sektionen mit gleichem path[:2] werden zusammengeführt, sodass H3+ Headings
+    nicht als eigenständige Splits gelten. Ergebnis: ein Segment pro H2-Abschnitt
+    (oder H1 wenn kein H2 vorhanden).
+    """
+    raw_sections = _parse_raw_sections(body)
+
+    # Aggregiere Sektionen nach H1+H2-Pfadpräfix (path[:2])
+    book_secs: list[tuple[list[str], list[str]]] = []
+    for path, lines in raw_sections:
+        book_path = path[:2]
+        if book_secs and book_secs[-1][0] == book_path:
+            prev_path, prev_lines = book_secs.pop()
+            book_secs.append((prev_path, [*prev_lines, "", *lines]))
+        else:
+            book_secs.append((book_path, lines))
+
+    # Split bei Überschreitung book_max_words
+    split_secs: list[tuple[list[str], list[str]]] = []
+    for path, lines in book_secs:
+        for chunk in _split_section_lines(lines, book_max_words):
+            split_secs.append((path, chunk))
+
+    records: list[SegmentRecord] = []
+    seg_idx = 0
+    for path, lines in split_secs:
+        text = "\n".join(lines).strip()
+        if not text:
+            continue
+        records.append(
+            SegmentRecord(
+                segment_id=f"{doc_id}-S{seg_idx:04d}",
+                doc_id=doc_id,
+                source_path=source_path,
+                heading_path=path,
+                segment_index=seg_idx,
+                text=text,
+                word_count=len(text.split()),
+                char_count=len(text),
+                contains_code=_has_code_block(text),
+                contains_table=_has_table(text),
+            )
+        )
+        seg_idx += 1
+
+    log.info("phase_4_book_segmented", doc_id=doc_id, segment_count=seg_idx)
+    return records
+
+
 def _segment_document(
     doc_id: str,
     body: str,
     source_path: str,
     min_words: int,
     max_words: int,
+    *,
+    is_book: bool = False,
+    book_max_words: int = 5000,
 ) -> list[SegmentRecord]:
-    """Segmentiert ein Dokument in eine Liste von SegmentRecords."""
+    """Segmentiert ein Dokument in eine Liste von SegmentRecords.
+
+    Bei is_book=True: Book-Pfad (H1+H2-Split, kein min_words-Merge).
+    Sonst: Standard-Pfad mit Merge-Logik.
+    """
+    if is_book:
+        return _segment_document_book(doc_id, body, source_path, book_max_words)
+
     raw_sections = _parse_raw_sections(body)
 
     # Split long sections at block boundaries
@@ -453,6 +519,20 @@ def _load_manifest(manifest_path: Path) -> dict[str, str]:
         if line:
             rec = DocumentRecord.model_validate_json(line)
             lookup[rec.doc_id] = rec.path
+    return lookup
+
+
+def _load_doc_types(structured_path: Path) -> dict[str, str]:
+    """Lädt doc_id → doc_type_guess.label Mapping aus documents_structured.jsonl."""
+    lookup: dict[str, str] = {}
+    for line in structured_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            data: dict[str, Any] = json.loads(line)
+            doc_id = data.get("doc_id", "")
+            label = data.get("doc_type_guess", {}).get("label", "unklar")
+            if doc_id:
+                lookup[doc_id] = label
     return lookup
 
 
@@ -524,6 +604,8 @@ def run_phase_4(
     force: bool = False,
     min_words: int = 50,
     max_words: int = 1500,
+    book_max_words: int = 5000,
+    structured_path: Path | None = None,
     pipeline_version: str = "0.1.0",
 ) -> list[SegmentRecord]:
     """Phase 4 ausführen: Dokumente in Segmente aufteilen.
@@ -534,7 +616,10 @@ def run_phase_4(
         output_path: Ziel-Pfad für segments.jsonl.
         force: Wenn True, Cache ignorieren und neu berechnen.
         min_words: Mindest-Wortanzahl pro Segment (best effort).
-        max_words: Maximale Wortanzahl pro Segment.
+        max_words: Maximale Wortanzahl pro Segment (Standard-Pfad).
+        book_max_words: Maximale Wortanzahl pro Segment im Book-Pfad.
+        structured_path: Pfad zu documents_structured.jsonl (Phase 3 Output).
+                         Wenn angegeben, wird doc_type_guess.label für Book-Erkennung genutzt.
         pipeline_version: Version für Meta-File.
 
     Returns:
@@ -561,12 +646,16 @@ def run_phase_4(
 
     path_lookup = _load_manifest(manifest_path)
     cleaned_records = _load_cleaned(cleaned_path)
+    doc_types = (
+        _load_doc_types(structured_path) if structured_path and structured_path.exists() else {}
+    )
 
     log.info(
         "phase_4_start",
         phase="phase_4_segment",
         doc_count=len(cleaned_records),
         force=force,
+        book_detection=bool(doc_types),
     )
 
     t_start = time.monotonic()
@@ -575,12 +664,15 @@ def run_phase_4(
 
     for rec in cleaned_records:
         source_path = path_lookup.get(rec.doc_id, "")
+        is_book = doc_types.get(rec.doc_id) == "book"
         segments = _segment_document(
             doc_id=rec.doc_id,
             body=rec.body,
             source_path=source_path,
             min_words=min_words,
             max_words=max_words,
+            is_book=is_book,
+            book_max_words=book_max_words,
         )
         all_segments.extend(segments)
 
@@ -594,7 +686,7 @@ def run_phase_4(
         output_hash,
         duration,
         pipeline_version,
-        {"min_words": min_words, "max_words": max_words},
+        {"min_words": min_words, "max_words": max_words, "book_max_words": book_max_words},
     )
 
     log.info(

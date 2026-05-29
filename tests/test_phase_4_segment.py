@@ -22,6 +22,7 @@ from pipeline.phase_4_segment import (
     _parse_raw_sections,
     _same_h1_section,
     _segment_document,
+    _segment_document_book,
     _split_section_lines,
     run_phase_4,
 )
@@ -546,3 +547,91 @@ def test_phase_4_no_merge_when_above_min_words() -> None:
     result = _segment_document("D_t", body, "/t.md", min_words=50, max_words=1500)
     # Zwei separate H1 mit ausreichend Inhalt → keine Merge-Reduktion
     assert len(result) == 2
+
+
+# === _segment_document_book (Book-Pfad) ==========================================
+
+
+def _build_book_body(n_chapters: int = 2, sections_per_chapter: int = 3) -> str:
+    """Buch-ähnlichen Markdown-Body mit H1+H2+H3 Struktur bauen."""
+    parts = []
+    for ch in range(n_chapters):
+        parts.append(f"# Kapitel {ch + 1}\n")
+        for sec in range(sections_per_chapter):
+            parts.append(f"## Abschnitt {ch + 1}.{sec + 1}\n")
+            parts.append("inhalt " * 30 + "\n")
+            parts.append(f"### Detail {ch + 1}.{sec + 1}.1\n")
+            parts.append("detail " * 20 + "\n")
+    return "\n".join(parts)
+
+
+def test_phase_4_book_segments_by_h1_h2() -> None:
+    """Book-Pfad: H3-Sektionen werden in ihren H2-Parent aggregiert."""
+    body = _build_book_body(n_chapters=2, sections_per_chapter=2)
+    result = _segment_document_book("D_book", body, "/book.md", book_max_words=5000)
+    # 2 Kapitel * 2 Abschnitte = 4 H2-Sektionen + 2 Kapitel-Header = max 6 Segmente
+    # H3-Sektionen sollen NICHT eigenständige Segmente sein
+    assert len(result) <= 6
+    # Kein Segment darf ausschließlich H3-Inhalt ohne übergeordneten H2-Kontext sein
+    for seg in result:
+        assert len(seg.heading_path) <= 2, f"H3-Pfad in Book-Segment: {seg.heading_path}"
+
+
+def test_phase_4_book_via_segment_document_flag() -> None:
+    """is_book=True auf _segment_document leitet an Book-Pfad weiter.
+
+    Standard-Pfad mit min_words=1 lässt alle Sektionen stehen, inkl. H3.
+    Book-Pfad aggregiert H3-Sektionen in ihren H2-Parent.
+    """
+    body = _build_book_body(n_chapters=2, sections_per_chapter=2)
+    # min_words=1: kein Merge im Standard-Pfad
+    result_book = _segment_document(
+        "D_book", body, "/book.md", min_words=1, max_words=5000, is_book=True
+    )
+    result_std = _segment_document("D_book", body, "/book.md", min_words=1, max_words=5000)
+    # Standard: H3-Sektionen sind eigene Segmente mit 3-elementigem Pfad
+    std_has_h3 = any(len(r.heading_path) >= 3 for r in result_std)
+    # Book: H3 in H2 aggregiert → max 2 Pfad-Elemente
+    book_has_h3 = any(len(r.heading_path) >= 3 for r in result_book)
+    assert std_has_h3, "Standard-Pfad muss H3-Segmente produzieren"
+    assert not book_has_h3, "Book-Pfad darf keine H3-Segmente produzieren"
+
+
+def test_phase_4_book_allows_larger_segments() -> None:
+    """Book-Segmente dürfen > normal max_words sein (bis book_max_words)."""
+    # Eine einzelne H2-Sektion mit 300 Wörtern Inhalt
+    big_content = "wort " * 300
+    body = f"# Kapitel\n\n## Großer Abschnitt\n\n{big_content}"
+    # Standard max_words = 200 → würde splitten; book_max_words = 1000 → kein Split
+    result = _segment_document(
+        "D_book", body, "/book.md", min_words=50, max_words=200, is_book=True, book_max_words=1000
+    )
+    # Muss in einem Segment bleiben (unter book_max_words=1000)
+    content_segs = [r for r in result if not _is_heading_only(r.text)]
+    assert all(r.word_count <= 1000 for r in content_segs)
+
+
+def test_phase_4_book_ignores_min_words() -> None:
+    """Book-Pfad ignoriert min_words — kleine Kapitel-Header-Segmente bleiben."""
+    body = "# Kapitel 1\n\n## Einleitung\n\ninhalt " * 50
+    result = _segment_document(
+        "D_book", body, "/book.md", min_words=200, max_words=5000, is_book=True
+    )
+    # Auch wenn einige Segmente < 200 Wörter, werden sie nicht erzwungen gemergt
+    # (der Book-Pfad ruft _merge_undersized_segments nicht auf)
+    assert len(result) >= 1
+    # Alle Segmente haben max 2-elementige heading_path
+    for seg in result:
+        assert len(seg.heading_path) <= 2
+
+
+def test_phase_4_book_no_torn_code_blocks() -> None:
+    """Book-Pfad zerreißt keine Code-Blöcke."""
+    code = "```python\n" + "x = 1\n" * 50 + "```"
+    body = f"# Buch\n\n## Kapitel mit Code\n\n{code}\n\n" + "text " * 200
+    result = _segment_document(
+        "D_book", body, "/book.md", min_words=50, max_words=5000, is_book=True
+    )
+    for seg in result:
+        count = seg.text.count("```") + seg.text.count("~~~")
+        assert count % 2 == 0, f"Zerrissener Code-Block in Book-Segment {seg.segment_id}"

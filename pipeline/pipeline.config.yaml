@@ -101,7 +101,7 @@ embeddings:
   model: "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
   batch_size: 32
   device: "mps"                 # macOS MPS-Backend; Fallback "cpu"
-  similarity_threshold: 0.65    # Gate-1 (2026-05-29): gesenkt von 0.85, Heading-Echo eliminiert
+  similarity_threshold: 0.75    # Gate-1 (2026-05-29): 0.65 → 0.75, Mega-Cluster vermeiden
   cache_path: "${pipeline_output}/embeddings.parquet"
 
 

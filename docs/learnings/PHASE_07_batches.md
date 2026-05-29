@@ -45,6 +45,9 @@ Commit `231a2ff` (feat: implement Phase 7 — LLM-Batch-Bildung). Cluster aus Ph
 - Größter Batch: `batch_004` mit ~34.567 Token-Estimate — bleibt im 50K-Kontext-Fenster ✅
 - `C_unsortiert` weiterhin nicht gebatcht (300 Segmente) — korrekt; direkt in Phase 8 nur via explizitem Override möglich
 - `C_cluster-0000` mit 171 Docs (denkschulen-Problem): Batch existiert, wird in Block 0.K durch Exklusion des Mega-Files obsolet
+- **Batch-Bildung unverändert in Block 0.J/0.K** — nur Clustering-Input (Phase 6) änderte sich
+- **Semantische Konsistenz:** Oversized-Cluster-Splitting (Sub-Batches) teilt mechanisch nach Token-Budget, nicht nach Inhalt — bei `C_cluster-0000` (168 Docs, 807 Segmente) würde Qwen heterogene Segmente sehen, semantische Konsistenz nicht garantiert → Kernproblem für Block 0.L
+- **Block-0.K-Endstand:** C_cluster-0000-Batch bleibt (168 Docs), 8 echte Cluster, ~17 Batches gesamt
 
 ## 5. Lessons
 
@@ -59,3 +62,4 @@ Commit `231a2ff` (feat: implement Phase 7 — LLM-Batch-Bildung). Cluster aus Ph
 
 - 2026-05-28 — Skelett generiert (Block 0.H.3)
 - 2026-05-29 — Nach-Re-Run-Zahlen ergänzt (Sektion 4)
+- 2026-05-29 — Batch-unverändert-Notiz + semantische Konsistenz + Block-0.K-Endstand ergänzt (Block 0.J.8)

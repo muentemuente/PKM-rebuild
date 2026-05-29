@@ -121,8 +121,16 @@ Re-Run nach Exklusion von `denkschulen_ueberblick_und_einfuehrung.md`, 2026-05-2
 
 Kriterium 5 formal erfüllt (denkschulen-Mikrocluster weg). Kriterium 4 weiterhin offen.
 
+**Endstand (1.187 Segmente, 202 Files):**
+- Unsortiert: 26.1 % (310/1.187) ✅
+- Cluster ≥3 Docs: 8 ❌ (Ziel ≥50)
+- Mega-Cluster C_cluster-0000: 807 Segmente / 168 Docs — Problem bleibt
+
+**Bekannte Verzerrung:** Reports-Generator (`cluster_report.md`) zeigte „Top-Cluster 8 Docs" statt tatsächlich 168. Diskrepanz aufgelöst per Direct-Query in `cluster_proposals.json`. Reports-Bug wird in Block 0.M gefixt.
+
 ## Änderungs-Log
 
 - 2026-05-28 — Gate-1 abgeschlossen, Re-Run-Strategie A + Book-Sonderbehandlung beschlossen
 - 2026-05-29 — Verifikation nach Re-Run ergänzt: 4/6 Kriterien erfüllt, Gate-1 akzeptiert, denkschulen → Block 0.K
 - 2026-05-29 — Verifikation Block 0.K: denkschulen exkludiert, 5/6 Kriterien erfüllt; Mega-Cluster-Problem (`similarity_threshold`) bleibt offen
+- 2026-05-29 — Endstand + Reports-Bug-Notiz ergänzt (Block 0.J.8)

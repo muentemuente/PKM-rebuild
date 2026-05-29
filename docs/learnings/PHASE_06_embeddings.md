@@ -48,6 +48,9 @@ Commit `74de985` (feat: implement Phase 6 — Embeddings + Cluster-Vorbereitung)
 - Hauptursache war aber Phase-4 (Mini-Segmente): Nach Phase-4-Fix deutlich weniger Segmente (1.581 statt 5.368)
 - Ergebnis: **300 unsortiert / 1.581 = 19.0%** ✅ (Ziel < 40%), Mikrocluster: 39 → 8 ✅
 - Problem: `C_cluster-0000` zieht 171 Docs in einen Cluster — `denkschulen_ueberblick` dominiert durch Book-Segmente, wird in Block 0.K exkludiert
+- **Threshold-Iteration Block 0.J/0.K:** `0.85` → 0 echte Cluster (alles unsortiert), `0.65` → Mega-Cluster C_cluster-0000, Test `0.75` (`22a40d6`) → 85.9 % unsortiert (zu schlecht), revert auf `0.65` (`12178f4`)
+- **Befund:** Mega-Cluster-Problem bei diesem Korpus mit agglomerativem Clustering nicht durch Threshold lösbar — zu breit gestreute Dokumentensammlung ohne natürliche Cluster-Grenzen → Block 0.L (Strategie-Entscheidung A–D)
+- **Block-0.K-Endstand (threshold=0.65):** 26.1 % unsortiert (310/1.187), Mikrocluster: 10, `C_cluster-0000` mit 168 Docs (807 Segmente)
 
 ## 5. Lessons
 
@@ -62,3 +65,4 @@ Commit `74de985` (feat: implement Phase 6 — Embeddings + Cluster-Vorbereitung)
 
 - 2026-05-28 — Skelett generiert (Block 0.H.3)
 - 2026-05-29 — Gate-1-Entscheidung + Nach-Re-Run-Zahlen ergänzt (Sektion 4)
+- 2026-05-29 — Threshold-Iteration + Mega-Cluster-Befund + Block-0.K-Endstand ergänzt (Block 0.J.8)

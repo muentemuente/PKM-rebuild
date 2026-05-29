@@ -46,6 +46,8 @@ Commit `5444ca3` (feat: implement Phase 4 — Segmentierung). Dokumente werden i
 - `596137a` — Book-Sonderbehandlung: Files mit `doc_type=book` werden nach H1/H2 gesplittet (größere, kohärentere Segmente)
 - Ergebnis Re-Run: **5.368 → 1.581 Segmente**, Ø Wörter ~60 → ~203 ✅
 
+**Block-0.K (2026-05-29):** `denkschulen_ueberblick_und_einfuehrung.md` nach `_excluded/` verschoben. Re-Run: **1.581 → 1.187 Segmente** (exkludierte 394 Segmente fallen weg). Segmentierung für Standard-Docs unverändert.
+
 ## 5. Lessons
 
 > [!todo] Inhaltliche Reflexion in App-Session 0H.4
@@ -59,3 +61,4 @@ Commit `5444ca3` (feat: implement Phase 4 — Segmentierung). Dokumente werden i
 
 - 2026-05-28 — Skelett generiert (Block 0.H.3)
 - 2026-05-29 — Gate-1-Befund + Block-0.J-Fix ergänzt (Sektion 4)
+- 2026-05-29 — Block-0.K-Endstand ergänzt (Block 0.J.8)

@@ -26,7 +26,7 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | 7 | LLM-Batch-Bildung | ✅ done | `231a2ff` |
 | 8 | Qwen-Synthese (4-Stage) | 🟡 Code fertig, CLI-Wiring offen, Echtlauf ausstehend | `d586cb8` |
 | 9 | Vault-Aufbau | 🔜 nächster Schritt | — |
-| 10 | Kontroll-Berichte | 🔜 offen | — |
+| 10 | Kontroll-Berichte | ✅ done | `fd161be` |
 
 ---
 
@@ -130,6 +130,13 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 - `596137a` — Phase 4: Book-Sonderbehandlung: H1/H2-Split (statt H2/H3), größere Segmente
 - `87e7311` — Book-Parameter korrekt an Phase 3 + 4 durchgereicht
 - Re-Run ab Phase 3: **5.368 → 1.581 Segmente**, Ø Wörter ~60 → ~203
+
+**Block-0.K + Threshold-Iteration (2026-05-29):**
+- `denkschulen_ueberblick_und_einfuehrung.md` (15.770 Wörter, 394 H2-Headings) als Survey-Doc aus Mainstream-Pipeline exkludiert (`_excluded/`-Subfolder, `5155340`)
+- Nach Exklusion Re-Run: **1.581 → 1.187 Segmente**
+- `similarity_threshold` iterativ getestet: 0.85 → 0 echte Cluster, 0.65 → Mega-Cluster C_cluster-0000 (168 Docs), 0.75 → 85.9 % unsortiert, zurück auf 0.65
+- Stand: 0.65 als Fallback, Mega-Cluster bleibt bekanntes Problem → Block 0.L (Clustering-Strategie)
+- Reports-Generator zeigte „Top-Cluster 8 Docs" statt tatsächlich 168 — Diskrepanz per Direct-Query aufgelöst → Bug-Fix in Block 0.M
 
 ---
 
@@ -251,7 +258,7 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | `ruff check` | ✅ clean | alle Phasen + Tests |
 | `ruff format` | ✅ clean | |
 | `mypy pipeline/` | ⚠️ 17 Fehler in 4 Dateien | Phase 8: 0 Fehler |
-| Tests gesamt | ✅ 222/222 grün | |
+| Tests gesamt | ✅ 275/275 grün | |
 
 ### Mypy-Fehler nach Datei
 
@@ -268,16 +275,18 @@ Alle 17 Fehler sind in Phasen 2, 3, 6 aus den ersten Implementierungsläufen. Ph
 
 | Test-File | Tests |
 |---|---|
+| `test_config.py` | 5 |
+| `test_phase_10_reports.py` | 11 |
 | `test_phase_1_inventory.py` | 24 |
 | `test_phase_2_normalize.py` | 25 |
-| `test_phase_3_structure.py` | 36 |
-| `test_phase_4_segment.py` | 34 |
+| `test_phase_3_structure.py` | 42 |
+| `test_phase_4_segment.py` | 60 |
 | `test_phase_5_redundancy.py` | 19 |
 | `test_phase_6_embeddings.py` | 23 |
 | `test_phase_7_batches.py` | 24 |
-| `test_phase_8_synthesis.py` | 32 |
+| `test_phase_8_synthesis.py` | 37 |
 | `test_sanity.py` | 5 |
-| **Gesamt** | **222** |
+| **Gesamt** | **275** |
 
 ---
 
@@ -365,6 +374,14 @@ Gemäß CLAUDE.md Sektion 8 sollte jede Phase mit `docs/learnings/PHASE_NN_<slug
 
 `pipeline/__main__.py` Zeile 23: `_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6, 7}`. Phase 8 ist nicht in der CLI registriert. Wird in Block 0.F behoben.
 
+### 7.5 Clustering-Mega-Cluster (Block 0.L)
+
+`C_cluster-0000` enthält 168 Docs (83 % des Korpus) bei `similarity_threshold=0.65`. Problem ist nicht denkschulen-spezifisch — agglomeratives Clustering kann bei diesem Korpus ohne HDBSCAN oder Strategie-Wechsel keinen sinnvollen Schwellwert finden (0.75 → 85.9 % unsortiert, 0.65 → Mega-Cluster). Strategieoptionen A–D in Block 0.L zu entscheiden.
+
+### 7.6 Reports-Generator-Bug Cluster-Größen (Block 0.M)
+
+`cluster_report.md` zeigt „Top-Cluster 8 Docs" statt tatsächlich 168. Ursache: Doc-Count vermutlich via Segment-Count berechnet statt via distinct `doc_id`s. Fix + 2 Regressions-Tests in Block 0.M geplant.
+
 ---
 
 ## 8. Nächste Schritte
@@ -379,3 +396,4 @@ Siehe `docs/tasks/README.md` für vollständigen Master-Plan bis Phase 9. Block-
 - 2026-05-28 — Korrigiert: Phase 8 Status auf 🟡 (CLI-Wiring offen, kein Echtlauf), Sektion 8 → Verweis auf Master-Plan
 - 2026-05-29 — Block-0.J: Phase-3/4-Commits aktualisiert, Phase-4-Notiz (Book-Sonderbehandlung + Re-Run-Ergebnis)
 - 2026-05-29 — Block-0.K: denkschulen_ueberblick exkludiert; Blöcke 0.J+0.K in Sektion 2 ergänzt; Befund: `C_cluster-0000` Mega-Cluster (similarity_threshold-Problem) bleibt offen
+- 2026-05-29 — Block-0.J.8: Phase-10 done (`fd161be`), Tests 222→275, Threshold-Iteration + Block-0.K in Phase-4-Sektion, Offene Punkte 7.5+7.6 ergänzt

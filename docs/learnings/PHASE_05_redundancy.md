@@ -44,6 +44,8 @@ Commit `d9cb420` (feat: implement Phase 5 — Redundanz-Erkennung). Zwei-stufige
 - Phase-4-Fix behebt Ursache: Nach Re-Run nur noch **31 Kanten gesamt, 15 mit Sim=1.0**
 - Alle verbleibenden 1.0-Kanten stammen aus `denkschulen_ueberblick_und_einfuehrung.md` — wird in Block 0.K exkludiert
 - `similarity_threshold`-Änderung (0.85→0.65, `546c121`) betrifft Phase 6 (Clustering), nicht den TF-IDF-Threshold hier
+- **TF-IDF-Threshold + `min_df` blieben in Block 0.J/0.K unverändert** — Heading-Echo in Phase 4 war alleinige Ursache der 642 Sim=1.0-Kanten, nicht die Threshold-Parameter
+- **Block-0.K-Endstand:** Nach denkschulen-Exklusion: **0 Kanten Sim=1.0**, 0 Kanten gesamt ✅
 
 ## 5. Lessons
 
@@ -58,3 +60,4 @@ Commit `d9cb420` (feat: implement Phase 5 — Redundanz-Erkennung). Zwei-stufige
 
 - 2026-05-28 — Skelett generiert (Block 0.H.3)
 - 2026-05-29 — Gate-1-Befund + Nach-Re-Run-Zahlen ergänzt (Sektion 4)
+- 2026-05-29 — TF-IDF-unverändert-Notiz + Block-0.K-Endstand ergänzt (Block 0.J.8)

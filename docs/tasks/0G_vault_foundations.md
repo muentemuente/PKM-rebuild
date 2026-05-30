@@ -401,12 +401,12 @@ Frage an App: Block 0.G komplett oder noch offene App-Tasks?
 
 ## Definition of Done für Block 0.G
 
-- [ ] 0G.1: Skript läuft, `tag_inventory.md` vorhanden
-- [ ] 0G.2: `00_Meta/tag-system.md` final, App-reviewt, `status: stable`
-- [ ] 0G.3: Code + Tests grün, Stage 4 nutzt Vokabular
-- [ ] 0G.4: alle 10 Template-Skelette vorhanden, `status: draft`
-- [ ] 0G.5: alle 10 Templates auf `status: stable` promoted
-- [ ] 0G.6: Gedanken-Sonderpfad implementiert, Tests grün, Pipeline-Re-Run hat `batch_gedanken.md` erzeugt
+- [x] 0G.1: Skript läuft, `tag_inventory.md` vorhanden (145 Kandidaten, `e77ea7f`)
+- [ ] 0G.2: `00_Meta/tag-system.md` final, App-reviewt, `status: stable` — **⏸ App-Task**
+- [ ] 0G.3: Code + Tests grün, Stage 4 nutzt Vokabular — wartet auf 0G.2
+- [x] 0G.4: 10 Template-Skelette in `data/04_vault/00_Meta/`, alle Pydantic-valide (2026-05-30)
+- [ ] 0G.5: alle 10 Templates auf `status: stable` promoted — **⏸ App-Task**
+- [x] 0G.6: Gedanken-Sonderpfad implementiert (Option B, Phase-8-Routing), 7 Tests grün (`0550427`)
 - [ ] `status` im Frontmatter dieses Files auf `done`, Notiz im Body-Footer
 
 ## Out-of-Scope für 0.G
@@ -420,3 +420,4 @@ Frage an App: Block 0.G komplett oder noch offene App-Tasks?
 ## Änderungs-Log
 
 - 2026-05-28 — Initial-Version
+- 2026-05-30 — 0G.1 (tag_inventory.py), 0G.4 (10 Templates), 0G.6 (Gedanken-Sonderpfad) abgeschlossen. 0G.2+0G.5 = App-Tasks. 0G.3 wartet auf 0G.2.

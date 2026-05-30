@@ -216,19 +216,23 @@ def build_report(
     total_pairs = sum(sim_hist.values())
 
     # === Sektion 2: Threshold-Simulation ===
-    sim_header = _row(["Threshold", "Cluster", "Top-Cluster Segs", "Ø Cluster Segs", "% Unsortiert"])
+    sim_header = _row(
+        ["Threshold", "Cluster", "Top-Cluster Segs", "Ø Cluster Segs", "% Unsortiert"]
+    )
     sim_sep = "|---|---|---|---|---|"
     sim_rows_list = []
     for s in threshold_sims:
         marker = " ←" if abs(s["threshold"] - current_threshold) < 0.001 else ""
         sim_rows_list.append(
-            _row([
-                f"{s['threshold']:.2f}{marker}",
-                s["n_clusters"],
-                s["top_cluster_segs"],
-                s["mean_cluster_segs"],
-                f"{s['unsorted_pct']}%",
-            ])
+            _row(
+                [
+                    f"{s['threshold']:.2f}{marker}",
+                    s["n_clusters"],
+                    s["top_cluster_segs"],
+                    s["mean_cluster_segs"],
+                    f"{s['unsorted_pct']}%",
+                ]
+            )
         )
     sim_rows = "\n".join(sim_rows_list)
 
@@ -245,7 +249,9 @@ def build_report(
         terms = ", ".join(tfidf_terms.get(cid, [])[:5])
         doc_ids = {s.rsplit("-S", 1)[0] for s in c["segment_ids"]}
         other_clusters_rows.append(_row([cid, c["label_guess"][:35], len(doc_ids), terms]))
-    other_clusters_str = "\n".join(other_clusters_rows) if other_clusters_rows else "| — | — | — | — |"
+    other_clusters_str = (
+        "\n".join(other_clusters_rows) if other_clusters_rows else "| — | — | — | — |"
+    )
 
     # === Sektion 4: HDBSCAN ===
     if hdbscan_result:
@@ -255,12 +261,12 @@ Parameter: `min_cluster_size=3, min_samples=2, metric=euclidean (L2-normalisiert
 
 | Metrik | HDBSCAN | Agglomerativ (threshold={current_threshold:.2f}) |
 |---|---|---|
-| Cluster (named) | {hdbscan_result['n_clusters']} | {threshold_sims[2]['n_clusters']} |
-| Noise / Unsortiert Segs | {hdbscan_result['n_noise']} ({hdbscan_result['noise_pct']}%) | {threshold_sims[2]['unsorted_pct']}% |
-| Top-Cluster Segs | {hdbscan_result['top_cluster_segs']} | {threshold_sims[2]['top_cluster_segs']} |
-| Ø Cluster Segs | {hdbscan_result['mean_cluster_segs']} | {threshold_sims[2]['mean_cluster_segs']} |
+| Cluster (named) | {hdbscan_result["n_clusters"]} | {threshold_sims[2]["n_clusters"]} |
+| Noise / Unsortiert Segs | {hdbscan_result["n_noise"]} ({hdbscan_result["noise_pct"]}%) | {threshold_sims[2]["unsorted_pct"]}% |
+| Top-Cluster Segs | {hdbscan_result["top_cluster_segs"]} | {threshold_sims[2]["top_cluster_segs"]} |
+| Ø Cluster Segs | {hdbscan_result["mean_cluster_segs"]} | {threshold_sims[2]["mean_cluster_segs"]} |
 
-Cluster-Größen-Verteilung (Top-20): {hdbscan_result['size_distribution']}
+Cluster-Größen-Verteilung (Top-20): {hdbscan_result["size_distribution"]}
 """
     else:
         hdb_section = """## 4. HDBSCAN-Trial
@@ -270,7 +276,9 @@ hdbscan-Library nicht installierbar in dieser Umgebung. Trial übersprungen.
 
     # === Sektion 5: Beobachtungen ===
     # Datenbasis für die 0.65-Zeile ermitteln
-    row_065 = next((s for s in threshold_sims if abs(s["threshold"] - 0.65) < 0.001), threshold_sims[0])
+    row_065 = next(
+        (s for s in threshold_sims if abs(s["threshold"] - 0.65) < 0.001), threshold_sims[0]
+    )
 
     report = f"""---
 title: Clustering-Strategie — Datenbasis
@@ -329,10 +337,10 @@ Top-10 TF-IDF-Begriffe: {mega_terms_str}
 
 ## 5. Beobachtungen
 
-- **Similarity-Verteilung:** {sim_hist.get('0.6-0.7', 0):,} Paare im Bereich 0.6-0.7; {sim_hist.get('0.7-0.8', 0):,} im Bereich 0.7-0.8. Zeigt ob es natürliche Cluster-Grenzen gibt.
-- **Threshold=0.65 (aktuell):** {row_065['n_clusters']} Cluster, {row_065['top_cluster_segs']} Segs im Top-Cluster, {row_065['unsorted_pct']}% unsortiert.
-- **Mega-Cluster C_cluster-0000:** {mega_seg_count} Segmente. TF-IDF-Begriffe zeigen {('heterogenes Themenspektrum' if len(set(mega_terms[:5])) >= 3 else 'engeres Themenspektrum')}.
-- **HDBSCAN:** {'Alternativer Ansatz ohne festen Threshold. Noise-Rate und Cluster-Anzahl oben.' if hdbscan_result else 'Nicht ausführbar.'}
+- **Similarity-Verteilung:** {sim_hist.get("0.6-0.7", 0):,} Paare im Bereich 0.6-0.7; {sim_hist.get("0.7-0.8", 0):,} im Bereich 0.7-0.8. Zeigt ob es natürliche Cluster-Grenzen gibt.
+- **Threshold=0.65 (aktuell):** {row_065["n_clusters"]} Cluster, {row_065["top_cluster_segs"]} Segs im Top-Cluster, {row_065["unsorted_pct"]}% unsortiert.
+- **Mega-Cluster C_cluster-0000:** {mega_seg_count} Segmente. TF-IDF-Begriffe zeigen {("heterogenes Themenspektrum" if len(set(mega_terms[:5])) >= 3 else "engeres Themenspektrum")}.
+- **HDBSCAN:** {"Alternativer Ansatz ohne festen Threshold. Noise-Rate und Cluster-Anzahl oben." if hdbscan_result else "Nicht ausführbar."}
 - **Threshold-Sensitivität:** Zwischen 0.65 und 0.80 variiert % unsortiert stark — Hinweis auf uneindeutige Cluster-Struktur im Korpus.
 """
     return report.strip() + "\n"
@@ -367,8 +375,10 @@ def main() -> None:
     thresholds = [0.55, 0.60, 0.65, 0.70, 0.75, 0.80]
     threshold_sims = [simulate_threshold(embeddings, seg_ids, t) for t in thresholds]
     for s in threshold_sims:
-        print(f"   threshold={s['threshold']:.2f}: {s['n_clusters']} Cluster, "
-              f"top={s['top_cluster_segs']} segs, {s['unsorted_pct']}% unsortiert")
+        print(
+            f"   threshold={s['threshold']:.2f}: {s['n_clusters']} Cluster, "
+            f"top={s['top_cluster_segs']} segs, {s['unsorted_pct']}% unsortiert"
+        )
 
     print("3. TF-IDF Top-Begriffe...")
     tfidf_terms = tfidf_top_terms(clusters, seg_texts)
@@ -376,8 +386,10 @@ def main() -> None:
     print("4. HDBSCAN-Trial...")
     hdbscan_result = run_hdbscan_trial(embeddings)
     if hdbscan_result:
-        print(f"   {hdbscan_result['n_clusters']} Cluster, "
-              f"{hdbscan_result['n_noise']} Noise ({hdbscan_result['noise_pct']}%)")
+        print(
+            f"   {hdbscan_result['n_clusters']} Cluster, "
+            f"{hdbscan_result['n_noise']} Noise ({hdbscan_result['noise_pct']}%)"
+        )
     else:
         print("   hdbscan nicht verfügbar — übersprungen")
 

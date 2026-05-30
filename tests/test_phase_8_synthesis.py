@@ -1,6 +1,7 @@
-"""Tests fuer Phase 8 — Qwen-Synthese.
+"""Tests fuer Phase 8 — Qwen-Veredelung (Option B: Pro-Doc-Veredelung).
 
 Akzeptanzkriterien aus docs/02_pipeline_spec.md, Phase 8:
+  - sources_docs belegt; merged_from leer ([])
   - confidence-Feld gesetzt
   - prompt_version gesetzt
   - last_synthesized gesetzt
@@ -15,10 +16,12 @@ from unittest.mock import MagicMock
 import pytest
 from pipeline.config import load_config
 from pipeline.phase_8_synthesis import (
+    _build_doc_concept,
     _build_stage3_user_message,
     _build_stage4_user_message,
     _extract_json,
     _extract_markdown_body,
+    _group_segments_by_doc,
     _is_cached,
     _QwenStageConfig,
     _run_stage2,
@@ -32,7 +35,7 @@ from pipeline.schemas import FrontmatterDraft, SegmentRecord
 
 # === Fixtures ==================================================================
 
-
+# Stage-1+2-Konstanten: deprecated (Option A), behalten fuer _run_stage2-Test
 STAGE1_JSON = {
     "cluster_id": "C_test",
     "main_topics": [
@@ -81,7 +84,7 @@ STAGE3_BODY = "# Test Konzept\n\nEin Test-Artikel mit ausreichend Inhalt."
 
 STAGE4_FM = {
     "title": "Test Konzept",
-    "slug": "test-konzept",
+    "slug": "test",
     "aliases": [],
     "summary": "Ein Test-Konzept fuer die Pipeline.",
     "type": "knowledge-article",
@@ -116,10 +119,10 @@ def _make_mock_response(content: str) -> MagicMock:
     return resp
 
 
-def _make_segment(seg_id: str, text: str = "Test Inhalt") -> SegmentRecord:
+def _make_segment(seg_id: str, doc_id: str = "D_test", text: str = "Test Inhalt") -> SegmentRecord:
     return SegmentRecord(
         segment_id=seg_id,
-        doc_id="D_test",
+        doc_id=doc_id,
         source_path="/test.md",
         heading_path=["Test"],
         segment_index=0,
@@ -131,36 +134,9 @@ def _make_segment(seg_id: str, text: str = "Test Inhalt") -> SegmentRecord:
     )
 
 
-def _make_batch_file(tmp_path: Path) -> Path:
-    """Erstellt ein minimales Batch-File fuer Tests."""
-    batch_dir = tmp_path / "batches"
-    batch_dir.mkdir()
-    batch = batch_dir / "batch_001_test.md"
-    batch.write_text(
-        "---\n"
-        "batch_id: batch_001_test\n"
-        "cluster_id: C_test\n"
-        "label_guess: Test Cluster\n"
-        "segment_count: 1\n"
-        "doc_count: 1\n"
-        "token_estimate: 50\n"
-        "sub_batch: 1/1\n"
-        "created_at: 2026-05-27T00:00:00+00:00\n"
-        "pipeline_version: 0.1.0\n"
-        "---\n\n"
-        "## Cluster: Test Cluster\n\n"
-        "### Segmente\n\n"
-        "---\n\n"
-        "**[D_test-S0000]** | Heading: `Test` | Woerter: 5\n\n"
-        "Test Inhalt fuer Stage 1.\n",
-        encoding="utf-8",
-    )
-    return batch_dir
-
-
-def _make_segments_file(tmp_path: Path) -> Path:
+def _make_segments_file(tmp_path: Path, doc_id: str = "D_test") -> Path:
     segs_path = tmp_path / "segments.jsonl"
-    seg = _make_segment("D_test-S0000", "Test Inhalt fuer Stage 1.")
+    seg = _make_segment(f"{doc_id}-S0000", doc_id=doc_id, text="Test Inhalt fuer Stage 3.")
     segs_path.write_text(seg.model_dump_json() + "\n", encoding="utf-8")
     return segs_path
 
@@ -181,10 +157,8 @@ def _make_prompts_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def mock_openai(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Mockt openai.OpenAI mit vordefinierten Stage-Antworten."""
+    """Mockt openai.OpenAI mit Stage-3+4-Antworten (Option B)."""
     responses = [
-        _make_mock_response(f"```json\n{json.dumps(STAGE1_JSON)}\n```"),
-        _make_mock_response(f"```json\n{json.dumps(STAGE2_JSON)}\n```"),
         _make_mock_response(f"```markdown\n{STAGE3_BODY}\n```"),
         _make_mock_response(f"```json\n{json.dumps(STAGE4_FM)}\n```"),
     ]
@@ -199,22 +173,13 @@ def mock_openai(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 
 @pytest.fixture
 def mock_openai_infinite(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Mockt openai.OpenAI mit unbegrenzt gleichen Stage-Antworten (fuer Idempotenz-Tests)."""
+    """Mockt openai.OpenAI mit unbegrenzt gleichen Stage-3+4-Antworten."""
 
     def _make_response(_messages: list, **_kwargs: object) -> MagicMock:
-        # Bestimme Stage anhand von Nachrichten-Inhalt
         content = str(_messages)
         if "stage4_frontmatter" in content or "Artikel-Body" in content:
             return _make_mock_response(f"```json\n{json.dumps(STAGE4_FM)}\n```")
-        if "stage3_synthesis" in content or "Quell-Segmente" in content:
-            return _make_mock_response(f"```markdown\n{STAGE3_BODY}\n```")
-        if (
-            "stage2_merge" in content
-            or "Stage-1-Analyse" in content
-            or "proposed_concepts" in content
-        ):
-            return _make_mock_response(f"```json\n{json.dumps(STAGE2_JSON)}\n```")
-        return _make_mock_response(f"```json\n{json.dumps(STAGE1_JSON)}\n```")
+        return _make_mock_response(f"```markdown\n{STAGE3_BODY}\n```")
 
     mock_client = MagicMock()
     mock_client.chat.completions.create.side_effect = lambda **kw: _make_response(
@@ -337,6 +302,97 @@ def test_is_cached_hash_mismatch(tmp_path: Path) -> None:
     assert not _is_cached(out, meta, "bbb")
 
 
+# === _group_segments_by_doc ====================================================
+
+
+def test_group_segments_by_doc_basic() -> None:
+    seg_a = _make_segment("D_alpha-S0000", doc_id="D_alpha", text="Alpha text.")
+    seg_b = _make_segment("D_beta-S0000", doc_id="D_beta", text="Beta text.")
+    seg_map = {seg_a.segment_id: seg_a, seg_b.segment_id: seg_b}
+    docs = _group_segments_by_doc(seg_map)
+    assert set(docs.keys()) == {"D_alpha", "D_beta"}
+    assert len(docs["D_alpha"]) == 1
+    assert len(docs["D_beta"]) == 1
+
+
+def test_group_segments_by_doc_sorted_by_index() -> None:
+    seg0 = SegmentRecord(
+        segment_id="D_x-S0000",
+        doc_id="D_x",
+        source_path="/x.md",
+        heading_path=[],
+        segment_index=0,
+        text="first",
+        word_count=1,
+        char_count=5,
+        contains_code=False,
+        contains_table=False,
+    )
+    seg1 = SegmentRecord(
+        segment_id="D_x-S0001",
+        doc_id="D_x",
+        source_path="/x.md",
+        heading_path=[],
+        segment_index=1,
+        text="second",
+        word_count=1,
+        char_count=6,
+        contains_code=False,
+        contains_table=False,
+    )
+    seg_map = {seg1.segment_id: seg1, seg0.segment_id: seg0}
+    docs = _group_segments_by_doc(seg_map)
+    assert docs["D_x"][0].segment_index == 0
+    assert docs["D_x"][1].segment_index == 1
+
+
+# === _build_doc_concept ========================================================
+
+
+def test_build_doc_concept_structure() -> None:
+    seg = _make_segment("D_yaml-frontmatter-S0000", doc_id="D_yaml-frontmatter", text="Inhalt.")
+    concept = _build_doc_concept("D_yaml-frontmatter", [seg])
+    assert concept["ck_id"] == "CK_yaml-frontmatter"
+    assert concept["sources_docs"] == ["D_yaml-frontmatter"]
+    assert concept["source_chunks"] == ["D_yaml-frontmatter-S0000"]
+    assert concept["merged_from"] == []
+
+
+def test_build_doc_concept_title_from_heading() -> None:
+    seg = SegmentRecord(
+        segment_id="D_test-S0000",
+        doc_id="D_test",
+        source_path="/test.md",
+        heading_path=["YAML Grundlagen"],
+        segment_index=0,
+        text="Inhalt.",
+        word_count=1,
+        char_count=7,
+        contains_code=False,
+        contains_table=False,
+    )
+    concept = _build_doc_concept("D_test", [seg])
+    assert concept["title"] == "YAML Grundlagen"
+
+
+def test_build_doc_concept_title_fallback_no_heading() -> None:
+    seg = SegmentRecord(
+        segment_id="D_yaml-frontmatter-S0000",
+        doc_id="D_yaml-frontmatter",
+        source_path="/x.md",
+        heading_path=[],
+        segment_index=0,
+        text="Inhalt.",
+        word_count=1,
+        char_count=7,
+        contains_code=False,
+        contains_table=False,
+    )
+    concept = _build_doc_concept("D_yaml-frontmatter", [seg])
+    # Fallback: doc_id ohne D_-Prefix, humanisiert
+    assert "yaml" in concept["title"].lower() or "Yaml" in concept["title"]
+
+
 # === _build_stage3_user_message ================================================
 
 
@@ -349,7 +405,7 @@ def test_build_stage3_user_message_includes_segments() -> None:
         "category": "grundlagen",
         "source_chunks": ["D_test-S0000"],
     }
-    seg_map = {"D_test-S0000": _make_segment("D_test-S0000", "Segment-Text hier.")}
+    seg_map = {"D_test-S0000": _make_segment("D_test-S0000", text="Segment-Text hier.")}
     msg, resolved, missing = _build_stage3_user_message(concept, seg_map)
     assert "D_test-S0000" in msg
     assert "Segment-Text hier." in msg
@@ -373,9 +429,6 @@ def test_build_stage3_skips_missing_segments() -> None:
     assert missing == 1
 
 
-# === Bug-B4: Halluzinierte Segment-IDs ==========================================
-
-
 def test_stage3_logs_missing_segment_ids(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     """Fehlende Segment-IDs werden als warning geloggt, aufgeloeste nicht."""
     concept = {
@@ -386,7 +439,7 @@ def test_stage3_logs_missing_segment_ids(tmp_path: Path, caplog: pytest.LogCaptu
         "category": "grundlagen",
         "source_chunks": ["D_real-S0000", "D_halluziniert-S0099"],
     }
-    seg_map = {"D_real-S0000": _make_segment("D_real-S0000", "Echter Text.")}
+    seg_map = {"D_real-S0000": _make_segment("D_real-S0000", text="Echter Text.")}
     import logging
 
     with caplog.at_level(logging.WARNING):
@@ -396,42 +449,6 @@ def test_stage3_logs_missing_segment_ids(tmp_path: Path, caplog: pytest.LogCaptu
     assert missing == 1
     assert "D_real-S0000" in msg
     assert "D_halluziniert-S0099" not in msg
-
-
-def test_stage3_aborts_when_all_chunks_missing(
-    tmp_path: Path, mock_openai_infinite: MagicMock
-) -> None:
-    """Wenn alle source_chunks fehlen, bricht Stage 3 ab und schreibt needs_human."""
-    batch_dir = _make_batch_file(tmp_path)
-    prompts_dir = _make_prompts_dir(tmp_path)
-
-    # segments_empty: kein Eintrag → alle source_chunks aus Stage-2-JSON fehlen
-    segs_path_empty = tmp_path / "segments_empty.jsonl"
-    segs_path_empty.write_text("", encoding="utf-8")
-
-    run_phase_8(
-        batches_dir=batch_dir,
-        segments_path=segs_path_empty,
-        qwen_output_dir=tmp_path / "qwen",
-        drafts_dir=tmp_path / "drafts",
-        endpoint="http://localhost:1234/v1",
-        model="test",
-        context_window=49152,
-        prompt_version="v1",
-        prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
-        temperature_stage3=0.4,
-        temperature_stage4=0.1,
-        max_retries=0,
-        retry_backoff_seconds=0,
-        timeout_seconds=30,
-    )
-    needs_human_path = tmp_path / "qwen" / "needs_human.jsonl"
-    assert needs_human_path.exists()
-    entries = [json.loads(ln) for ln in needs_human_path.read_text().splitlines() if ln.strip()]
-    reasons = [e["reason"] for e in entries]
-    assert "all_source_chunks_missing" in reasons
 
 
 # === _build_stage4_user_message ================================================
@@ -448,34 +465,9 @@ def test_build_stage4_user_message_contains_body() -> None:
 # === run_phase_8 ===============================================================
 
 
-def test_missing_batches_dir_raises(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError):
-        run_phase_8(
-            batches_dir=tmp_path / "nonexistent",
-            segments_path=tmp_path / "segments.jsonl",
-            qwen_output_dir=tmp_path / "qwen",
-            drafts_dir=tmp_path / "drafts",
-            endpoint="http://localhost:1234/v1",
-            model="test",
-            context_window=49152,
-            prompt_version="v1",
-            prompts_dir=tmp_path / "prompts",
-            temperature_stage1=0.3,
-            temperature_stage2=0.2,
-            temperature_stage3=0.4,
-            temperature_stage4=0.1,
-            max_retries=0,
-            retry_backoff_seconds=0,
-            timeout_seconds=30,
-        )
-
-
 def test_missing_segments_raises(tmp_path: Path) -> None:
-    batches = tmp_path / "batches"
-    batches.mkdir()
     with pytest.raises(FileNotFoundError):
         run_phase_8(
-            batches_dir=batches,
             segments_path=tmp_path / "nonexistent.jsonl",
             qwen_output_dir=tmp_path / "qwen",
             drafts_dir=tmp_path / "drafts",
@@ -484,8 +476,6 @@ def test_missing_segments_raises(tmp_path: Path) -> None:
             context_window=49152,
             prompt_version="v1",
             prompts_dir=tmp_path / "prompts",
-            temperature_stage1=0.3,
-            temperature_stage2=0.2,
             temperature_stage3=0.4,
             temperature_stage4=0.1,
             max_retries=0,
@@ -494,25 +484,44 @@ def test_missing_segments_raises(tmp_path: Path) -> None:
         )
 
 
-def test_run_phase_8_produces_outputs(tmp_path: Path, mock_openai: MagicMock) -> None:
-    batches_dir = _make_batch_file(tmp_path)
-    segments_path = _make_segments_file(tmp_path)
+def test_run_phase_8_empty_segments(tmp_path: Path, mock_openai: MagicMock) -> None:
+    segs_path = tmp_path / "segments.jsonl"
+    segs_path.write_text("", encoding="utf-8")
     prompts_dir = _make_prompts_dir(tmp_path)
-    qwen_dir = tmp_path / "qwen"
-    drafts_dir = tmp_path / "drafts"
 
     result = run_phase_8(
-        batches_dir=batches_dir,
+        segments_path=segs_path,
+        qwen_output_dir=tmp_path / "qwen",
+        drafts_dir=tmp_path / "drafts",
+        endpoint="http://localhost:1234/v1",
+        model="test",
+        context_window=49152,
+        prompt_version="v1",
+        prompts_dir=prompts_dir,
+        temperature_stage3=0.4,
+        temperature_stage4=0.1,
+        max_retries=0,
+        retry_backoff_seconds=0,
+        timeout_seconds=30,
+    )
+    assert result["docs_processed"] == 0
+    assert result["concepts_drafted"] == 0
+    mock_openai.chat.completions.create.assert_not_called()
+
+
+def test_run_phase_8_produces_outputs(tmp_path: Path, mock_openai: MagicMock) -> None:
+    segments_path = _make_segments_file(tmp_path)
+    prompts_dir = _make_prompts_dir(tmp_path)
+
+    result = run_phase_8(
         segments_path=segments_path,
-        qwen_output_dir=qwen_dir,
-        drafts_dir=drafts_dir,
+        qwen_output_dir=tmp_path / "qwen",
+        drafts_dir=tmp_path / "drafts",
         endpoint="http://localhost:1234/v1",
         model="qwen/qwen3.6-27b",
         context_window=49152,
         prompt_version="v1",
         prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
         temperature_stage3=0.4,
         temperature_stage4=0.1,
         max_retries=0,
@@ -520,78 +529,17 @@ def test_run_phase_8_produces_outputs(tmp_path: Path, mock_openai: MagicMock) ->
         timeout_seconds=30,
     )
 
-    assert result["batches_processed"] == 1
+    assert result["docs_processed"] == 1
     assert result["concepts_drafted"] == 1
     assert result["errors"] == 0
 
 
-def test_run_phase_8_stage1_output(tmp_path: Path, mock_openai: MagicMock) -> None:
-    batches_dir = _make_batch_file(tmp_path)
-    segments_path = _make_segments_file(tmp_path)
-    prompts_dir = _make_prompts_dir(tmp_path)
-
-    run_phase_8(
-        batches_dir=batches_dir,
-        segments_path=segments_path,
-        qwen_output_dir=tmp_path / "qwen",
-        drafts_dir=tmp_path / "drafts",
-        endpoint="http://localhost:1234/v1",
-        model="test",
-        context_window=49152,
-        prompt_version="v1",
-        prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
-        temperature_stage3=0.4,
-        temperature_stage4=0.1,
-        max_retries=0,
-        retry_backoff_seconds=0,
-        timeout_seconds=30,
-    )
-    stage1_path = tmp_path / "qwen" / "batch_001_test" / "stage1_analysis.json"
-    assert stage1_path.exists()
-    data = json.loads(stage1_path.read_text())
-    assert "cluster_id" in data
-    assert "structure_proposal" in data
-
-
-def test_run_phase_8_stage2_output(tmp_path: Path, mock_openai: MagicMock) -> None:
-    batches_dir = _make_batch_file(tmp_path)
-    segments_path = _make_segments_file(tmp_path)
-    prompts_dir = _make_prompts_dir(tmp_path)
-
-    run_phase_8(
-        batches_dir=batches_dir,
-        segments_path=segments_path,
-        qwen_output_dir=tmp_path / "qwen",
-        drafts_dir=tmp_path / "drafts",
-        endpoint="http://localhost:1234/v1",
-        model="test",
-        context_window=49152,
-        prompt_version="v1",
-        prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
-        temperature_stage3=0.4,
-        temperature_stage4=0.1,
-        max_retries=0,
-        retry_backoff_seconds=0,
-        timeout_seconds=30,
-    )
-    stage2_path = tmp_path / "qwen" / "batch_001_test" / "stage2_merges.json"
-    assert stage2_path.exists()
-    data = json.loads(stage2_path.read_text())
-    assert "proposed_concepts" in data
-
-
 def test_run_phase_8_combined_draft_written(tmp_path: Path, mock_openai: MagicMock) -> None:
-    batches_dir = _make_batch_file(tmp_path)
     segments_path = _make_segments_file(tmp_path)
     prompts_dir = _make_prompts_dir(tmp_path)
     drafts_dir = tmp_path / "drafts"
 
     run_phase_8(
-        batches_dir=batches_dir,
         segments_path=segments_path,
         qwen_output_dir=tmp_path / "qwen",
         drafts_dir=drafts_dir,
@@ -600,15 +548,14 @@ def test_run_phase_8_combined_draft_written(tmp_path: Path, mock_openai: MagicMo
         context_window=49152,
         prompt_version="v1",
         prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
         temperature_stage3=0.4,
         temperature_stage4=0.1,
         max_retries=0,
         retry_backoff_seconds=0,
         timeout_seconds=30,
     )
-    combined = drafts_dir / "CK_test-konzept.md"
+    # D_test → slug "test" → CK_test.md
+    combined = drafts_dir / "CK_test.md"
     assert combined.exists()
     content = combined.read_text(encoding="utf-8")
     assert content.startswith("---\n")
@@ -617,12 +564,10 @@ def test_run_phase_8_combined_draft_written(tmp_path: Path, mock_openai: MagicMo
 
 
 def test_run_phase_8_frontmatter_pydantic_valid(tmp_path: Path, mock_openai: MagicMock) -> None:
-    batches_dir = _make_batch_file(tmp_path)
     segments_path = _make_segments_file(tmp_path)
     prompts_dir = _make_prompts_dir(tmp_path)
 
     run_phase_8(
-        batches_dir=batches_dir,
         segments_path=segments_path,
         qwen_output_dir=tmp_path / "qwen",
         drafts_dir=tmp_path / "drafts",
@@ -631,15 +576,13 @@ def test_run_phase_8_frontmatter_pydantic_valid(tmp_path: Path, mock_openai: Mag
         context_window=49152,
         prompt_version="v1",
         prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
         temperature_stage3=0.4,
         temperature_stage4=0.1,
         max_retries=0,
         retry_backoff_seconds=0,
         timeout_seconds=30,
     )
-    fm_path = tmp_path / "drafts" / "CK_test-konzept.frontmatter.json"
+    fm_path = tmp_path / "drafts" / "CK_test.frontmatter.json"
     assert fm_path.exists()
     fm_data = json.loads(fm_path.read_text())
     fm = FrontmatterDraft.model_validate(fm_data)
@@ -650,13 +593,12 @@ def test_run_phase_8_frontmatter_pydantic_valid(tmp_path: Path, mock_openai: Mag
     assert fm.last_synthesized != ""
 
 
-def test_run_phase_8_idempotency(tmp_path: Path, mock_openai_infinite: MagicMock) -> None:
-    batches_dir = _make_batch_file(tmp_path)
+def test_run_phase_8_merged_from_always_empty(tmp_path: Path, mock_openai: MagicMock) -> None:
+    """Option B: merged_from ist in jedem generierten Frontmatter leer."""
     segments_path = _make_segments_file(tmp_path)
     prompts_dir = _make_prompts_dir(tmp_path)
 
-    kwargs = dict(
-        batches_dir=batches_dir,
+    run_phase_8(
         segments_path=segments_path,
         qwen_output_dir=tmp_path / "qwen",
         drafts_dir=tmp_path / "drafts",
@@ -665,8 +607,55 @@ def test_run_phase_8_idempotency(tmp_path: Path, mock_openai_infinite: MagicMock
         context_window=49152,
         prompt_version="v1",
         prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
+        temperature_stage3=0.4,
+        temperature_stage4=0.1,
+        max_retries=0,
+        retry_backoff_seconds=0,
+        timeout_seconds=30,
+    )
+    fm_path = tmp_path / "drafts" / "CK_test.frontmatter.json"
+    fm_data = json.loads(fm_path.read_text())
+    assert fm_data["merged_from"] == []
+
+
+def test_run_phase_8_sources_docs_contains_doc_id(tmp_path: Path, mock_openai: MagicMock) -> None:
+    """sources_docs enthaelt die Source-Doc-ID des veredelten Dokuments."""
+    segments_path = _make_segments_file(tmp_path, doc_id="D_test")
+    prompts_dir = _make_prompts_dir(tmp_path)
+
+    run_phase_8(
+        segments_path=segments_path,
+        qwen_output_dir=tmp_path / "qwen",
+        drafts_dir=tmp_path / "drafts",
+        endpoint="http://localhost:1234/v1",
+        model="test",
+        context_window=49152,
+        prompt_version="v1",
+        prompts_dir=prompts_dir,
+        temperature_stage3=0.4,
+        temperature_stage4=0.1,
+        max_retries=0,
+        retry_backoff_seconds=0,
+        timeout_seconds=30,
+    )
+    fm_path = tmp_path / "drafts" / "CK_test.frontmatter.json"
+    fm_data = json.loads(fm_path.read_text())
+    assert "D_test" in fm_data["sources_docs"]
+
+
+def test_run_phase_8_idempotency(tmp_path: Path, mock_openai_infinite: MagicMock) -> None:
+    segments_path = _make_segments_file(tmp_path)
+    prompts_dir = _make_prompts_dir(tmp_path)
+
+    kwargs = dict(
+        segments_path=segments_path,
+        qwen_output_dir=tmp_path / "qwen",
+        drafts_dir=tmp_path / "drafts",
+        endpoint="http://localhost:1234/v1",
+        model="test",
+        context_window=49152,
+        prompt_version="v1",
+        prompts_dir=prompts_dir,
         temperature_stage3=0.4,
         temperature_stage4=0.1,
         max_retries=0,
@@ -680,17 +669,14 @@ def test_run_phase_8_idempotency(tmp_path: Path, mock_openai_infinite: MagicMock
     run_phase_8(**kwargs)
     calls_after_second = mock_openai_infinite.chat.completions.create.call_count
 
-    # Zweiter Lauf darf keine neuen API-Calls machen (Cache greift)
     assert calls_after_second == calls_after_first
 
 
 def test_run_phase_8_force_reruns(tmp_path: Path, mock_openai_infinite: MagicMock) -> None:
-    batches_dir = _make_batch_file(tmp_path)
     segments_path = _make_segments_file(tmp_path)
     prompts_dir = _make_prompts_dir(tmp_path)
 
     kwargs = dict(
-        batches_dir=batches_dir,
         segments_path=segments_path,
         qwen_output_dir=tmp_path / "qwen",
         drafts_dir=tmp_path / "drafts",
@@ -699,8 +685,6 @@ def test_run_phase_8_force_reruns(tmp_path: Path, mock_openai_infinite: MagicMoc
         context_window=49152,
         prompt_version="v1",
         prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
         temperature_stage3=0.4,
         temperature_stage4=0.1,
         max_retries=0,
@@ -717,11 +701,11 @@ def test_run_phase_8_force_reruns(tmp_path: Path, mock_openai_infinite: MagicMoc
     assert calls_after_force > calls_after_first
 
 
-def test_run_phase_8_json_retry_on_bad_response(
+def test_run_phase_8_stage3_error_lands_in_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Stage-1-Fehler wird behandelt: Batch landet in errors, nicht crash."""
-    bad_response = _make_mock_response("Das ist kein JSON.")
+    """Stage-3-Fehler (leere Antwort) wird behandelt: Doc landet in errors, kein Crash."""
+    bad_response = _make_mock_response("")
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = bad_response
 
@@ -729,12 +713,10 @@ def test_run_phase_8_json_retry_on_bad_response(
 
     monkeypatch.setattr(m8, "openai", MagicMock(OpenAI=lambda **_: mock_client))
 
-    batches_dir = _make_batch_file(tmp_path)
     segments_path = _make_segments_file(tmp_path)
     prompts_dir = _make_prompts_dir(tmp_path)
 
     result = run_phase_8(
-        batches_dir=batches_dir,
         segments_path=segments_path,
         qwen_output_dir=tmp_path / "qwen",
         drafts_dir=tmp_path / "drafts",
@@ -743,8 +725,6 @@ def test_run_phase_8_json_retry_on_bad_response(
         context_window=49152,
         prompt_version="v1",
         prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
         temperature_stage3=0.4,
         temperature_stage4=0.1,
         max_retries=0,
@@ -755,39 +735,11 @@ def test_run_phase_8_json_retry_on_bad_response(
     assert result["concepts_drafted"] == 0
 
 
-def test_run_phase_8_empty_batches_dir(tmp_path: Path, mock_openai: MagicMock) -> None:
-    empty_dir = tmp_path / "batches"
-    empty_dir.mkdir()
-    segments_path = _make_segments_file(tmp_path)
-    prompts_dir = _make_prompts_dir(tmp_path)
-
-    result = run_phase_8(
-        batches_dir=empty_dir,
-        segments_path=segments_path,
-        qwen_output_dir=tmp_path / "qwen",
-        drafts_dir=tmp_path / "drafts",
-        endpoint="http://localhost:1234/v1",
-        model="test",
-        context_window=49152,
-        prompt_version="v1",
-        prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
-        temperature_stage3=0.4,
-        temperature_stage4=0.1,
-        max_retries=0,
-        retry_backoff_seconds=0,
-        timeout_seconds=30,
-    )
-    assert result["batches_processed"] == 0
-    assert result["concepts_drafted"] == 0
-
-
-# === Bug-B2: merge_decisions-Vorrang vor Cache ====================================
+# === Bug-B2: merge_decisions-Vorrang vor Cache (deprecated _run_stage2) =========
 
 
 def test_merge_decisions_override_wins_over_cache(tmp_path: Path) -> None:
-    """merge_decisions.json überschreibt Stage-2-Cache (Review-Gate-Schutz)."""
+    """merge_decisions.json ueberschreibt Stage-2-Cache (Option-A-Referenztest)."""
     batch_path = tmp_path / "batch_001_test.md"
     batch_path.write_text("batch content", encoding="utf-8")
     output_dir = tmp_path / "qwen" / "batch_001_test"
@@ -843,20 +795,18 @@ def test_merge_decisions_override_wins_over_cache(tmp_path: Path) -> None:
 def test_used_slugs_loaded_from_existing_drafts(
     tmp_path: Path, mock_openai_infinite: MagicMock
 ) -> None:
-    """Beim Start werden bestehende CK_* Slugs aus drafts_dir in used_slugs geladen."""
-    batch_dir = _make_batch_file(tmp_path)
-    segs_path = _make_segments_file(tmp_path)
+    """Bestehende CK_* Slugs aus drafts_dir werden in used_slugs geladen (Kollisionsschutz)."""
+    segs_path = _make_segments_file(tmp_path)  # D_test → slug "test"
     prompts_dir = _make_prompts_dir(tmp_path)
     drafts_dir = tmp_path / "drafts"
     drafts_dir.mkdir()
 
-    # Vorhandene Drafts simulieren — test-konzept ist schon vergeben
-    (drafts_dir / "CK_test-konzept.md").write_text("", encoding="utf-8")
-    (drafts_dir / "CK_test-konzept.body.md").write_text("", encoding="utf-8")
-    (drafts_dir / "CK_test-konzept.frontmatter.json").write_text("{}", encoding="utf-8")
+    # slug "test" ist bereits vergeben
+    (drafts_dir / "CK_test.md").write_text("", encoding="utf-8")
+    (drafts_dir / "CK_test.body.md").write_text("", encoding="utf-8")
+    (drafts_dir / "CK_test.frontmatter.json").write_text("{}", encoding="utf-8")
 
     run_phase_8(
-        batches_dir=batch_dir,
         segments_path=segs_path,
         qwen_output_dir=tmp_path / "qwen",
         drafts_dir=drafts_dir,
@@ -865,17 +815,15 @@ def test_used_slugs_loaded_from_existing_drafts(
         context_window=49152,
         prompt_version="v1",
         prompts_dir=prompts_dir,
-        temperature_stage1=0.3,
-        temperature_stage2=0.2,
         temperature_stage3=0.4,
         temperature_stage4=0.1,
         max_retries=0,
         retry_backoff_seconds=0,
         timeout_seconds=30,
     )
-    # test-konzept war belegt → neuer Draft muss test-konzept_2.md heißen
-    assert (drafts_dir / "CK_test-konzept_2.md").exists()
-    assert not (drafts_dir / "CK_test-konzept.md").read_text()  # Placeholder leer geblieben
+    # "test" war belegt → neuer Draft muss CK_test_2.md heissen
+    assert (drafts_dir / "CK_test_2.md").exists()
+    assert not (drafts_dir / "CK_test.md").read_text()  # Placeholder leer geblieben
 
 
 def test_max_tokens_loaded_from_config() -> None:

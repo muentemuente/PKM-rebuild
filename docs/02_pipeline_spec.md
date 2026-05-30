@@ -396,6 +396,8 @@ Pro Doc durchlaufen Stage 3 und Stage 4. Failure in einer Stage → Retry oder F
 - [ ] `last_synthesized` gesetzt
 - [ ] Validation gegen Pydantic-Schema grün
 
+> **Hinweis (Block 8.A.1):** `confidence` ist Qwen-Selbsteinschätzung — im Smoke-Test als unzuverlässig erkannt (hohe Werte trotz unvollständiger Outputs). Kein Auto-Triage auf Basis von `confidence`. **Alle Drafts brauchen menschliches Review** unabhängig vom confidence-Wert.
+
 ---
 
 ### Phase 9: Vault-Aufbau
@@ -619,3 +621,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-05-25 — Initial-Version
 - 2026-05-29 — Option-B-Anpassung: Architektur-Diagramm Stage 1/2 + Gate 2 entfernt; Phase-8-Header auf Stage 3+4 pro Doc; Stage 1/2 als entfallen markiert; Stage 3 als Pro-Doc-Veredelung neu definiert; Akzeptanzkriterien merged_from→leer; FrontmatterDraft-Kommentar ergänzt; Gate-2-Zeile entfernt
 - 2026-05-30 — Block 0G.6: FrontmatterDraft.type um "gedanke" erweitert (Sonderpfad 15_Gedanken/)
+- 2026-05-30 — Block 8.A.1: Phase-8-Routing 1:1-Passthrough (code/table/headings); confidence-Hinweis zu Akzeptanzkriterien

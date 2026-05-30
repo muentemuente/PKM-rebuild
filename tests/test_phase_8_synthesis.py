@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 from pipeline.config import load_config
 from pipeline.phase_8_synthesis import (
+    _apply_tag_validation,
     _build_doc_concept,
     _build_stage3_user_message,
     _build_stage4_user_message,
@@ -23,6 +24,8 @@ from pipeline.phase_8_synthesis import (
     _extract_markdown_body,
     _group_segments_by_doc,
     _is_cached,
+    _load_tag_synonym_map,
+    _load_tag_vocabulary,
     _QwenStageConfig,
     _run_stage2,
     _sha256_str,
@@ -834,3 +837,117 @@ def test_max_tokens_loaded_from_config() -> None:
     assert cfg.qwen.max_tokens.stage2 == 14000
     assert cfg.qwen.max_tokens.stage3 == 24000
     assert cfg.qwen.max_tokens.stage4 == 10000
+
+
+# === Tag-Vokabular-Validation ==================================================
+
+_TAG_SYSTEM_MD = """\
+---
+title: Tag-System
+slug: tag-system
+status: stable
+created: 2026-05-30
+updated: 2026-05-30
+---
+
+# Tag-System
+
+## Kern-Vokabular (5)
+
+### Test-Tags
+`python` · `markdown` · `git` · `metadata` · `llm`
+
+## Synonym-Map (Validation: Vorschlag → Canonical)
+
+| Qwen-Vorschlag | Canonical |
+|---|---|
+| `metadaten` | `metadata` |
+| `workflows`, `workflow` | *verworfen (zu generisch)* |
+| `prompts` | `llm` |
+"""
+
+_FM_BASE = {
+    **STAGE4_FM,
+    "tags": ["python"],
+    "confidence": "medium",
+}
+
+
+def _make_vocab_file(tmp_path: Path) -> Path:
+    p = tmp_path / "tag-system.md"
+    p.write_text(_TAG_SYSTEM_MD, encoding="utf-8")
+    return p
+
+
+def test_load_tag_vocabulary_parses_markdown(tmp_path: Path) -> None:
+    """Alle kanonischen Tags werden aus Kern-Vokabular-Sektion extrahiert."""
+    vocab = _load_tag_vocabulary(_make_vocab_file(tmp_path))
+    assert vocab == {"python", "markdown", "git", "metadata", "llm"}
+
+
+def test_load_tag_vocabulary_resolves_aliases(tmp_path: Path) -> None:
+    """Synonym-Map bildet Aliases korrekt auf Canonical ab (None = verworfen)."""
+    synonym_map = _load_tag_synonym_map(_make_vocab_file(tmp_path))
+    assert synonym_map["metadaten"] == "metadata"
+    assert synonym_map["workflow"] is None
+    assert synonym_map["workflows"] is None
+    assert synonym_map["prompts"] == "llm"
+
+
+def test_stage4_strict_vocabulary_removes_unknown_tags(tmp_path: Path) -> None:
+    """Strict-Modus: unbekannte Tags entfernt, Aliases aufgeloest, confidence=low, needs_human."""
+    vocab_file = _make_vocab_file(tmp_path)
+    vocab = _load_tag_vocabulary(vocab_file)
+    synonym_map = _load_tag_synonym_map(vocab_file)
+    needs_human_path = tmp_path / "needs_human.jsonl"
+
+    fm = FrontmatterDraft.model_validate(
+        {**_FM_BASE, "tags": ["python", "alien-unknown-tag", "metadaten"], "confidence": "medium"}
+    )
+
+    result = _apply_tag_validation(
+        fm,
+        vocab,
+        synonym_map,
+        strict=True,
+        needs_human_path=needs_human_path,
+        doc_id="D_test",
+        ck_id="CK_test",
+    )
+
+    assert "python" in result.tags
+    assert "metadata" in result.tags  # Alias aufgeloest
+    assert "metadaten" not in result.tags  # Alias ersetzt
+    assert "alien-unknown-tag" not in result.tags
+    assert result.confidence == "low"
+    assert needs_human_path.exists()
+    entry = json.loads(needs_human_path.read_text().splitlines()[0])
+    assert entry["reason"] == "tags_not_in_vocabulary"
+    assert entry["ck_id"] == "CK_test"
+
+
+def test_stage4_loose_vocabulary_only_logs(tmp_path: Path) -> None:
+    """Loose-Modus: Tags bleiben unveraendert, kein needs_human-Eintrag."""
+    vocab_file = _make_vocab_file(tmp_path)
+    vocab = _load_tag_vocabulary(vocab_file)
+    synonym_map = _load_tag_synonym_map(vocab_file)
+    needs_human_path = tmp_path / "needs_human.jsonl"
+
+    original_tags = ["python", "alien-unknown-tag", "metadaten"]
+    fm = FrontmatterDraft.model_validate(
+        {**_FM_BASE, "tags": original_tags, "confidence": "medium"}
+    )
+
+    result = _apply_tag_validation(
+        fm,
+        vocab,
+        synonym_map,
+        strict=False,
+        needs_human_path=needs_human_path,
+        doc_id="D_test",
+        ck_id="CK_test",
+    )
+
+    assert result.tags == original_tags
+    assert result.confidence == "medium"
+    assert not needs_human_path.exists()

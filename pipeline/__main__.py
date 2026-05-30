@@ -183,6 +183,8 @@ def _dispatch_phase_8(cfg: PipelineConfig, force: bool) -> None:
         force=force,
         pipeline_version=cfg.pipeline.version,
         structured_docs_path=out / "documents_structured.jsonl",
+        tag_vocab_path=cfg.tags.vocabulary_file,
+        tag_strict_vocabulary=cfg.tags.strict_vocabulary,
     )
     console.print(
         f"[green]✓ Phase 8:[/green] {summary['docs_processed']} Docs veredelt, "

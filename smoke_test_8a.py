@@ -49,9 +49,11 @@ TAG_VOCAB_PATH = DATA_ROOT / "04_vault/00_Meta/tag-system.md"
 PROMPTS_DIR = PROJECT_ROOT / "prompts"
 
 # Gate: 1 strukturiertes Doc + 1 prosa-lastiges Doc
+# D_api-grundlagen hat 22 Code-Blöcke → geht korrekt in Passthrough
+# D_prompt-verbesserung: explanation, 0 code, 0 tables, 0 headings → echter Stage-3-Kandidat
 TARGET_DOCS = [
     ("D_css-cheatsheet", "compact-reference", "passthrough"),
-    ("D_api-grundlagen", "knowledge-article", "stage3"),
+    ("D_prompt-verbesserung", "knowledge-article", "stage3"),
 ]
 
 

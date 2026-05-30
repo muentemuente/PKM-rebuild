@@ -7,18 +7,18 @@ Akzeptanzkriterien:
 """
 
 import textwrap
+from pathlib import Path
 
 from scripts.tag_inventory import (
     _filter_min_freq,
     build_inventory,
+    extract_filename_tokens,
     extract_frontmatter_tags,
     extract_heading_tokens,
-    extract_filename_tokens,
     is_valid_token,
     normalize_token,
     render_inventory,
 )
-
 
 # === Normalisierung =============================================================
 
@@ -201,7 +201,7 @@ def test_filter_min_freq_custom_threshold() -> None:
 # === Integration ================================================================
 
 
-def test_build_inventory_runs_on_empty_dir(tmp_path: "pytest.TempPath") -> None:  # type: ignore[name-defined]
+def test_build_inventory_runs_on_empty_dir(tmp_path: Path) -> None:
     """build_inventory gibt leere Dicts auf leerem Verzeichnis zurück."""
     a, b, c = build_inventory(tmp_path)
     assert a == {}
@@ -209,7 +209,7 @@ def test_build_inventory_runs_on_empty_dir(tmp_path: "pytest.TempPath") -> None:
     assert c == {}
 
 
-def test_build_inventory_extracts_tags(tmp_path: "pytest.TempPath") -> None:  # type: ignore[name-defined]
+def test_build_inventory_extracts_tags(tmp_path: Path) -> None:
     """End-to-end: Tags aus zwei Files werden korrekt extrahiert."""
     for i, tag in enumerate(["python", "python"], start=1):
         content = f"---\ntags:\n  - {tag}\n---\n# Test {i}\n"

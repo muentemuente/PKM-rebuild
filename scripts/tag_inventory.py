@@ -140,9 +140,7 @@ def is_valid_token(token: str) -> bool:
     if re.fullmatch(r"\d+", token):
         return False
     # Sehr lange Tokens (>40 Zeichen) sind oft Pfade oder Hashes
-    if len(token) > 40:
-        return False
-    return True
+    return not len(token) > 40
 
 
 # === Extraktion =================================================================
@@ -218,23 +216,20 @@ def build_inventory(
         # Section A: Frontmatter-Tags
         for raw_tag in extract_frontmatter_tags(content):
             norm = normalize_token(raw_tag)
-            if is_valid_token(norm):
-                if filename not in section_a[norm]:
-                    section_a[norm].append(filename)
+            if is_valid_token(norm) and filename not in section_a[norm]:
+                section_a[norm].append(filename)
 
         # Section B: Heading-Tokens
         for raw_tok in extract_heading_tokens(content):
             norm = normalize_token(raw_tok)
-            if is_valid_token(norm):
-                if filename not in section_b[norm]:
-                    section_b[norm].append(filename)
+            if is_valid_token(norm) and filename not in section_b[norm]:
+                section_b[norm].append(filename)
 
         # Section C: Dateinamen-Tokens
         for raw_tok in extract_filename_tokens(filename):
             norm = normalize_token(raw_tok)
-            if is_valid_token(norm):
-                if filename not in section_c[norm]:
-                    section_c[norm].append(filename)
+            if is_valid_token(norm) and filename not in section_c[norm]:
+                section_c[norm].append(filename)
 
     return dict(section_a), dict(section_b), dict(section_c)
 
@@ -331,7 +326,7 @@ def render_inventory(
     c_rows = _sort_by_freq(c_only)
 
     total_candidates = len(all_tags)
-    recommended_size = f"{max(30, min(50, total_candidates))}–{max(40, min(70, total_candidates + 15))}"
+    recommended_size = f"{max(30, min(50, total_candidates))}-{max(40, min(70, total_candidates + 15))}"
 
     lines = [
         "---",

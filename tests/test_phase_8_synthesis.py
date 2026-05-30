@@ -18,12 +18,14 @@ from pipeline.config import load_config
 from pipeline.phase_8_synthesis import (
     _apply_tag_validation,
     _build_doc_concept,
+    _build_passthrough_body,
     _build_stage3_user_message,
     _build_stage4_user_message,
     _extract_json,
     _extract_markdown_body,
     _group_segments_by_doc,
     _is_cached,
+    _load_passthrough_doc_ids,
     _load_tag_synonym_map,
     _load_tag_vocabulary,
     _QwenStageConfig,
@@ -34,7 +36,7 @@ from pipeline.phase_8_synthesis import (
     _write_stage_meta,
     run_phase_8,
 )
-from pipeline.schemas import FrontmatterDraft, SegmentRecord
+from pipeline.schemas import FrontmatterDraft, SegmentRecord, StructuredDocumentRecord
 
 # === Fixtures ==================================================================
 
@@ -835,7 +837,7 @@ def test_max_tokens_loaded_from_config() -> None:
     cfg = load_config(repo_root / "pipeline" / "pipeline.config.yaml")
     assert cfg.qwen.max_tokens.stage1 == 20000
     assert cfg.qwen.max_tokens.stage2 == 14000
-    assert cfg.qwen.max_tokens.stage3 == 24000
+    assert cfg.qwen.max_tokens.stage3 == 8000  # Block 8.A.1: 24000 → 8000 (Passthrough entlastet)
     assert cfg.qwen.max_tokens.stage4 == 10000
 
 
@@ -951,3 +953,159 @@ def test_stage4_loose_vocabulary_only_logs(tmp_path: Path) -> None:
     assert result.tags == original_tags
     assert result.confidence == "medium"
     assert not needs_human_path.exists()
+
+
+# === Passthrough-Routing (Block 8.A.1) =========================================
+
+_STRUCTURED_DOC_BASE = {
+    "doc_id": "D_test",
+    "title": "Test",
+    "headings": [],
+    "code_blocks": [],
+    "tables_count": 0,
+    "links": [],
+    "images": [],
+    "doc_type_guess": {"label": "cheat_sheet", "confidence": 0.8, "signals": ["code"]},
+}
+
+
+def _make_structured_jsonl(tmp_path: Path, records: list[dict]) -> Path:
+    p = tmp_path / "documents_structured.jsonl"
+    lines = [StructuredDocumentRecord.model_validate(r).model_dump_json() for r in records]
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return p
+
+
+def test_load_passthrough_doc_ids_code_blocks(tmp_path: Path) -> None:
+    """Doc mit Code-Blöcken → passthrough."""
+    rec = {**_STRUCTURED_DOC_BASE, "code_blocks": [{"lang": "css", "content": ".foo {}"}]}
+    p = _make_structured_jsonl(tmp_path, [rec])
+    result = _load_passthrough_doc_ids(p)
+    assert "D_test" in result
+
+
+def test_load_passthrough_doc_ids_tables(tmp_path: Path) -> None:
+    """Doc mit mind. 1 Tabelle → passthrough."""
+    rec = {**_STRUCTURED_DOC_BASE, "tables_count": 1}
+    p = _make_structured_jsonl(tmp_path, [rec])
+    result = _load_passthrough_doc_ids(p)
+    assert "D_test" in result
+
+
+def test_load_passthrough_doc_ids_headings(tmp_path: Path) -> None:
+    """Doc mit ≥3 Headings → passthrough."""
+    rec = {
+        **_STRUCTURED_DOC_BASE,
+        "headings": [
+            {"level": 2, "text": "A"},
+            {"level": 2, "text": "B"},
+            {"level": 2, "text": "C"},
+        ],
+    }
+    p = _make_structured_jsonl(tmp_path, [rec])
+    result = _load_passthrough_doc_ids(p)
+    assert "D_test" in result
+
+
+def test_load_passthrough_doc_ids_prose_excluded(tmp_path: Path) -> None:
+    """Prosa-Doc (kein Code, keine Tabelle, <3 Headings) → nicht im passthrough-Set."""
+    rec = {**_STRUCTURED_DOC_BASE, "headings": [{"level": 2, "text": "A"}]}
+    p = _make_structured_jsonl(tmp_path, [rec])
+    result = _load_passthrough_doc_ids(p)
+    assert "D_test" not in result
+
+
+def test_load_passthrough_doc_ids_missing_file(tmp_path: Path) -> None:
+    """Nicht-existierende Datei → leeres Set, kein Exception."""
+    result = _load_passthrough_doc_ids(tmp_path / "nonexistent.jsonl")
+    assert result == set()
+
+
+def test_build_passthrough_body_joins_segments() -> None:
+    """Passthrough-Body ist 1:1-Concat der Segment-Texte."""
+    segs = [
+        _make_segment("D_x-S0000", text="Erster Abschnitt."),
+        _make_segment("D_x-S0001", text="Zweiter Abschnitt."),
+    ]
+    body = _build_passthrough_body(segs)
+    assert "Erster Abschnitt." in body
+    assert "Zweiter Abschnitt." in body
+
+
+def test_passthrough_doc_skips_stage3_api_call(
+    tmp_path: Path, mock_openai_infinite: MagicMock
+) -> None:
+    """Passthrough-Doc (Code-Block) ruft Stage 3 API nicht auf; Stage 4 laeuft normal."""
+    rec = {**_STRUCTURED_DOC_BASE, "code_blocks": [{"lang": "css", "content": ".foo {}"}]}
+    structured_path = _make_structured_jsonl(tmp_path, [rec])
+    segments_path = _make_segments_file(tmp_path)
+    prompts_dir = _make_prompts_dir(tmp_path)
+
+    calls_before = mock_openai_infinite.chat.completions.create.call_count
+
+    result = run_phase_8(
+        segments_path=segments_path,
+        qwen_output_dir=tmp_path / "qwen",
+        drafts_dir=tmp_path / "drafts",
+        endpoint="http://localhost:1234/v1",
+        model="test",
+        context_window=49152,
+        prompt_version="v1",
+        prompts_dir=prompts_dir,
+        temperature_stage3=0.4,
+        temperature_stage4=0.1,
+        max_retries=0,
+        retry_backoff_seconds=0,
+        timeout_seconds=30,
+        structured_docs_path=structured_path,
+    )
+
+    calls_after = mock_openai_infinite.chat.completions.create.call_count
+    # Stage 4 laeuft (1 Aufruf), Stage 3 nicht (also genau 1 Aufruf total)
+    assert calls_after - calls_before == 1
+    assert result["concepts_drafted"] == 1
+    # body.md existiert (1:1 aus Segmenten)
+    assert (tmp_path / "drafts" / "CK_test.body.md").exists()
+
+
+def test_passthrough_body_written_verbatim(tmp_path: Path, mock_openai_infinite: MagicMock) -> None:
+    """Passthrough-Body.md enthaelt originalen Segment-Text ungekuerzt."""
+    original_text = "Original CSS-Content mit vielen Details."
+    rec = {**_STRUCTURED_DOC_BASE, "code_blocks": [{"lang": "css", "content": ".foo {}"}]}
+    structured_path = _make_structured_jsonl(tmp_path, [rec])
+
+    segs_path = tmp_path / "segments.jsonl"
+    seg = SegmentRecord(
+        segment_id="D_test-S0000",
+        doc_id="D_test",
+        source_path="/test.md",
+        heading_path=["Test"],
+        segment_index=0,
+        text=original_text,
+        word_count=len(original_text.split()),
+        char_count=len(original_text),
+        contains_code=True,
+        contains_table=False,
+    )
+    segs_path.write_text(seg.model_dump_json() + "\n", encoding="utf-8")
+    prompts_dir = _make_prompts_dir(tmp_path)
+
+    run_phase_8(
+        segments_path=segs_path,
+        qwen_output_dir=tmp_path / "qwen",
+        drafts_dir=tmp_path / "drafts",
+        endpoint="http://localhost:1234/v1",
+        model="test",
+        context_window=49152,
+        prompt_version="v1",
+        prompts_dir=prompts_dir,
+        temperature_stage3=0.4,
+        temperature_stage4=0.1,
+        max_retries=0,
+        retry_backoff_seconds=0,
+        timeout_seconds=30,
+        structured_docs_path=structured_path,
+    )
+
+    body_content = (tmp_path / "drafts" / "CK_test.body.md").read_text(encoding="utf-8")
+    assert original_text in body_content

@@ -861,12 +861,18 @@ def _process_doc(
     doc_id: str,
     doc_segments: list[SegmentRecord],
     gedanken_doc_ids: set[str],
+    passthrough_doc_ids: set[str],
     seg_map: dict[str, SegmentRecord],
     drafts_dir: Path,
     force: bool,
     cfg: _QwenStageConfig,
 ) -> tuple[bool, bool]:
-    """Verarbeitet ein einzelnes Dokument (Standard oder Gedanken-Sonderpfad).
+    """Verarbeitet ein einzelnes Dokument.
+
+    Routing-Reihenfolge:
+    1. gedanke → Gedanken-Sonderpfad (Stage-3-Bypass, eigener Stage-4-Prompt)
+    2. strukturiert (code/table/headings) → 1:1-Passthrough (Stage-3-Bypass, normaler Stage-4)
+    3. sonst → Stage-3-Veredelung + Stage-4
 
     Returns:
         (success, needs_human) — beide Felder unabhaengig voneinander.
@@ -889,6 +895,15 @@ def _process_doc(
         concept["doc_role"] = ["wiki"]
         body: str | None = _build_gedanken_body(doc_segments)
         fm = _run_stage4_gedanken(concept, body, drafts_dir, slug, doc_id, cfg)
+    elif doc_id in passthrough_doc_ids:
+        log.info("phase_8_passthrough", doc_id=doc_id, slug=slug)
+        body = _build_passthrough_body(doc_segments)
+        # Body-Datei explizit schreiben (kein Stage-3-Call, daher kein Meta-File)
+        body_path = drafts_dir / f"CK_{slug}.body.md"
+        if force or not body_path.exists():
+            drafts_dir.mkdir(parents=True, exist_ok=True)
+            body_path.write_text(body, encoding="utf-8")
+        fm = _run_stage4_concept(concept, body, drafts_dir, slug, doc_id, cfg)
     else:
         body = _run_stage3_concept(concept, seg_map, drafts_dir, slug, doc_id, cfg)
         if body is None:
@@ -944,9 +959,64 @@ def _load_gedanken_doc_ids(structured_docs_path: Path) -> set[str]:
     return gedanken
 
 
+def _load_passthrough_doc_ids(structured_docs_path: Path) -> set[str]:
+    """Laedt doc_ids fuer den 1:1-Passthrough-Pfad aus documents_structured.jsonl.
+
+    Kriterien (OR-Verknuepfung):
+    - code_blocks > 0  (mind. 1 Code-Block)
+    - tables_count >= 1  (mind. 1 Tabelle)
+    - headings >= 3  (mind. 3 Ueberschriften)
+
+    Diese Dokumente werden in Stage 3 nicht veredelt — der Original-Body aus den
+    Segmenten wird 1:1 uebernommen. Stage 4 (Frontmatter) laeuft normal.
+
+    Args:
+        structured_docs_path: Pfad zu documents_structured.jsonl (Phase 3 Output).
+
+    Returns:
+        Set von doc_ids die den 1:1-Pfad nehmen sollen.
+        Leeres Set wenn Datei nicht existiert.
+    """
+    if not structured_docs_path.exists():
+        log.warning("phase_8_structured_docs_missing", path=str(structured_docs_path))
+        return set()
+    passthrough: set[str] = set()
+    for line in structured_docs_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = StructuredDocumentRecord.model_validate_json(line)
+            if (
+                len(rec.code_blocks) > 0
+                or rec.tables_count >= 1
+                or len(rec.headings) >= 3
+            ):
+                passthrough.add(rec.doc_id)
+        except Exception:
+            pass
+    if passthrough:
+        log.info("phase_8_passthrough_detected", count=len(passthrough))
+    return passthrough
+
+
+def _build_verbatim_body(segments: list[SegmentRecord]) -> str:
+    """Fuegt Segment-Texte unveraendert zusammen (keine LLM-Veredelung)."""
+    return "\n\n".join(seg.text for seg in segments if seg.text.strip())
+
+
 def _build_gedanken_body(segments: list[SegmentRecord]) -> str:
     """Baut Body fuer Gedanken-Sonderpfad: Original-Segmenttexte unveraendert zusammenfuehren."""
-    return "\n\n".join(seg.text for seg in segments if seg.text.strip())
+    return _build_verbatim_body(segments)
+
+
+def _build_passthrough_body(segments: list[SegmentRecord]) -> str:
+    """Baut Body fuer 1:1-Passthrough-Pfad: strukturierte Docs ohne Stage-3-Veredelung.
+
+    Wird verwendet wenn: code_blocks > 0 ODER tables_count >= 1 ODER headings >= 3.
+    Stage 4 (Frontmatter) laeuft danach normal.
+    """
+    return _build_verbatim_body(segments)
 
 
 def _run_stage4_gedanken(
@@ -1134,10 +1204,14 @@ def run_phase_8(
     needs_human_path = qwen_output_dir / "needs_human.jsonl"
     today_str = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
-    # Gedanken-Sonderpfad: doc_ids aus documents_structured laden
+    # Routing: doc_ids aus documents_structured laden
     gedanken_doc_ids: set[str] = set()
+    passthrough_doc_ids: set[str] = set()
     if structured_docs_path is not None:
         gedanken_doc_ids = _load_gedanken_doc_ids(structured_docs_path)
+        passthrough_doc_ids = _load_passthrough_doc_ids(structured_docs_path)
+        # Gedanken haben eigenen Pfad → aus Passthrough-Set raus
+        passthrough_doc_ids -= gedanken_doc_ids
 
     # Tag-Vokabular einmalig laden
     tag_vocab: set[str] = set()
@@ -1210,7 +1284,7 @@ def run_phase_8(
 
     for doc_id, doc_segments in sorted(docs.items()):
         ok, human = _process_doc(
-            doc_id, doc_segments, gedanken_doc_ids, seg_map, drafts_dir, force, cfg
+            doc_id, doc_segments, gedanken_doc_ids, passthrough_doc_ids, seg_map, drafts_dir, force, cfg
         )
         if ok:
             docs_processed += 1

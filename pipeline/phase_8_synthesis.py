@@ -69,6 +69,10 @@ class _QwenStageConfig:
     max_tokens_stage2: int
     max_tokens_stage3: int
     max_tokens_stage4: int
+    # Tag-Vokabular (leer = Validation deaktiviert)
+    tag_vocab: set[str] = field(default_factory=set)
+    tag_synonym_map: dict[str, str | None] = field(default_factory=dict)
+    tag_strict: bool = False
     # Slug-Kollisionsschutz
     used_slugs: set[str] = field(default_factory=set)
 
@@ -161,6 +165,89 @@ def _load_prompt(prompts_dir: Path, version: str, filename: str) -> str:
         if end != -1:
             return content[end + 5 :].strip()
     return content
+
+
+def _parse_tag_system(vocab_path: Path) -> tuple[set[str], dict[str, str | None]]:
+    """Parst tag-system.md → (Vokabular-Set, Synonym-Map).
+
+    Args:
+        vocab_path: Pfad zur tag-system.md.
+
+    Returns:
+        (vocab, synonym_map) — vocab enthält alle kanonischen Tags aus Kern-Vokabular,
+        synonym_map bildet Aliases auf kanonische Tags ab (None = verworfen).
+
+    Raises:
+        FileNotFoundError: Wenn vocab_path nicht existiert.
+    """
+    content = vocab_path.read_text(encoding="utf-8")
+
+    kern_start = content.find("## Kern-Vokabular")
+    synonym_start = content.find("## Synonym-Map")
+
+    if kern_start == -1:
+        return set(), {}
+
+    kern_section = (
+        content[kern_start:synonym_start] if synonym_start != -1 else content[kern_start:]
+    )
+    synonym_section = content[synonym_start:] if synonym_start != -1 else ""
+
+    vocab: set[str] = set(re.findall(r"`([^`]+)`", kern_section))
+
+    synonym_map: dict[str, str | None] = {}
+    for line in synonym_section.splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cols = [c.strip() for c in line.strip("|").split("|")]
+        if len(cols) < 2:
+            continue
+        proposal_col, canonical_col = cols[0], cols[1]
+        if not proposal_col or "---" in proposal_col or "Qwen-Vorschlag" in proposal_col:
+            continue
+        aliases = re.findall(r"`([^`]+)`", proposal_col)
+        if not aliases:
+            continue
+        canonical_matches = re.findall(r"`([^`]+)`", canonical_col)
+        canonical: str | None = canonical_matches[0] if canonical_matches else None
+        for alias in aliases:
+            synonym_map[alias] = canonical
+
+    return vocab, synonym_map
+
+
+def _load_tag_vocabulary(vocab_path: Path) -> set[str]:
+    """Laedt kanonisches Tag-Vokabular aus tag-system.md.
+
+    Args:
+        vocab_path: Pfad zur tag-system.md.
+
+    Returns:
+        Set aller kanonischen Tags. Leer bei FileNotFoundError.
+    """
+    try:
+        vocab, _ = _parse_tag_system(vocab_path)
+        return vocab
+    except FileNotFoundError:
+        log.warning("tag_vocabulary_missing", path=str(vocab_path))
+        return set()
+
+
+def _load_tag_synonym_map(vocab_path: Path) -> dict[str, str | None]:
+    """Laedt Synonym-Map aus tag-system.md (Alias → Canonical, None = verworfen).
+
+    Args:
+        vocab_path: Pfad zur tag-system.md.
+
+    Returns:
+        Dict Alias → Canonical-Tag (None = Tag soll verworfen werden).
+    """
+    try:
+        _, synonym_map = _parse_tag_system(vocab_path)
+        return synonym_map
+    except FileNotFoundError:
+        return {}
 
 
 def _load_segments(path: Path) -> dict[str, SegmentRecord]:
@@ -268,6 +355,57 @@ def _log_needs_human(
     needs_human_path.parent.mkdir(parents=True, exist_ok=True)
     with needs_human_path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def _apply_tag_validation(
+    fm: FrontmatterDraft,
+    vocab: set[str],
+    synonym_map: dict[str, str | None],
+    strict: bool,
+    needs_human_path: Path,
+    doc_id: str,
+    ck_id: str,
+) -> FrontmatterDraft:
+    """Prueft FM-Tags gegen Vokabular; wendet Synonym-Map an.
+
+    Loose-Modus: nur loggen, FM unveraendert.
+    Strict-Modus: unaufloesbare Tags entfernen, confidence=low, needs_human-Eintrag.
+    """
+    if not vocab or not fm.tags:
+        return fm
+
+    resolved: list[str] = []
+    unknown: list[str] = []
+    for tag in fm.tags:
+        if tag in vocab:
+            resolved.append(tag)
+        elif tag in synonym_map:
+            canonical = synonym_map[tag]
+            if canonical is not None:
+                resolved.append(canonical)
+            else:
+                unknown.append(tag)
+        else:
+            unknown.append(tag)
+
+    if not unknown and set(resolved) == set(fm.tags):
+        return fm
+
+    if not strict:
+        log.info("tag_validation_loose", unknown=unknown, ck_id=ck_id)
+        return fm
+
+    log.info("tag_validation_strict_remove", removed=unknown, kept=resolved, ck_id=ck_id)
+    if unknown:
+        _log_needs_human(
+            needs_human_path,
+            doc_id,
+            ck_id,
+            "stage4",
+            "tags_not_in_vocabulary",
+            f"Verworfene Tags: {unknown}",
+        )
+    return fm.model_copy(update={"tags": resolved, "confidence": "low"})
 
 
 # === API-Aufruf ================================================================
@@ -681,6 +819,18 @@ def _run_stage4_concept(
         except Exception:
             return None
 
+    # Tag-Vokabular-Validation (nach Pydantic-Validation)
+    if cfg.tag_vocab:
+        fm = _apply_tag_validation(
+            fm,
+            cfg.tag_vocab,
+            cfg.tag_synonym_map,
+            cfg.tag_strict,
+            cfg.needs_human_path,
+            doc_id,
+            concept["ck_id"],
+        )
+
     drafts_dir.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(fm.model_dump(), indent=2, ensure_ascii=False),
@@ -826,7 +976,9 @@ def _run_stage4_gedanken(
         except Exception:
             pass
 
-    system_prompt = _load_prompt(cfg.prompts_dir, cfg.prompt_version, "stage4_frontmatter_gedanken.md")
+    system_prompt = _load_prompt(
+        cfg.prompts_dir, cfg.prompt_version, "stage4_frontmatter_gedanken.md"
+    )
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_message},
@@ -845,7 +997,12 @@ def _run_stage4_gedanken(
     except (ValueError, Exception) as exc:
         log.error("phase_8_stage4_gedanken_error", slug=slug, error=str(exc)[:200])
         _log_needs_human(
-            cfg.needs_human_path, doc_id, concept["ck_id"], "stage4_gedanken", "api_error", str(exc)[:200]
+            cfg.needs_human_path,
+            doc_id,
+            concept["ck_id"],
+            "stage4_gedanken",
+            "api_error",
+            str(exc)[:200],
         )
         return None
 
@@ -918,6 +1075,8 @@ def run_phase_8(
     force: bool = False,
     pipeline_version: str = "0.1.0",
     structured_docs_path: Path | None = None,
+    tag_vocab_path: Path | None = None,
+    tag_strict_vocabulary: bool = False,
     # Deprecated (Option A) — werden ignoriert:
     batches_dir: Path | None = None,
     temperature_stage1: float = 0.3,
@@ -945,6 +1104,10 @@ def run_phase_8(
         pipeline_version: Fuer Meta-Files.
         structured_docs_path: Pfad zu documents_structured.jsonl fuer Gedanken-Erkennung.
             Wenn None: kein Gedanken-Sonderpfad (alle Docs normal verarbeitet).
+        tag_vocab_path: Pfad zu tag-system.md fuer Vokabular-Validation.
+            Wenn None: Validation deaktiviert.
+        tag_strict_vocabulary: Wenn True: Tags ausserhalb Vokabular entfernen + needs_human.
+            Wenn False (default): nur loggen, nichts aendern.
         batches_dir: Ignoriert (deprecated, Option A).
         temperature_stage1: Ignoriert (deprecated, Option A).
         temperature_stage2: Ignoriert (deprecated, Option A).
@@ -975,6 +1138,13 @@ def run_phase_8(
     gedanken_doc_ids: set[str] = set()
     if structured_docs_path is not None:
         gedanken_doc_ids = _load_gedanken_doc_ids(structured_docs_path)
+
+    # Tag-Vokabular einmalig laden
+    tag_vocab: set[str] = set()
+    tag_synonym_map: dict[str, str | None] = {}
+    if tag_vocab_path is not None:
+        tag_vocab = _load_tag_vocabulary(tag_vocab_path)
+        tag_synonym_map = _load_tag_synonym_map(tag_vocab_path)
 
     if not docs:
         log.warning("phase_8_no_documents", segments_path=str(segments_path))
@@ -1018,6 +1188,9 @@ def run_phase_8(
         max_tokens_stage2=max_tokens_stage2,
         max_tokens_stage3=max_tokens_stage3,
         max_tokens_stage4=max_tokens_stage4,
+        tag_vocab=tag_vocab,
+        tag_synonym_map=tag_synonym_map,
+        tag_strict=tag_strict_vocabulary,
         used_slugs=used_slugs,
     )
 

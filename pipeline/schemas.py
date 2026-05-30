@@ -142,7 +142,7 @@ class FrontmatterDraft(BaseModel):
     slug: str
     aliases: list[str] = []
     summary: str
-    type: Literal["process-document", "knowledge-article", "compact-reference"]
+    type: Literal["process-document", "knowledge-article", "compact-reference", "gedanke"]
     doc_role: list[str]
     category: str
     subcategory: str | None = None

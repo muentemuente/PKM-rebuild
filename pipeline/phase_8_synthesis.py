@@ -37,7 +37,7 @@ import openai
 import structlog
 import yaml
 
-from pipeline.schemas import FrontmatterDraft, SegmentRecord
+from pipeline.schemas import FrontmatterDraft, SegmentRecord, StructuredDocumentRecord
 
 log = structlog.get_logger()
 
@@ -704,6 +704,197 @@ def _write_combined_draft(
     )
 
 
+# === Doc-Verarbeitungs-Hilfsfunktion ==========================================
+
+
+def _process_doc(
+    doc_id: str,
+    doc_segments: list[SegmentRecord],
+    gedanken_doc_ids: set[str],
+    seg_map: dict[str, SegmentRecord],
+    drafts_dir: Path,
+    force: bool,
+    cfg: _QwenStageConfig,
+) -> tuple[bool, bool]:
+    """Verarbeitet ein einzelnes Dokument (Standard oder Gedanken-Sonderpfad).
+
+    Returns:
+        (success, needs_human) — beide Felder unabhaengig voneinander.
+    """
+    log.info("phase_8_doc_start", doc_id=doc_id, segments=len(doc_segments))
+    concept = _build_doc_concept(doc_id, doc_segments)
+
+    raw_slug = _slugify_ck(doc_id.removeprefix("D_"))
+    body_meta_path = drafts_dir / f".CK_{raw_slug}.body.meta.json"
+    if not cfg.force and body_meta_path.exists():
+        slug = raw_slug
+        cfg.used_slugs.add(slug)
+    else:
+        slug = _unique_slug(raw_slug, cfg.used_slugs)
+
+    if doc_id in gedanken_doc_ids:
+        log.info("phase_8_gedanken_bypass", doc_id=doc_id, slug=slug)
+        concept["type"] = "gedanke"
+        concept["category"] = "gedanken"
+        concept["doc_role"] = ["wiki"]
+        body: str | None = _build_gedanken_body(doc_segments)
+        fm = _run_stage4_gedanken(concept, body, drafts_dir, slug, doc_id, cfg)
+    else:
+        body = _run_stage3_concept(concept, seg_map, drafts_dir, slug, doc_id, cfg)
+        if body is None:
+            return False, True
+        fm = _run_stage4_concept(concept, body, drafts_dir, slug, doc_id, cfg)
+
+    if fm is None:
+        return False, True
+
+    combined_path = drafts_dir / f"CK_{slug}.md"
+    if force or not combined_path.exists():
+        _write_combined_draft(body, fm, combined_path)
+
+    log.info(
+        "phase_8_doc_drafted",
+        slug=slug,
+        ck_id=concept["ck_id"],
+        doc_id=doc_id,
+        confidence=fm.confidence,
+    )
+    return True, False
+
+
+# === Gedanken-Sonderpfad (Stage-3-Bypass) =====================================
+
+
+def _load_gedanken_doc_ids(structured_docs_path: Path) -> set[str]:
+    """Laedt doc_ids aller Gedanken-Files aus documents_structured.jsonl.
+
+    Args:
+        structured_docs_path: Pfad zu documents_structured.jsonl (Phase 3 Output).
+
+    Returns:
+        Set von doc_ids mit doc_type_guess.label == "gedanke".
+        Leeres Set wenn Datei nicht existiert.
+    """
+    if not structured_docs_path.exists():
+        log.warning("phase_8_structured_docs_missing", path=str(structured_docs_path))
+        return set()
+    gedanken: set[str] = set()
+    for line in structured_docs_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = StructuredDocumentRecord.model_validate_json(line)
+            if rec.doc_type_guess.label == "gedanke":
+                gedanken.add(rec.doc_id)
+        except Exception:
+            pass
+    if gedanken:
+        log.info("phase_8_gedanken_detected", count=len(gedanken))
+    return gedanken
+
+
+def _build_gedanken_body(segments: list[SegmentRecord]) -> str:
+    """Baut Body fuer Gedanken-Sonderpfad: Original-Segmenttexte unveraendert zusammenfuehren."""
+    return "\n\n".join(seg.text for seg in segments if seg.text.strip())
+
+
+def _run_stage4_gedanken(
+    concept: dict[str, Any],
+    body_text: str,
+    drafts_dir: Path,
+    slug: str,
+    doc_id: str,
+    cfg: _QwenStageConfig,
+) -> FrontmatterDraft | None:
+    """Stage 4 fuer Gedanken: Original-Body → Frontmatter mit gedanken-Prompt.
+
+    Unterschiede zu _run_stage4_concept:
+    - Verwendet stage4_frontmatter_gedanken.md
+    - Erzwingt type="gedanke", category="gedanken", doc_role=["wiki"]
+    """
+    output_path = drafts_dir / f"CK_{slug}.frontmatter.json"
+    meta_path = drafts_dir / f".CK_{slug}.frontmatter.meta.json"
+
+    user_message = _build_stage4_user_message(concept, body_text, cfg.today_str)
+    input_hash = _sha256_str(user_message)
+
+    if not cfg.force and _is_cached(output_path, meta_path, input_hash):
+        log.info("phase_8_skipped", stage="4_gedanken", slug=slug)
+        try:
+            return FrontmatterDraft.model_validate_json(output_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    system_prompt = _load_prompt(cfg.prompts_dir, cfg.prompt_version, "stage4_frontmatter_gedanken.md")
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+
+    try:
+        raw_fm = _run_json_stage(
+            cfg.client,
+            cfg.model,
+            messages,
+            cfg.temp_stage4,
+            cfg.max_tokens_stage4,
+            cfg.max_retries,
+            cfg.backoff_seconds,
+        )
+    except (ValueError, Exception) as exc:
+        log.error("phase_8_stage4_gedanken_error", slug=slug, error=str(exc)[:200])
+        _log_needs_human(
+            cfg.needs_human_path, doc_id, concept["ck_id"], "stage4_gedanken", "api_error", str(exc)[:200]
+        )
+        return None
+
+    # Festgelegte Gedanken-Pflichtfelder erzwingen
+    raw_fm["type"] = "gedanke"
+    raw_fm["category"] = "gedanken"
+    raw_fm["doc_role"] = ["wiki"]
+    raw_fm["status"] = "draft"
+    raw_fm["review_status"] = "ai_drafted"
+    raw_fm["last_synthesized"] = cfg.today_str
+    raw_fm["prompt_version"] = cfg.prompt_version
+    raw_fm["merged_from"] = []
+    if not raw_fm.get("sources_docs"):
+        raw_fm["sources_docs"] = concept.get("sources_docs", [])
+    if not raw_fm.get("source_chunks"):
+        raw_fm["source_chunks"] = concept.get("source_chunks", [])
+    if not raw_fm.get("created"):
+        raw_fm["created"] = cfg.today_str
+    if not raw_fm.get("updated"):
+        raw_fm["updated"] = cfg.today_str
+
+    try:
+        fm = FrontmatterDraft.model_validate(raw_fm)
+    except Exception as exc:
+        log.error("phase_8_stage4_gedanken_validation_error", slug=slug, error=str(exc)[:300])
+        _log_needs_human(
+            cfg.needs_human_path,
+            doc_id,
+            concept["ck_id"],
+            "stage4_gedanken",
+            "pydantic_validation_error",
+            str(exc)[:300],
+        )
+        raw_fm["confidence"] = "low"
+        try:
+            fm = FrontmatterDraft.model_validate(raw_fm)
+        except Exception:
+            return None
+
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(fm.model_dump(), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    _write_stage_meta(meta_path, input_hash, "stage4_gedanken")
+    log.info("phase_8_stage4_gedanken_done", slug=slug, confidence=fm.confidence)
+    return fm
+
+
 # === run_phase_8 ===============================================================
 
 
@@ -726,6 +917,7 @@ def run_phase_8(
     max_tokens_stage4: int = 10000,
     force: bool = False,
     pipeline_version: str = "0.1.0",
+    structured_docs_path: Path | None = None,
     # Deprecated (Option A) — werden ignoriert:
     batches_dir: Path | None = None,
     temperature_stage1: float = 0.3,
@@ -751,6 +943,8 @@ def run_phase_8(
         timeout_seconds: HTTP-Timeout.
         force: Cache ignorieren, alles neu berechnen.
         pipeline_version: Fuer Meta-Files.
+        structured_docs_path: Pfad zu documents_structured.jsonl fuer Gedanken-Erkennung.
+            Wenn None: kein Gedanken-Sonderpfad (alle Docs normal verarbeitet).
         batches_dir: Ignoriert (deprecated, Option A).
         temperature_stage1: Ignoriert (deprecated, Option A).
         temperature_stage2: Ignoriert (deprecated, Option A).
@@ -776,6 +970,11 @@ def run_phase_8(
     docs = _group_segments_by_doc(seg_map)
     needs_human_path = qwen_output_dir / "needs_human.jsonl"
     today_str = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+    # Gedanken-Sonderpfad: doc_ids aus documents_structured laden
+    gedanken_doc_ids: set[str] = set()
+    if structured_docs_path is not None:
+        gedanken_doc_ids = _load_gedanken_doc_ids(structured_docs_path)
 
     if not docs:
         log.warning("phase_8_no_documents", segments_path=str(segments_path))
@@ -837,46 +1036,16 @@ def run_phase_8(
     needs_human_count = 0
 
     for doc_id, doc_segments in sorted(docs.items()):
-        log.info("phase_8_doc_start", doc_id=doc_id, segments=len(doc_segments))
-
-        concept = _build_doc_concept(doc_id, doc_segments)
-
-        raw_slug = _slugify_ck(doc_id.removeprefix("D_"))
-        body_meta_path = drafts_dir / f".CK_{raw_slug}.body.meta.json"
-        if not cfg.force and body_meta_path.exists():
-            # Idempotenz: Slug aus vorherigem Run uebernehmen
-            slug = raw_slug
-            cfg.used_slugs.add(slug)
-        else:
-            slug = _unique_slug(raw_slug, cfg.used_slugs)
-
-        # Stage 3: Body
-        body = _run_stage3_concept(concept, seg_map, drafts_dir, slug, doc_id, cfg)
-        if body is None:
-            needs_human_count += 1
-            errors += 1
-            continue
-
-        # Stage 4: Frontmatter
-        fm = _run_stage4_concept(concept, body, drafts_dir, slug, doc_id, cfg)
-        if fm is None:
-            needs_human_count += 1
-            errors += 1
-            continue
-
-        combined_path = drafts_dir / f"CK_{slug}.md"
-        if force or not combined_path.exists():
-            _write_combined_draft(body, fm, combined_path)
-
-        log.info(
-            "phase_8_doc_drafted",
-            slug=slug,
-            ck_id=concept["ck_id"],
-            doc_id=doc_id,
-            confidence=fm.confidence,
+        ok, human = _process_doc(
+            doc_id, doc_segments, gedanken_doc_ids, seg_map, drafts_dir, force, cfg
         )
-        docs_processed += 1
-        concepts_drafted += 1
+        if ok:
+            docs_processed += 1
+            concepts_drafted += 1
+        else:
+            errors += 1
+        if human:
+            needs_human_count += 1
 
     duration = time.monotonic() - t_start
     summary = {

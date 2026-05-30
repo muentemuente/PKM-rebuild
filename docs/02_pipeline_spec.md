@@ -510,7 +510,7 @@ class FrontmatterDraft(BaseModel):
     slug: str
     aliases: list[str] = []
     summary: str
-    type: Literal["process-document", "knowledge-article", "compact-reference"]
+    type: Literal["process-document", "knowledge-article", "compact-reference", "gedanke"]
     doc_role: list[str]
     category: str
     subcategory: str | None = None
@@ -618,3 +618,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 
 - 2026-05-25 — Initial-Version
 - 2026-05-29 — Option-B-Anpassung: Architektur-Diagramm Stage 1/2 + Gate 2 entfernt; Phase-8-Header auf Stage 3+4 pro Doc; Stage 1/2 als entfallen markiert; Stage 3 als Pro-Doc-Veredelung neu definiert; Akzeptanzkriterien merged_from→leer; FrontmatterDraft-Kommentar ergänzt; Gate-2-Zeile entfernt
+- 2026-05-30 — Block 0G.6: FrontmatterDraft.type um "gedanke" erweitert (Sonderpfad 15_Gedanken/)

@@ -182,6 +182,7 @@ def _dispatch_phase_8(cfg: PipelineConfig, force: bool) -> None:
         max_tokens_stage4=qwen.max_tokens.stage4,
         force=force,
         pipeline_version=cfg.pipeline.version,
+        structured_docs_path=out / "documents_structured.jsonl",
     )
     console.print(
         f"[green]✓ Phase 8:[/green] {summary['docs_processed']} Docs veredelt, "

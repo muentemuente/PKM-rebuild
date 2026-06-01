@@ -1123,7 +1123,7 @@ def _run_stage4_gedanken(
 # === run_phase_8 ===============================================================
 
 
-def run_phase_8(
+def run_phase_8(  # noqa: C901
     segments_path: Path,
     qwen_output_dir: Path,
     drafts_dir: Path,
@@ -1145,6 +1145,7 @@ def run_phase_8(
     structured_docs_path: Path | None = None,
     tag_vocab_path: Path | None = None,
     tag_strict_vocabulary: bool = False,
+    filter_doc_ids: set[str] | None = None,
     # Deprecated (Option A) — werden ignoriert:
     batches_dir: Path | None = None,
     temperature_stage1: float = 0.3,
@@ -1176,6 +1177,7 @@ def run_phase_8(
             Wenn None: Validation deaktiviert.
         tag_strict_vocabulary: Wenn True: Tags ausserhalb Vokabular entfernen + needs_human.
             Wenn False (default): nur loggen, nichts aendern.
+        filter_doc_ids: Wenn gesetzt, werden nur diese Doc-IDs verarbeitet (alle anderen skip).
         batches_dir: Ignoriert (deprecated, Option A).
         temperature_stage1: Ignoriert (deprecated, Option A).
         temperature_stage2: Ignoriert (deprecated, Option A).
@@ -1199,6 +1201,8 @@ def run_phase_8(
 
     seg_map = _load_segments(segments_path)
     docs = _group_segments_by_doc(seg_map)
+    if filter_doc_ids is not None:
+        docs = {k: v for k, v in docs.items() if k in filter_doc_ids}
     needs_human_path = qwen_output_dir / "needs_human.jsonl"
     today_str = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 

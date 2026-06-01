@@ -1,5 +1,6 @@
 """CLI-Entry-Point der PKM-rebuild Pipeline."""
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -160,10 +161,36 @@ def _dispatch_phase_6(cfg: PipelineConfig, force: bool) -> None:
     )
 
 
-def _dispatch_phase_8(cfg: PipelineConfig, force: bool) -> None:
+def _resolve_filter_doc_ids(filter_files: tuple[str, ...], manifest_path: Path) -> set[str] | None:
+    """Corpus-Pfade → doc_ids via files_manifest.jsonl. None wenn keine Filter angegeben."""
+    if not filter_files:
+        return None
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"files_manifest.jsonl nicht gefunden: {manifest_path}")
+    abs_filter = {str(Path(f).resolve()) for f in filter_files}
+    result: set[str] = set()
+    matched_paths: set[str] = set()
+    for line in manifest_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        entry = json.loads(line)
+        abs_path = str(Path(entry["path"]).resolve())
+        if abs_path in abs_filter:
+            result.add(entry["doc_id"])
+            matched_paths.add(abs_path)
+    missing = abs_filter - matched_paths
+    if missing:
+        console.print(
+            f"[yellow]Warnung:[/yellow] {len(missing)} --file-Pfade nicht im Manifest: {missing}"
+        )
+    return result
+
+
+def _dispatch_phase_8(cfg: PipelineConfig, force: bool, filter_files: tuple[str, ...] = ()) -> None:
     out = cfg.paths.pipeline_output
     drafts = cfg.paths.drafts
     qwen = cfg.qwen
+    filter_doc_ids = _resolve_filter_doc_ids(filter_files, out / "files_manifest.jsonl")
     summary = run_phase_8(
         segments_path=out / "segments.jsonl",
         qwen_output_dir=out / "qwen",
@@ -185,6 +212,7 @@ def _dispatch_phase_8(cfg: PipelineConfig, force: bool) -> None:
         structured_docs_path=out / "documents_structured.jsonl",
         tag_vocab_path=cfg.tags.vocabulary_file,
         tag_strict_vocabulary=cfg.tags.strict_vocabulary,
+        filter_doc_ids=filter_doc_ids,
     )
     console.print(
         f"[green]✓ Phase 8:[/green] {summary['docs_processed']} Docs veredelt, "
@@ -240,6 +268,13 @@ def cli() -> None:
 @click.option("--force", is_flag=True, help="Cache ignorieren, alles neu berechnen")
 @click.option("--dry-run", "dry_run", is_flag=True, help="Plan zeigen, nichts schreiben")
 @click.option(
+    "--file",
+    "filter_files",
+    type=click.Path(),
+    multiple=True,
+    help="Nur diese Korpus-Datei(en) verarbeiten (Phase 8; wiederholbar).",
+)
+@click.option(
     "--config",
     type=click.Path(exists=True),
     default=_DEFAULT_CONFIG,
@@ -251,9 +286,12 @@ def run(
     from_phase: int | None,
     force: bool,
     dry_run: bool,
+    filter_files: tuple[str, ...],
     config: str,
 ) -> None:
     """Pipeline-Lauf starten (Phasen 1-10)."""
+    if filter_files and phase != 8:
+        console.print("[yellow]Hinweis:[/yellow] --file wird nur für --phase 8 ausgewertet.")
     cfg = load_config(Path(config))
     phases = _phases_to_run(phase, from_phase)
 
@@ -270,6 +308,8 @@ def run(
         try:
             if p == 1:
                 dispatch(cfg, force, sample)
+            elif p == 8:
+                dispatch(cfg, force, filter_files)
             else:
                 dispatch(cfg, force)
         except FileNotFoundError as exc:

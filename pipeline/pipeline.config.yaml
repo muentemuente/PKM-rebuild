@@ -155,7 +155,7 @@ qwen:
   max_tokens:
     stage1: 20000
     stage2: 14000
-    stage3: 8000
+    stage3: 16000
     stage4: 10000
 
 

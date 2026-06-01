@@ -72,6 +72,7 @@ packages = ["pipeline"]
 line-length = 100
 target-version = "py312"
 src = ["pipeline", "tests"]
+exclude = ["scripts/"]
 
 [tool.ruff.lint]
 select = [

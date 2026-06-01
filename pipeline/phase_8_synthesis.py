@@ -882,7 +882,9 @@ def _process_doc(
 
     raw_slug = _slugify_ck(doc_id.removeprefix("D_"))
     body_meta_path = drafts_dir / f".CK_{raw_slug}.body.meta.json"
-    if not cfg.force and body_meta_path.exists():
+    fm_meta_path = drafts_dir / f".CK_{raw_slug}.frontmatter.meta.json"
+    if not cfg.force and (body_meta_path.exists() or fm_meta_path.exists()):
+        # Passthrough-Docs haben kein body.meta.json, aber ein frontmatter.meta.json
         slug = raw_slug
         cfg.used_slugs.add(slug)
     else:
@@ -987,11 +989,7 @@ def _load_passthrough_doc_ids(structured_docs_path: Path) -> set[str]:
             continue
         try:
             rec = StructuredDocumentRecord.model_validate_json(line)
-            if (
-                len(rec.code_blocks) > 0
-                or rec.tables_count >= 1
-                or len(rec.headings) >= 3
-            ):
+            if len(rec.code_blocks) > 0 or rec.tables_count >= 1 or len(rec.headings) >= 3:
                 passthrough.add(rec.doc_id)
         except Exception:
             pass
@@ -1284,7 +1282,14 @@ def run_phase_8(
 
     for doc_id, doc_segments in sorted(docs.items()):
         ok, human = _process_doc(
-            doc_id, doc_segments, gedanken_doc_ids, passthrough_doc_ids, seg_map, drafts_dir, force, cfg
+            doc_id,
+            doc_segments,
+            gedanken_doc_ids,
+            passthrough_doc_ids,
+            seg_map,
+            drafts_dir,
+            force,
+            cfg,
         )
         if ok:
             docs_processed += 1

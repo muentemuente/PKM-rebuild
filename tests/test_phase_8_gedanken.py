@@ -187,7 +187,9 @@ def test_stage4_gedanken_forces_required_fields(tmp_path: Path) -> None:
             "source_chunks": ["D_mein-gedanke-S0001"],
             "merged_from": [],
         }
-        fm = _run_stage4_gedanken(concept, "Gedanken-Body.", tmp_path, "mein-gedanke", "D_mein-gedanke", cfg)
+        fm = _run_stage4_gedanken(
+            concept, "Gedanken-Body.", tmp_path, "mein-gedanke", "D_mein-gedanke", cfg
+        )
 
     assert fm is not None
     assert fm.type == "gedanke"

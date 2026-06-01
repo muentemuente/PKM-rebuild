@@ -837,7 +837,9 @@ def test_max_tokens_loaded_from_config() -> None:
     cfg = load_config(repo_root / "pipeline" / "pipeline.config.yaml")
     assert cfg.qwen.max_tokens.stage1 == 20000
     assert cfg.qwen.max_tokens.stage2 == 14000
-    assert cfg.qwen.max_tokens.stage3 == 8000  # Block 8.A.1: 24000 → 8000 (Passthrough entlastet)
+    assert (
+        cfg.qwen.max_tokens.stage3 == 16000
+    )  # Block 8.A.2: 8000 → 16000 (Passthrough-Docs kurz, LM-Studio-Docs brauchen mehr)
     assert cfg.qwen.max_tokens.stage4 == 10000
 
 

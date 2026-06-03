@@ -176,7 +176,26 @@ mypy pipeline/                           # Type-Check
 
 ---
 
+## 12. Shell-Commands
+
+Der Claude-Code-Security-Wrapper wirft bei einer Tilde (`~`) im Value einer Bash-Variablen-Zuweisung und blockiert damit die autonome Ausführung. In Assignments steht deshalb `$HOME` statt `~`.
+
+```bash
+# nicht ok — Tilde im assignment value blockiert den Wrapper
+DATA=~/projects/aktiv/PKM_rebuild/data
+BAK=~/projects/aktiv/PKM_rebuild/backups/cleanup_$(date +%Y%m%d_%H%M)
+
+# ok — $HOME im assignment value
+DATA=$HOME/projects/aktiv/PKM_rebuild/data
+BAK=$HOME/projects/aktiv/PKM_rebuild/backups/cleanup_$(date +%Y%m%d_%H%M)
+```
+
+Die Tilde außerhalb von Assignments (etwa als Command-Argument, `ls ~/foo`) ist unproblematisch; betroffen ist allein die Form `VAR=~/...`.
+
+---
+
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version (faktisch-deklarativ, Hard Constraints abgegrenzt)
 - 2026-05-28 — Sektion 2: tool-routing ergänzt; Sektion 11: CLI an Realität angepasst (--confirm/validate entfernt, --phase 8/--dry-run ergänzt)
+- 2026-06-02 — Sektion 12 ergänzt: $HOME statt ~ in Bash-Assignments (Security-Wrapper)

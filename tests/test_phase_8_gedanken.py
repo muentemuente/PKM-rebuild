@@ -223,3 +223,14 @@ def test_frontmatter_draft_accepts_gedanke_type() -> None:
     )
     assert fm.type == "gedanke"
     assert fm.category == "gedanken"
+
+
+def test_validator_scripts_allow_gedanke_type() -> None:
+    """Die Frontmatter-Validatoren akzeptieren type='gedanke' (sonst false-FAIL
+    bzw. Endlos-RERUN_LM auf Gedanken-Drafts)."""
+    from scripts.check_frontmatter import ALLOWED_TYPE as CF_TYPES
+    from scripts.draft_inventory import ALLOWED_TYPE as DI_TYPES
+    from scripts.pkm_triage import ALLOWED_TYPE as PT_TYPES
+
+    for allowed in (CF_TYPES, DI_TYPES, PT_TYPES):
+        assert "gedanke" in allowed

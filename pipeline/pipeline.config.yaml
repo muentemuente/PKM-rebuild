@@ -138,24 +138,28 @@ qwen:
   model: "qwen/qwen3.6-27b"
   context_window: 49152         # ~50K — Hard Limit auf 32 GB RAM (gemessen Block 0.D)
   prompt_version: "v1"          # aktive Version, korrespondiert mit prompts/v1/
-  json_mode: false               # inkompatibel mit LM Studio + Reasoning-Modell (Block 0.D)
+  json_mode: false               # inkompatibel mit LM Studio + Reasoning-Modell (Block 0.D); Outputs werden frei geparst
   max_retries: 2
   retry_backoff_seconds: 5
-  timeout_seconds: 600
+  timeout_seconds: 600           # Pro Qwen-Call (Stage 3/4); Reasoning-Modell kann lange brauchen — eher großzügig
 
   # Temperaturen pro Stage (siehe docs/04_qwen_prompts.md)
+  # HINWEIS (Option B): stage1/stage2 sind DEPRECATED — die Cluster-/Merge-Stages
+  # entfallen (1 Doc → 1 Concept). Werte bleiben nur, weil das Config-Schema
+  # (QwenTemperatureConfig) sie als Pflichtfelder verlangt. Vollständiges Prunen
+  # erst nach koordiniertem Schema-Umbau in pipeline/config.py.
   temperature:
-    stage1_cluster_analysis: 0.3
-    stage2_merge_proposal: 0.2
+    stage1_cluster_analysis: 0.3   # DEPRECATED (Option B, ungenutzt)
+    stage2_merge_proposal: 0.2     # DEPRECATED (Option B, ungenutzt)
     stage3_synthesis: 0.4
     stage4_frontmatter: 0.1
 
   # max_tokens pro Stage: Reasoning-Overhead ~93%, daher 10× erwarteter Content
-  # Context-Window 49152 — Stage 3 höchster Bedarf (Markdown-Body)
+  # HINWEIS (Option B): stage1/stage2 DEPRECATED (siehe temperature-Block oben).
   max_tokens:
-    stage1: 20000
-    stage2: 14000
-    stage3: 16000
+    stage1: 20000                  # DEPRECATED (Option B, ungenutzt)
+    stage2: 14000                  # DEPRECATED (Option B, ungenutzt)
+    stage3: 16000                  # Höchster Bedarf: vollständiger Markdown-Body, Context-Window 49152
     stage4: 10000
 
 

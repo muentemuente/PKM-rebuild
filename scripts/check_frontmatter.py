@@ -72,7 +72,7 @@ ALLOWED_CATEGORIES = {
 }
 
 # Enums aus Vault-Standard (docs/03_vault_standard.md Sektion 3)
-ALLOWED_TYPE = {"process-document", "knowledge-article", "compact-reference"}
+ALLOWED_TYPE = {"process-document", "knowledge-article", "compact-reference", "gedanke"}
 ALLOWED_DOC_ROLE = {
     "manual", "how-to", "best-practice", "workflow",
     "explanation", "reference", "cheatsheet", "wiki",

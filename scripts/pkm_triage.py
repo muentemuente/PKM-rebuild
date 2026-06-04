@@ -96,7 +96,7 @@ ALLOWED_CATEGORIES = {
     "automatisierung-scripting-und-pipelines",
     "gedanken", "kunst-kultur", "unsortiert",
 }
-ALLOWED_TYPE = {"process-document", "knowledge-article", "compact-reference"}
+ALLOWED_TYPE = {"process-document", "knowledge-article", "compact-reference", "gedanke"}
 ALLOWED_DOC_ROLE = {
     "manual", "how-to", "best-practice", "workflow",
     "explanation", "reference", "cheatsheet", "wiki",

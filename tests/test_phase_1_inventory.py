@@ -7,6 +7,7 @@ Akzeptanzkriterien aus docs/02_pipeline_spec.md, Phase 1:
   - Idempotenz: zweimaliger Lauf → identische Outputs
 """
 
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -40,6 +41,16 @@ def test_slug_umlauts() -> None:
     assert _filename_to_slug("Übersicht") == "uebersicht"
     assert _filename_to_slug("Größe") == "groesse"
     assert _filename_to_slug("Straße") == "strasse"
+
+
+def test_slug_umlauts_nfd_decomposed() -> None:
+    # macOS-Dateisystem liefert NFD-zerlegte Umlaute (o + combining ¨).
+    # Ohne NFC-Komposition vorab würde ä→a statt ä→ae (E2-Naming-Bug).
+    for nfc in ("Lösung", "Übersicht", "Größe", "Straße", "Ärzte-Maße"):
+        nfd = unicodedata.normalize("NFD", nfc)
+        assert nfd != nfc or "ß" in nfc  # ß hat keine NFD-Zerlegung
+        assert _filename_to_slug(nfd) == _filename_to_slug(nfc)
+    assert _filename_to_slug(unicodedata.normalize("NFD", "Lösung")) == "loesung"
 
 
 def test_slug_mixed_special_chars() -> None:

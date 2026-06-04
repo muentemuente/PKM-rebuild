@@ -62,6 +62,13 @@ MAX_CONSECUTIVE_FAILURES = 5
 # Slug-Normalisierung (mit NFC für macOS-NFD-Filesystem)
 UMLAUT_MAP = {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}
 
+# Kanonische CK-Slug-Ableitung — Composed-Umlaut-Tabelle + 60-Cap.
+_CK_UMLAUT_TABLE = str.maketrans(
+    {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "ae", "Ö": "oe", "Ü": "ue"}
+)
+_CK_SPECIAL_RE = re.compile(r"[^a-z0-9]+")
+CK_SLUG_CAP = 60
+
 
 # === Slug-Werkzeuge ===
 
@@ -70,6 +77,28 @@ def normalize_slug(name: str) -> str:
     for o, r in UMLAUT_MAP.items():
         s = s.replace(o, r)
     return re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+
+
+def canonical_ck_slug(name: str) -> str:
+    """Repliziert die Pipeline-Slug-Ableitung für CK-Dateinamen.
+
+    Identisch zu ``_slugify_ck(_filename_to_slug(name))`` aus der Pipeline:
+    NFC-Komposition (macOS-NFD-Fix), Umlaut-Map, NFKD-Akzent-Strip, lowercase,
+    Sonderzeichen→Bindestrich, 60-Cap. Single Source of Truth bleibt die
+    Pipeline; ``tests/test_phase8_runner.py`` bewacht die Übereinstimmung
+    gegen Drift.
+
+    Args:
+        name: Roher Dateiname-Stamm (Korpus) oder Slug.
+
+    Returns:
+        Kanonischer Slug, wie ihn die Pipeline für ``CK_<slug>.*`` schreibt.
+    """
+    s = unicodedata.normalize("NFC", name).translate(_CK_UMLAUT_TABLE)
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    s = _CK_SPECIAL_RE.sub("-", s).strip("-")
+    return s[:CK_SLUG_CAP].strip("-") or "concept"
 
 
 # === Batch-File parsen ===
@@ -205,7 +234,11 @@ def process_batch(batch_file: Path, dry_run: bool = False) -> dict:
 
     consecutive_failures = 0
 
-    for i, (slug, corpus) in enumerate(items, 1):
+    for i, (batch_slug, corpus) in enumerate(items, 1):
+        # Kanonischer Slug aus dem Korpus-Dateinamen — exakt die Ableitung, unter
+        # der die Pipeline CK_<slug>.* schreibt. Behebt den false-FAIL, bei dem
+        # verify_outputs unter dem (divergenten) Batch-Slug suchte (E2/Runner-Bug).
+        slug = canonical_ck_slug(corpus.stem)
         prefix = f"  [{i:2}/{len(items)}] {slug}"
 
         if slug in done:
@@ -247,12 +280,16 @@ def process_batch(batch_file: Path, dry_run: bool = False) -> dict:
         complete = is_complete(outputs)
         elapsed = time.time() - t0
 
-        if rc == 0 and complete:
+        # verify_outputs ist autoritativ: existieren die Draft-Files, gilt der
+        # Slug als erfolgreich — auch wenn der Pipeline-Aufruf an der Timeout-
+        # Boundary rc!=0 meldete (Draft kann vor dem Timeout geschrieben sein).
+        if complete:
             done.add(slug)
             failed.discard(slug)
             stats["done_new"] += 1
             consecutive_failures = 0
-            print(f"{prefix:60} OK   {elapsed:5.0f}s  backed_up={n_backed}",
+            note = "" if rc == 0 else f"  (rc={rc}, outputs vollständig)"
+            print(f"{prefix:60} OK   {elapsed:5.0f}s  backed_up={n_backed}{note}",
                   flush=True)
         else:
             failed.add(slug)

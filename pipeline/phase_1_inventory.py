@@ -35,7 +35,11 @@ _UMLAUT_TABLE = str.maketrans(
 
 def _filename_to_slug(stem: str) -> str:
     """Konvertiert einen Dateinamen-Stamm (ohne Endung) in einen URL-sicheren Slug."""
-    s = stem.translate(_UMLAUT_TABLE)
+    # NFC zuerst: macOS-Dateinamen sind oft NFD-zerlegt (z.B. "o" + combining ¨).
+    # Ohne Komposition matcht die _UMLAUT_TABLE (Composed-Keys) nicht, und das
+    # nachfolgende NFKD-Strippen wuerfe ä→a statt ä→ae (E2-Naming-Bug).
+    s = unicodedata.normalize("NFC", stem)
+    s = s.translate(_UMLAUT_TABLE)
     s = unicodedata.normalize("NFKD", s)
     s = "".join(c for c in s if not unicodedata.combining(c))
     s = s.lower()

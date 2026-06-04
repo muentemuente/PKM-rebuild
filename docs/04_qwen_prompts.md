@@ -3,12 +3,12 @@ title: PKM-rebuild Qwen-Prompt-Spezifikation
 slug: 04-qwen-prompts
 status: stable
 created: 2026-05-25
-updated: 2026-05-29
+updated: 2026-06-04
 ---
 
 # Qwen-Prompt-Spezifikation
 
-Übersicht, Versionierung, Schemas und Iterations-Workflow der 4 Synthese-Stages.
+Übersicht, Versionierung, Schemas und Iterations-Workflow der Synthese-Stages. **Aktiv (Option B):** Stage 3 (Pro-Doc-Veredelung, mit Routing) + Stage 4 (Frontmatter). Stage 1/2 deprecated.
 
 ---
 
@@ -260,7 +260,17 @@ temperature: 0.3
 
 ### Stage 3 — Pro-Doc-Veredelung (Body)
 
-**Zweck:** 1 Doc → 1 veredelter Artikel-Body nach Vault-Standard, ohne Frontmatter. Kein Merge mit anderen Docs. Normalisierung + Strukturierung nach `type`-Template.
+**Routing (je Doc, deterministisch in Phase 8):** Nicht jedes Doc läuft durch den LLM. Drei Pfade:
+
+| Pfad | Bedingung | Stage-3-Verhalten |
+|---|---|---|
+| `passthrough` | Doc enthält Code **ODER** ≥1 Tabelle **ODER** ≥3 Headings | **Kein LLM-Call.** Body wird 1:1 aus den Segmenten übernommen (Struktur ist schon da), danach Stage 4. |
+| `stage3` | reiner Prosa-Text ohne starke Struktur | LLM-Veredelung (dieser Abschnitt), danach Stage 4. |
+| `gedanken` | `doc_type_guess.label == "gedanke"` | Sonderpfad (Sektion 12): kein Stage 3, Minimal-Frontmatter über Stage-4-Variante. |
+
+Begründung: strukturierte Docs (Cheatsheets, Tabellen, Code) verlieren durch LLM-Umschreiben Information; sie brauchen nur Frontmatter. Das spart Token, Zeit und Halluzinations-Risiko.
+
+**Zweck (Pfad `stage3`):** 1 Doc → 1 veredelter Artikel-Body nach Vault-Standard, ohne Frontmatter. Kein Merge mit anderen Docs. Normalisierung + Strukturierung nach `type`-Template.
 
 **Input:**
 - Alle Segmente eines einzelnen Docs (Originaltext)
@@ -359,8 +369,10 @@ Pipeline (Phase 8) validiert jeden Qwen-Output:
 |---|---|---|---|
 | ~~1~~ | ~~10K–35K~~ | ~~2K–8K~~ | *deaktiviert (Option B)* |
 | ~~2~~ | ~~5K–15K~~ | ~~1K–4K~~ | *deaktiviert (Option B)* |
-| 3 | 5K–35K | 3K–10K | Pro-Doc; abhängig von Doc-Größe; 35K wegen 50K-Kontext + Reasoning-Output-Raum |
+| 3 | 5K–35K | 3K–10K | Pro-Doc (nur Pfad `stage3`); `passthrough` macht keinen Call; 35K wegen 50K-Kontext + Reasoning-Output-Raum |
 | 4 | 5K–15K | 1K–3K | strukturiertes JSON |
+
+**`max_tokens` pro Call** (`pipeline.config.yaml` → `qwen.max_tokens`, 10× Content wegen ~93 % Reasoning-Overhead): **stage3 = 16000** (höchster Bedarf, voller Markdown-Body), stage4 = 10000. stage1/stage2 (20000/14000) sind **deprecated** (Option B) und ungenutzt.
 
 **Bei Überschreitung 35K Input (Stage 3):** Doc aufteilen oder Sub-Batches bilden, in Phase 7 (Batch-Bildung) nachjustieren. Stage 4 hat kleineren Input und bleibt im 50K-Limit.
 
@@ -423,3 +435,4 @@ Dieses Doc wird gepflegt bei:
 
 - 2026-05-25 — Initial-Version
 - 2026-05-29 — Option-B-Anpassung: Stage-Übersicht Stage 1/2 als deaktiviert markiert; Stage-1/2-Detailabschnitte mit Status-Note versehen; Review-Gate-2-Verweis gestrichen; Stage 3 zu Pro-Doc-Veredelung umbenannt + Input neu; Stage 4 Input auf Segment-Metadaten, Aliases-Constraint auf Source-Doc-only, merged_from-Kommentar
+- 2026-06-04 — Routing-Modell in Stage 3 (passthrough vs. stage3 vs. gedanken) ergänzt; `max_tokens`-Bezug zur Config (stage3=16000); Intro + Token-Budget auf Ist-Stand

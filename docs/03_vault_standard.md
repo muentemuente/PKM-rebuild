@@ -3,7 +3,7 @@ title: PKM-rebuild Vault-Standard
 slug: 03-vault-standard
 status: stable
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-06-04
 ---
 
 # Vault-Standard
@@ -52,9 +52,9 @@ aliases: []                        # alternative Bezeichnungen, generiert aus me
 
 # === Inhalt ===
 summary: ""                        # 1–2 Sätze, was ist das
-type: ""                           # process-document | knowledge-article | compact-reference
+type: ""                           # process-document | knowledge-article | compact-reference | gedanke
 doc_role: []                       # manual | how-to | best-practice | workflow | explanation | reference | cheatsheet | wiki
-category: ""                       # Top-Cluster ohne Nummern-Präfix, z.B. "webentwicklung"
+category: ""                       # Vault-Ordner ohne Nummern-Präfix, z.B. "webentwicklung" (16 Ordner + meta/unsortiert)
 subcategory: ""                    # 2. Ebene, z.B. "rest-apis"
 
 # === Klassifikation ===
@@ -69,7 +69,7 @@ child_concepts: []                 # Liste CK_xxxx
 # === Provenance ===
 sources_docs: []                   # D_<slug>-Liste, alle Original-Quellen aus Korpus
 source_chunks: []                  # segment_ids für Trace
-merged_from: []                    # CK_<slug>-Liste, falls aus mehreren Drafts konsolidiert
+merged_from: []                    # IMMER LEER — Option B macht keinen Cross-Doc-Merge (1 Doc → 1 Concept)
 
 # === Status & Qualität ===
 status: draft                      # draft | review | stable | deprecated
@@ -103,7 +103,7 @@ prompt_version: "v1"               # Prompt-Set zur Synthese
 
 | Feld | Erlaubte Werte |
 |---|---|
-| `type` | `process-document`, `knowledge-article`, `compact-reference` |
+| `type` | `process-document`, `knowledge-article`, `compact-reference`, `gedanke` |
 | `doc_role` | `manual`, `how-to`, `best-practice`, `workflow`, `explanation`, `reference`, `cheatsheet`, `wiki` |
 | `status` | `draft`, `review`, `stable`, `deprecated` |
 | `review_status` | `ai_drafted`, `human_reviewed`, `verified` |
@@ -138,22 +138,23 @@ data/04_vault/
 └── _attic/                               ← deprecated, nicht gelöscht
 ```
 
-### Cluster-Regeln
+### Ordner-Zuordnung (Embedding-Clustering verworfen)
 
-- **Bottom-up:** Cluster wird nur angelegt, wenn ≥3 Artikel reinkommen
-- **Mikrocluster** (< 3): in `unsortiert/`, später per Hand zuordnen oder löschen
+> **Architektur-Hinweis (2026-06-04):** Embedding-/HDBSCAN-Clustering ist **verworfen** — der Korpus hat keine inhärente Cluster-Struktur (siehe `01_strategy.md` R9). Die 16 Ordner sind ein **fixes, kuratiertes Schema**, keine berechneten Cluster. Die Zuordnung läuft über `category` aus **Qwen-Stage-4** plus ein **deterministisches Mapping** auf die 16 Ordner (siehe Appendix A — Category-Mapping).
+
 - **`category` im Frontmatter** entspricht Ordnername **ohne Nummern-Präfix** (z.B. `webentwicklung`, nicht `02_webentwicklung`)
+- **`unsortiert/`**: für schwache/uneindeutige Zuordnungen (z.B. Business-Domänen ohne eigenen Ordner) — später per Hand zuordnen oder löschen
 - **Ordnernummern sind UX**, keine Daten — können bei Restrukturierung neu vergeben werden
 - **`00_Meta`** und **`15_Gedanken`** folgen eigenen Regeln:
-  - `00_Meta`: keine inhaltliche Cluster-Bewertung, enthält Standards/Templates
-  - `15_Gedanken`: kein Merge, kein Cluster-Embedding (siehe Strategy B5)
+  - `00_Meta`: keine inhaltliche Bewertung, enthält Standards/Templates
+  - `15_Gedanken`: kein Merge, kein Embedding, `type: gedanke`, Minimal-Frontmatter (Sonderpfad Phase 8)
 
 ### Cluster-Index-File (`_index.md`)
 
-Pro genutztem Cluster automatisch generiert in Phase 9. Inhalt:
-- Anzahl Artikel im Cluster
+Pro genutztem Vault-Ordner automatisch generiert in Phase 9. Inhalt:
+- Anzahl Artikel im Ordner
 - Liste aller Artikel mit `title`, `slug`, `status`
-- Tag-Häufigkeiten innerhalb des Clusters
+- Tag-Häufigkeiten innerhalb des Ordners
 - Letzte Aktualisierung
 
 ---
@@ -196,6 +197,24 @@ Lesbarer als Slug. Großschreibung erlaubt. Beispiel:
 ```yaml
 title: "HTTP und HTTPS"
 slug: "http-https"
+```
+
+### Kanonische Slug-Ableitung (verbindlich)
+
+Die Pipeline leitet Slugs **deterministisch** aus dem Korpus-Dateinamen ab. Identische Logik in `pipeline/phase_1_inventory.py:_filename_to_slug` (doc_id) und `pipeline/phase_8_synthesis.py:_slugify_ck` (CK-Slug); `scripts/phase8_runner.py:canonical_ck_slug` repliziert sie für die Draft-Verifikation (Drift durch Test bewacht).
+
+Schritte:
+
+1. **NFC-Normalisierung zuerst** — macOS liefert Dateinamen NFD-zerlegt (`o` + combining ¨). Ohne Komposition matcht die Umlaut-Tabelle nicht und NFKD würde `ä→a` statt `ä→ae` strippen (E2-Bug, behoben 2026-06-04).
+2. **Umlaut-Map:** `ä→ae`, `ö→oe`, `ü→ue`, `ß→ss` (Composed + Uppercase).
+3. NFKD + Combining-Strip (Akzente weg), lowercase.
+4. Sonderzeichen → Bindestrich (`[^a-z0-9]+ → -`), führende/abschließende `-` entfernen.
+5. **60-Zeichen-Cap** auf dem CK-Slug.
+6. **Kollisions-Suffix:** bei doppeltem Slug `_2`, `_3` … (`_assign_doc_ids` bzw. `_unique_slug`).
+
+```text
+"Lösung Übersicht.md"  (NFD)  → loesung-uebersicht
+"erklärung_sage.md"           → erklaerung-sage
 ```
 
 ---
@@ -307,7 +326,7 @@ draft → review → stable → deprecated
 |---|---|
 | `sources_docs: []` | Alle Original-Korpus-Dateien (`D_<slug>`), aus denen dieser Concept entstand |
 | `source_chunks: []` | Konkrete Segment-IDs für RAG-Trace und Auditierbarkeit |
-| `merged_from: []` | Falls dieser Concept aus mehreren früheren Drafts konsolidiert wurde |
+| `merged_from: []` | **Immer leer** — Option B konsolidiert nicht über Docs (1 Doc → 1 Concept) |
 
 **Regel:** `source_chunks` bleibt sichtbar im Frontmatter (Auditierbarkeit + Lernwert).
 
@@ -318,7 +337,7 @@ draft → review → stable → deprecated
 | `parent_concept: null` | Übergeordneter Concept (`CK_xxxx`), oder `null` wenn Top-Level |
 | `child_concepts: []` | Untergeordnete Concepts |
 
-**Initial-Befüllung:** Qwen schlägt vor in Stage 1/4, Mensch bestätigt.
+**Initial-Befüllung:** Qwen schlägt vor in Stage 4, Mensch bestätigt.
 
 **Beispiel:**
 ```yaml
@@ -428,6 +447,38 @@ Bei Schema-Änderung: Schema-Version im Body-Footer notieren, Migration für bes
 
 ---
 
+## Appendix A — Category-Mapping (E5)
+
+Embedding-Clustering ist verworfen (siehe Sektion 4). `category` entsteht in **zwei Schritten**:
+
+1. **Qwen Stage 4** schlägt eine freie `category` vor (88 distinkte Ist-Werte über 180 Drafts).
+2. **Deterministisches Mapping** (`scripts/apply_category_mapping.py`, Single Source of Truth: `data/02_pipeline_output/r3_category_mapping_proposal.md`) bildet diese auf die kanonischen Vault-Kategorien ab. Idempotent, regelbasiert, kein LLM.
+
+### Kanonische `category`-Werte (`ALLOWED_CATEGORIES`, 18)
+
+16 thematische Vault-Ordner (Nummern-Präfix nur als Ordnername, nicht im Feld) plus `meta` (→ `00_Meta/`) und `unsortiert` (→ `unsortiert/`):
+
+| # | category | # | category |
+|---|---|---|---|
+| 01 | `grundlagen` | 09 | `ki-und-semantische-systeme` |
+| 02 | `webentwicklung` | 10 | `datenarchitektur-und-datenbanken` |
+| 03 | `betriebssysteme` | 11 | `dokumentenverarbeitung-und-extraktion` |
+| 04 | `protokolle-und-standards` | 12 | `wissensmodellierung-und-knowledge-graphs` |
+| 05 | `dateitypen-und-konfiguration` | 13 | `visualisierung-reporting-und-design-systeme` |
+| 06 | `methoden-und-prozesse` | 14 | `automatisierung-scripting-und-pipelines` |
+| 07 | `best-practices` | 15 | `gedanken` |
+| 08 | `cheatsheets` | 16 | `kunst-kultur` |
+| — | `meta` (00_Meta) | — | `unsortiert` |
+
+### Resultierende Verteilung (180 aktive Drafts, nach Mapping)
+
+`automatisierung-scripting-und-pipelines` 42 · `grundlagen` 37 · `visualisierung-reporting-und-design-systeme` 17 · `ki-und-semantische-systeme` 16 · `datenarchitektur-und-datenbanken` 12 · `webentwicklung` 8 · `kunst-kultur` 8 · `betriebssysteme` 8 · `unsortiert` 8 · `methoden-und-prozesse` 7 · `dokumentenverarbeitung-und-extraktion` 5 · `dateitypen-und-konfiguration` 5 · `wissensmodellierung-und-knowledge-graphs` 4 · `protokolle-und-standards` 2 · `meta` 1.
+
+> Offene Mapping-Entscheidungen (generische Dev-Kategorien → `automatisierung-…`, Business-Domänen → `unsortiert`, Bild/Film-Grenze) sind im Proposal dokumentiert.
+
+---
+
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version, konsolidiert aus Frontmatter-Schema + Vault-Struktur + Entscheidungen N1–N3
+- 2026-06-04 — `type`-Enum auf 4 Werte (`gedanke`, E1); kanonische Slug-Ableitung (NFC + Umlaut + 60-Cap + unique, E2); Sektion 4 auf fixes Ordner-Schema (Embedding-Clustering verworfen, R9); `merged_from` immer leer (Option B); Appendix A Category-Mapping (E5)

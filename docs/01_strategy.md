@@ -3,7 +3,7 @@ title: PKM-rebuild Strategie
 slug: 01-strategy
 status: stable
 created: 2026-05-25
-updated: 2026-05-29
+updated: 2026-06-04
 ---
 
 # Strategie — PKM-rebuild
@@ -49,9 +49,9 @@ Alle Kriterien müssen erfüllt sein:
 - [ ] `~/projects/aktiv/PKM_rebuild/data/04_vault/` enthält strukturierten Obsidian-Vault
 - [ ] Jede `.md` im Vault hat valides Frontmatter nach `docs/03_vault_standard.md`
 - [ ] Keine SHA-256-Duplikate im Vault
-- [ ] Cluster als Ablage-Heuristik für Vault-Ordner; Mikrocluster und `unsortiert/` erlaubt (bottom-up Pflicht entfällt)
+- [ ] `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner (kein Embedding-Cluster); `unsortiert/` für schwache Zuordnungen erlaubt
 - [ ] `merged_from` leer in allen Vault-Files (kein Cross-Doc-Merge, Option B)
-- [ ] Cluster-Index-Files (`_index.md`) pro genutztem Cluster generiert
+- [ ] Index-Files (`_index.md`) pro genutztem Vault-Ordner generiert
 - [ ] Alle Vault-Artikel mindestens auf Qualitätsstufe 2 (Strukturierter Artikel)
 
 ### Secondary
@@ -79,7 +79,7 @@ Alle Kriterien müssen erfüllt sein:
 |---|---|---|
 | Owner / Reviewer | muente | alle Entscheidungen, alle Reviews |
 | AI-Werkzeug Coding | Claude Code | Pipeline-Code, Doku, Prompts |
-| AI-Werkzeug Synthese | Qwen 3.6 27B | Cluster-Analyse, Merge, Synthese |
+| AI-Werkzeug Synthese | Qwen 3.6 27B | Pro-Doc-Veredelung (Stage 3 + Stage 4), kein Merge |
 
 Keine externen Stakeholder.
 
@@ -103,10 +103,10 @@ Keine externen Stakeholder.
 
 - Qwen 3.6 27B liefert mit 50K-Kontext stabile Outputs für deutsche Tech-Texte *(Annahme revidiert: 128K-Ziel nicht erreichbar auf 32 GB RAM — Hard Limit gemessen: `context_window: 49152`. Einfluss auf Batch-Größe + Token-Budget: `04_qwen_prompts.md` §2 + §9)*
 - ~200 Korpus-Files sind klein genug für Embedding + TF-IDF in vertretbarer Zeit auf M5
-- Bottom-up Cluster-Bildung passt zur Korpus-Realität (≥3 Files pro Cluster)
+- ~~Bottom-up Cluster-Bildung passt zur Korpus-Realität (≥3 Files pro Cluster)~~ *(Annahme revidiert — R9 realisiert: Korpus hat keine inhärente Cluster-Struktur, Embedding-/HDBSCAN-Clustering verworfen. `category` kommt aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner, siehe `03_vault_standard.md` Category-Mapping-Appendix.)*
 - Pipeline-Repo darf public werden (enthält keinen Korpus-Inhalt, Persona gitignored)
 - macOS Memory-Pressure ist managebar durch App-Hygiene während Qwen-Läufen
-- `mpnet-base-v2` Embedding-Modell ist gut genug für deutsche Cluster
+- ~~`mpnet-base-v2` Embedding-Modell ist gut genug für deutsche Cluster~~ *(Annahme obsolet — Clustering verworfen; Embeddings dienen nur noch der Redundanz-Erkennung in Phase 5/6.)*
 
 ---
 
@@ -122,7 +122,7 @@ Keine externen Stakeholder.
 | R6 | Verlust roter Faden / ADHS-Drift | mittel | mittel | Phasen ≤ 4–6h, Reflexionsdoku Pflicht, klare Stop-Punkte |
 | R7 | Schema-Drift Pipeline ↔ Vault | mittel | hoch | Pydantic-Validation + Test-Cases gegen Vault-Standard |
 | R8 | Embedding-Modell zu schwach für DE | niedrig | mittel | mpnet-base gewählt (multilingual stark); Fallback TF-IDF + manuelle Verifikation |
-| R9 | Cluster-Inflation (viele Mikrocluster) | mittel | niedrig | Bottom-up-Regel ≥3 Artikel; Mikrocluster → `unsortiert/` |
+| R9 | Cluster-Inflation (viele Mikrocluster) | — | — | **Realisiert + aufgelöst:** Korpus hat keine inhärente Cluster-Struktur (0.85→0 echte Cluster, 0.65→Mega-Cluster). Embedding-/HDBSCAN-Clustering **verworfen**; `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner. |
 | R10 | Korpus enthält private/sensible Notizen | niedrig | hoch | Daten + Outputs außerhalb Git, `.gitignore` strikt |
 | R11 | Qwen-Output-Format-Drift über Sessions | mittel | mittel | Pydantic-Schema-Validation, JSON-Mode forcieren wo möglich |
 | R12 | Scope-Creep durch „nur noch eine Sache" | hoch | mittel | Out-of-Scope-Liste verbindlich, Änderungen brauchen Strategie-Doc-Update |
@@ -159,10 +159,10 @@ Drei Szenarien pro Phase. **Realistic** ist Planungs-Basis.
 | 3. Strukturextraktion | 2h | 3h | 6h | `documents_structured.jsonl` |
 | 4. Segmentierung | 1h | 2h | 4h | `segments.jsonl` |
 | 5. Redundanz (Hash + TF-IDF) | 2h | 3h | 6h | `exact_duplicates.json`, `near_duplicate_edges.jsonl` |
-| 6. Embeddings + Cluster-Prep | 2h | 4h | 8h | `embeddings.parquet`, Cluster-Vorschläge |
-| 7. LLM-Batch-Bildung | 2h | 3h | 6h | `batches/batch_NNN_<topic>.md` |
-| 7b. UMAP+HDBSCAN *(optional)* | 1h | 2h | 4h | Cluster-Visualisierung |
-| 8. Qwen-Veredelung (Stage 3+4 pro Doc) | 6h | 14h | 28h | `data/03_drafts/CK_*.md` |
+| 6. Embeddings *(nur Redundanz)* | 2h | 4h | 8h | `embeddings.parquet` — Cluster-Prep **verworfen** (R9) |
+| 7. LLM-Batch-Bildung | 2h | 3h | 6h | `batches/batch_NNN_<topic>.md` (Token-Budget-Splits, kein Cluster) |
+| ~~7b. UMAP+HDBSCAN~~ | — | — | — | **verworfen** — kein inhärentes Clustering (R9) |
+| 8. Qwen-Veredelung (Stage 3+4 pro Doc, Option B) | 6h | 14h | 28h | `data/03_drafts/CK_*.{md,body.md,frontmatter.json}` |
 | 9. Vault-Aufbau | 4h | 8h | 16h | `data/04_vault/` |
 | 10. Kontroll-Berichte | 1h | 2h | 4h | 3× `*_report.md` |
 | **SUMME** | **27h** | **51h** | **100h+** | |
@@ -200,3 +200,4 @@ Dieses Doc wird gepflegt bei:
 
 - 2026-05-25 — Initial-Version
 - 2026-05-29 — Option-B-Anpassung: In-Scope Phase 8 auf Stage 3+4 pro Doc; Out-of-Scope Cross-Doc-Synthese ergänzt; DoD Cluster-Kriterium entschärft + merged_from-Kriterium neu; Annahme Kontext-Window 128K→50K korrigiert; R1 Gegenmaßnahme auf Pro-Doc-Kontext; Phase-8-Zeitschätzung angepasst; Abbruchkriterium Cluster→Doc
+- 2026-06-04 — Clustering-Verwurf (R9 realisiert + aufgelöst): Embedding-/HDBSCAN-Clustering verworfen, `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner; Annahmen §6 (bottom-up, mpnet-Cluster) revidiert; Stakeholder-Tabelle + DoD + Phasen-Tabelle (6/7/7b) auf Ist-Stand; Phase 8 abgeschlossen

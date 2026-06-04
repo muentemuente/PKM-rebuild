@@ -3,7 +3,7 @@ title: PKM-rebuild Glossar
 slug: 05-glossary
 status: stable
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-06-04
 ---
 
 # Glossar
@@ -45,7 +45,7 @@ Die Python-basierte Verarbeitungskette in `pipeline/`, die Korpus-Inputs in Vaul
 Eine isolierte, idempotente Verarbeitungs-Einheit der Pipeline. Phasen können einzeln, ab einem Startpunkt, oder gesammelt ausgeführt werden. Jede Phase hat definierte Akzeptanzkriterien.
 
 ### Stage
-Eine Unter-Einheit innerhalb von Phase 8 (Qwen-Synthese). Es gibt 4 Stages: Cluster-Analyse, Merge-Vorschlag, Synthese, Frontmatter. Jede Stage hat einen eigenen Prompt in `prompts/v<n>/`.
+Eine Unter-Einheit innerhalb von Phase 8 (Qwen-Veredelung). **Aktiv (Option B): Stage 3** (Pro-Doc-Veredelung des Body) + **Stage 4** (Frontmatter). Stage 1 (Cluster-Analyse) und Stage 2 (Merge-Vorschlag) sind **deprecated** — Option A, kein Cross-Doc-Merge. Jede aktive Stage hat einen eigenen Prompt in `prompts/v<n>/`.
 
 ### Idempotenz
 Eigenschaft, dass wiederholte Ausführungen mit gleichem Input identische Outputs erzeugen. In der Pipeline durch Hash-basierte Skip-Logik realisiert. Mit `--force` umgehbar.
@@ -54,13 +54,13 @@ Eigenschaft, dass wiederholte Ausführungen mit gleichem Input identische Output
 Reduzierter Pipeline-Lauf mit nur N Files aus dem Korpus (Default: 10), aktiviert via `--sample 10`. Für schnelles Testen ohne Vollverarbeitung.
 
 ### Review-Gate
-Punkt im Pipeline-Ablauf, an dem ein Mensch eine Entscheidung treffen muss, bevor weitergegangen wird. Drei Gates in diesem Projekt: nach Cluster-Bildung, nach Merge-Vorschlägen, nach Synthese-Draft.
+Punkt im Pipeline-Ablauf, an dem ein Mensch eine Entscheidung treffen muss, bevor weitergegangen wird. In Option B: nach Cluster-/Batch-Karte und nach dem Synthese-Draft pro Doc. **Gate 2 (Merge-Vorschläge) entfällt** — kein Cross-Doc-Merge.
 
-### Cluster
-Gruppe semantisch verwandter Segmente, erzeugt in Phase 6 durch Embedding-Similarity oder TF-IDF. Bottom-up-Regel: ein Cluster wird nur etabliert, wenn er ≥3 Files umfasst.
+### Cluster *(verworfen als Vault-Strukturprinzip)*
+Gruppe semantisch verwandter Segmente. Embedding-/HDBSCAN-Clustering wurde **verworfen** — der Korpus hat keine inhärente Cluster-Struktur (`01_strategy.md` R9). Embeddings/TF-IDF dienen nur noch der **Redundanz-Erkennung** (Phase 5/6); die Vault-Ordner sind ein fixes kuratiertes 16er-Schema, `category` kommt aus Qwen-Stage-4 + deterministischem Mapping.
 
-### Mikrocluster
-Cluster mit weniger als 3 Files. Diese werden initial in `data/04_vault/unsortiert/` abgelegt und später per Hand zugeordnet oder gelöscht.
+### `unsortiert`
+Vault-Ordner für schwache/uneindeutige `category`-Zuordnungen (z.B. Business-Domänen ohne eigenen Ordner). Später per Hand zuordnen oder löschen.
 
 ### Embedding
 Numerische Vektor-Repräsentation eines Text-Segments, erzeugt durch `paraphrase-multilingual-mpnet-base-v2`. Dimensionsanzahl: 768. Verwendet für semantische Ähnlichkeits-Berechnungen.
@@ -90,8 +90,8 @@ URL-sichere Kurzform eines Titels. Entspricht dem Dateinamen ohne `.md`. Naming-
 ### Wikilink
 Obsidian-spezifische Link-Syntax `[[CK_yaml-frontmatter]]` oder `[[YAML und Frontmatter]]`. Verbindet Concept-Notes innerhalb des Vaults. Pflege erfolgt manuell, basierend auf Embedding-Vorschlägen.
 
-### Cluster-Index
-Pro Cluster eine `_index.md`-Datei, automatisch in Phase 9 generiert. Listet alle Artikel im Cluster mit Title, Status, Tags. Regenerierbar.
+### Ordner-Index
+Pro genutztem Vault-Ordner eine `_index.md`-Datei, automatisch in Phase 9 generiert. Listet alle Artikel im Ordner mit Title, Status, Tags. Regenerierbar.
 
 ### Provenance
 Spur, woher ein Vault-Artikel inhaltlich stammt. Realisiert durch die Felder `sources_docs`, `source_chunks`, `merged_from` im Frontmatter.
@@ -101,7 +101,7 @@ Spur, woher ein Vault-Artikel inhaltlich stammt. Realisiert durch die Felder `so
 ## Klassifikations-Begriffe
 
 ### `type` (Frontmatter-Feld)
-Bestimmt das Template eines Artikels. Drei Werte: `process-document`, `knowledge-article`, `compact-reference`.
+Bestimmt das Template eines Artikels. Vier Werte: `process-document`, `knowledge-article`, `compact-reference`, `gedanke` (E1, für den Gedanken-Sonderpfad).
 
 ### `doc_role` (Frontmatter-Feld)
 Funktionale Rolle eines Artikels. Liste-Feld. Mögliche Werte: `manual`, `how-to`, `best-practice`, `workflow`, `explanation`, `reference`, `cheatsheet`, `wiki`.
@@ -110,7 +110,7 @@ Funktionale Rolle eines Artikels. Liste-Feld. Mögliche Werte: `manual`, `how-to
 Heuristische Typ-Vermutung in Phase 3. Mit Confidence + Signalen versehen. Erscheint **nicht** im finalen Frontmatter — wird durch `type` und `doc_role` ersetzt, die Qwen in Stage 4 setzt.
 
 ### `category` (Frontmatter-Feld)
-Top-Cluster-Ordnername **ohne** Nummern-Präfix. Beispiel: `webentwicklung`. Der Ordner im Vault heißt `02_Webentwicklung/` (mit Nummer für UX), aber `category` führt nur den Namen.
+Vault-Ordnername **ohne** Nummern-Präfix. Beispiel: `webentwicklung`. Der Ordner im Vault heißt `02_Webentwicklung/` (mit Nummer für UX), aber `category` führt nur den Namen. 18 erlaubte Werte (`ALLOWED_CATEGORIES`): 16 thematische Ordner + `meta` + `unsortiert`. Quelle: Qwen-Stage-4 + deterministisches Mapping (`03_vault_standard.md` Appendix A).
 
 ### `subcategory` (Frontmatter-Feld)
 Zweite Cluster-Ebene innerhalb einer `category`. Beispiel: `subcategory: rest-apis` innerhalb `category: webentwicklung`.
@@ -135,8 +135,23 @@ Inhaltliche Reife eines Artikels, unabhängig vom Status. Stufen: Rohnotiz → S
 
 ## Workflow-Begriffe
 
-### Bottom-up Cluster-Regel
-Cluster werden nur angelegt, wenn ≥3 Artikel hineinpassen. Mikrocluster landen in `unsortiert/`. Verhindert Cluster-Inflation.
+### Routing (Phase 8, Option B)
+Pro Doc deterministisch gewählter Verarbeitungspfad: **`passthrough`** (Doc enthält Code ODER ≥1 Tabelle ODER ≥3 Headings → Body 1:1, kein LLM-Call, nur Stage 4) · **`stage3`** (Prosa → LLM-Veredelung + Stage 4) · **`gedanken`** (Sonderpfad, Minimal-Frontmatter). Strukturierte Docs verlieren durch LLM-Umschreiben Information — daher passthrough.
+
+### `passthrough`
+Routing-Pfad, der den Doc-Body unverändert (1:1) aus den Segmenten übernimmt und nur Frontmatter (Stage 4) ergänzt. Kein Stage-3-LLM-Call.
+
+### `canonical_ck_slug`
+Kanonische Slug-Ableitung für `CK_<slug>`-Dateinamen, identisch zur Pipeline (`_filename_to_slug` ∘ `_slugify_ck`): NFC-Komposition (macOS-NFD-Fix) → Umlaut-Map → NFKD-Akzent-Strip → lowercase → Sonderzeichen→Bindestrich → 60-Cap → Kollisions-Suffix. Implementiert in `scripts/phase8_runner.py`, gegen die Pipeline per Test bewacht.
+
+### Triage-Action
+Eindeutige Einordnung pro Korpus-Slug durch `scripts/pkm_triage.py`: **`IN_VAULT`** (fertig) · **`READY_TO_MIGRATE`** (Draft sauber) · **`POSTPROCESS`** (deterministisch fixbar, z.B. category/slug) · **`RERUN_LM`** (semantisch/strukturell defekt → LM neu) · **`FRESH_RUN`** (kein Draft vorhanden). Separat: `ORPHAN_DRAFT`, `EXCLUDED`.
+
+### `_hold/`
+Unterordner in `03_drafts/` für **zurückgestellte** Drafts (aktuell 19 Gedanken). Von der Toolchain ignoriert (Top-Level-Glob), Manifest in `HOLD_MANIFEST.md`. Re-Run-Kandidaten, siehe `docs/FUTURE_RUN.md`.
+
+### `_excluded/`
+Unterordner in `01_corpus_input/` für aus der Mainstream-Pipeline **ausgeschlossene** Korpus-Files (aktuell 3: `denkschulen_…` als Survey-Doc + 2 Stage-3-Hangs). Phase 1 überspringt `_*`-Prefix.
 
 ### Snapshot
 Manuelle oder automatische Sicherung des aktuellen Sessions-Kontexts oder Vault-Zustands. Wird vor Token-Limits, Pausen oder größeren Änderungen erstellt. Pfad: `.claude/snapshots/` (Session) oder `~/projects/aktiv/PKM_rebuild/backups/` (Vault).
@@ -145,7 +160,7 @@ Manuelle oder automatische Sicherung des aktuellen Sessions-Kontexts oder Vault-
 Protokoll für App-Hygiene während Qwen-Läufen, da nur ~4 GB RAM für macOS frei sind. Browser, Mail, Slack zu — Zed, Ghostty, LM Studio offen. Definiert in `docs/00_persona_muente.md` Sektion 6.
 
 ### Review-Gate
-Verpflichtender menschlicher Entscheidungspunkt zwischen Pipeline-Phasen oder Stages. Drei Stück in diesem Projekt (siehe oben „Review-Gate" unter Pipeline-Begriffe).
+Verpflichtender menschlicher Entscheidungspunkt zwischen Pipeline-Phasen oder Stages. In Option B zwei Gates (Gate 2/Merge entfällt; siehe oben „Review-Gate" unter Pipeline-Begriffe).
 
 ### Prompt-Iteration
 Verbesserungs-Zyklus für einen Qwen-Prompt: Hypothese → Snapshot → Klein-Test → Diff → Entscheidung → Reflexion. Definiert in `docs/04_qwen_prompts.md` Sektion 10.
@@ -180,3 +195,4 @@ Neue Begriffe werden ergänzt, wenn sie im Projekt zum ersten Mal verwendet werd
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version
+- 2026-06-04 — Option B + Clustering-Verwurf: Stage/Review-Gate/Cluster/category/type auf Ist-Stand; neue Begriffe Routing, passthrough, canonical_ck_slug, Triage-Action, _hold, _excluded, unsortiert, Ordner-Index

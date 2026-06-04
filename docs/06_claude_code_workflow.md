@@ -3,7 +3,7 @@ title: PKM-rebuild Claude Code Workflow
 slug: 06-claude-code-workflow
 status: stable
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-06-04
 sources_external:
   - https://docs.claude.com/en/docs/claude-code/overview
   - https://code.claude.com/docs/en/hooks
@@ -15,6 +15,8 @@ sources_external:
 Setup, Nutzung, Token-Management und Automatisierungs-Patterns für Claude Code in diesem Projekt.
 
 **Geltungsbereich:** Stand 25. Mai 2026. Anthropic ändert Limits und Features regelmäßig. Bei Diskrepanz: offizielle Quellen sind führend.
+
+> **Shell-Commands in autonomen Läufen:** In Bash-Variablen-Zuweisungen `$HOME` statt `~` verwenden — eine Tilde im Assignment-Value (`VAR=~/...`) triggert den Claude-Code-Security-Wrapper und blockiert die autonome Ausführung. Vollständige Regel + Beispiele: `CLAUDE.md` §12.
 
 ---
 

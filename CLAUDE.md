@@ -6,7 +6,9 @@ Dieses Dokument ist der primäre Projekt-Kontext für Claude Code. Es wird zu Be
 
 ## 1. Projekt-Kontext
 
-PKM-rebuild ist eine Pipeline und ein Workflow zur Bereinigung einer bestehenden Markdown-Wissenssammlung (~200 Dateien). Das Ergebnis ist ein strukturierter Obsidian-Vault mit konsistentem Frontmatter, ohne Redundanzen, mit stabiler Cluster-Struktur.
+PKM-rebuild ist eine Pipeline und ein Workflow zur Bereinigung einer bestehenden Markdown-Wissenssammlung (~200 Dateien). Das Ergebnis ist ein strukturierter Obsidian-Vault mit konsistentem Frontmatter, ohne Redundanzen, in einer kuratierten 16-Ordner-Struktur.
+
+**Aktueller Stand (2026-06-04):** Phase 8 (Qwen-Veredelung, **Option B** — Pro-Doc, kein Cross-Doc-Merge) abgeschlossen → 180 vault-ready Drafts, 19 `_hold`, 3 `_excluded`. **Phase 9 (Vault-Aufbau) als Nächstes.** Embedding-Clustering wurde verworfen (Korpus ohne inhärente Cluster-Struktur). Details: `docs/PROJECT_STATUS.md`.
 
 Vollständiger Kontext: `README.md`, `docs/01_strategy.md`.
 
@@ -86,6 +88,7 @@ Vollständig in `docs/03_vault_standard.md`. Übersicht:
 | Korpus-Datei-ID | `D_<slug>` | `D_yaml-frontmatter` |
 | Segment-ID | `<doc_id>-S<index:04d>` | `D_yaml-frontmatter-S0003` |
 | Concept-ID (Vault-Artikel) | `CK_<slug>` | `CK_yaml-frontmatter` |
+| Type (4 Werte) | `process-document \| knowledge-article \| compact-reference \| gedanke` | `knowledge-article` |
 | Status | `draft → review → stable → deprecated` | `review` |
 | Review-Status | `ai_drafted → human_reviewed → verified` | `ai_drafted` |
 | Confidence (Qwen) | `low | medium | high` | `medium` |
@@ -103,15 +106,14 @@ Vollständig in `docs/02_pipeline_spec.md`.
 3. Strukturextraktion
 4. Segmentierung
 5. Redundanz-Erkennung (Hash + TF-IDF)
-6. Embeddings (mpnet-base) + Cluster-Vorbereitung
-7. LLM-Batch-Bildung
-   7b. (optional) UMAP + HDBSCAN
-8. Qwen-Synthese (4 Stages)
-9. Vault-Aufbau
+6. Embeddings (mpnet-base) — nur Redundanz; Cluster-Prep VERWORFEN (R9)
+7. LLM-Batch-Bildung (Token-Budget-Splits, kein Cluster)   [7b UMAP+HDBSCAN verworfen]
+8. Qwen-Veredelung (Option B): Routing passthrough | stage3 | gedanken, dann Stage 4
+9. Vault-Aufbau (16 Ordner; category aus Stage 4 + deterministischem Mapping)
 10. Kontroll-Berichte
 ```
 
-Review-Gates befinden sich nach Phase 6/7 (Cluster-Karte), nach Stage 2 von Phase 8 (Merge-Vorschläge), nach Stage 3 von Phase 8 (Synthese-Draft pro Cluster).
+Review-Gates (Option B): nach Phase 7 (Batch-/Triage-Karte) und nach dem Synthese-Draft pro Doc (Phase 8). **Gate 2 (Merge-Vorschläge) entfällt** — kein Cross-Doc-Merge.
 
 ---
 
@@ -199,3 +201,4 @@ Die Tilde außerhalb von Assignments (etwa als Command-Argument, `ls ~/foo`) ist
 - 2026-05-25 — Initial-Version (faktisch-deklarativ, Hard Constraints abgegrenzt)
 - 2026-05-28 — Sektion 2: tool-routing ergänzt; Sektion 11: CLI an Realität angepasst (--confirm/validate entfernt, --phase 8/--dry-run ergänzt)
 - 2026-06-02 — Sektion 12 ergänzt: $HOME statt ~ in Bash-Assignments (Security-Wrapper)
+- 2026-06-04 — Ist-Stand: Phase 8 abgeschlossen (Option B), Phase 9 next; §1 Stand-Block; §6 type-Enum (4 Werte, gedanke); §7 Phasen + Review-Gates auf Option B + Clustering-Verwurf

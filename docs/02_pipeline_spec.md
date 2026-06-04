@@ -3,7 +3,7 @@ title: PKM-rebuild Pipeline-Spezifikation
 slug: 02-pipeline-spec
 status: stable
 created: 2026-05-25
-updated: 2026-05-29
+updated: 2026-06-04
 ---
 
 # Pipeline-Spezifikation
@@ -36,19 +36,20 @@ Technische Referenz: Architektur, Phasen, Schemas, Konfiguration, CLI, Tests.
               │  (Hash + TF-IDF)    │   near_duplicate_edges.jsonl
               └──────────┬──────────┘
               ┌──────────▼──────────┐
-              │ Phase 6: Embeddings │ → embeddings.parquet,
-              │   (mpnet-base)      │   cluster_proposals.json
+              │ Phase 6: Embeddings │ → embeddings.parquet
+              │ (mpnet, nur Redund.)│   (Cluster-Prep verworfen, R9)
               └──────────┬──────────┘
               ┌──────────▼──────────┐
               │ Phase 7: Batches    │ → batches/batch_NNN_*.md
+              │ (Token-Budget-Split)│   (kein Cluster)
               └──────────┬──────────┘
                          │
    ┏━━━━━━━━━━━━━━━━━━━━━▼━━━━━━━━━━━━━━━━━━━━━┓  ← REVIEW-GATE 1
-   ┃  Mensch prüft Cluster-Karte               ┃
+   ┃  Mensch prüft Batch-/Triage-Karte         ┃
    ┗━━━━━━━━━━━━━━━━━━━━━┬━━━━━━━━━━━━━━━━━━━━━┛
               ┌──────────▼──────────┐
-              │ Phase 8: Stage 3    │ → drafts/CK_*.md (Body)
-              │ Pro-Doc-Veredelung  │
+              │ Phase 8: Routing    │ passthrough | stage3 | gedanken
+              │ + Stage 3 (Body)    │ → drafts/CK_*.body.md
               └──────────┬──────────┘
               ┌──────────▼──────────┐
               │ Phase 8: Stage 4    │ → drafts/CK_*.frontmatter.json
@@ -76,8 +77,8 @@ Technische Referenz: Architektur, Phasen, Schemas, Konfiguration, CLI, Tests.
 | `prompts/v1/` | Qwen-Prompt-Files | ✅ public |
 | `docs/` | Projekt-Doku | ✅ public (Persona gitignored) |
 | `~/projects/aktiv/PKM_rebuild/data/01_corpus_input/` | Original `.md` (read-only) | ❌ lokal |
-| `~/projects/aktiv/PKM_rebuild/data/02_pipeline_output/` | JSONL, Embeddings, Cluster | ❌ lokal |
-| `~/projects/aktiv/PKM_rebuild/data/03_drafts/` | Qwen-Outputs | ❌ lokal |
+| `~/projects/aktiv/PKM_rebuild/data/02_pipeline_output/` | JSONL, Embeddings, Triage, Batches | ❌ lokal |
+| `~/projects/aktiv/PKM_rebuild/data/03_drafts/` | Qwen-Outputs (`CK_*.{md,body.md,frontmatter.json}`), `_hold/` | ❌ lokal |
 | `~/projects/aktiv/PKM_rebuild/data/04_vault/` | finaler Obsidian-Vault | ❌ lokal |
 | `~/projects/aktiv/PKM_rebuild/backups/` | Snapshots | ❌ lokal |
 
@@ -116,10 +117,13 @@ redundancy:
     model: "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
     batch_size: 32
 
-# === Cluster ===
+# === Cluster (VERWORFEN — R9) ===
+# Embedding-/HDBSCAN-Clustering liefert auf diesem Korpus keine brauchbaren
+# Cluster. Block bleibt nur als Lern-Artefakt; category kommt aus Qwen-Stage-4
+# + deterministischem Mapping (03_vault_standard.md Appendix A).
 clustering:
-  min_cluster_size: 3        # bottom-up Regel
-  enable_umap_hdbscan: false # Phase 7b (optional)
+  min_cluster_size: 3        # ungenutzt
+  enable_umap_hdbscan: false # verworfen
   umap:
     n_neighbors: 15
     min_dist: 0.1
@@ -323,30 +327,23 @@ python -m pipeline reports
 
 ---
 
-### Phase 6: Embeddings + Cluster-Vorbereitung
+### Phase 6: Embeddings (nur Redundanz)
+
+> **Architektur-Hinweis (2026-06-04):** Cluster-Vorbereitung **verworfen** (R9, `01_strategy.md`) — der Korpus hat keine inhärente Cluster-Struktur. Embeddings dienen nur noch der Redundanz-Erkennung (Phase 5). Die Vault-Ordner sind ein fixes 16er-Schema; `category` kommt aus Qwen-Stage-4 + deterministischem Mapping (`03_vault_standard.md` Appendix A).
 
 **Input:** Phase 4 Output
-**Output:**
-- `data/02_pipeline_output/embeddings.parquet`
-- `data/02_pipeline_output/cluster_proposals.json`
+**Output:** `data/02_pipeline_output/embeddings.parquet`
 
 **Logik:**
 - Embedding pro Segment via `paraphrase-multilingual-mpnet-base-v2`
-- Cosine-Similarity-Matrix für semantische Ähnlichkeit
-- Initiale Cluster-Vorschläge (greedy / agglomerativ, einfach)
-- Min-Cluster-Size = 3 (bottom-up)
+- Cosine-Similarity für Near-Duplicate-Kanten (Phase 5)
 
-**Schema:** `EmbeddingRecord`, `ClusterProposal`
+**Schema:** `EmbeddingRecord`
 
 **Akzeptanzkriterien:**
 - [ ] Embeddings als parquet (kompakt, schnell lesbar)
-- [ ] Cluster-Vorschläge mit Label-Vermutung pro Cluster
-- [ ] Mikrocluster (< 3) gehen in `unsortiert`
 
-**Phase 7b — UMAP+HDBSCAN (optional):**
-- Wenn `enable_umap_hdbscan: true`: 2D-Projektion + dichtebasiertes Clustering
-- Output: `cluster_visualization.html` (Plotly)
-- Kein DoD-Kriterium, rein Lernzweck
+**~~Phase 7b — UMAP+HDBSCAN~~ (verworfen):** Embedding-Clustering liefert auf diesem Korpus keine brauchbaren Cluster (0.85→0, 0.65→Mega-Cluster). Code bleibt als Lern-Artefakt (`scripts/clustering_analysis.py`), ist aber nicht Teil des Produktiv-Pfads.
 
 ---
 
@@ -356,8 +353,8 @@ python -m pipeline reports
 **Output:** `data/02_pipeline_output/batches/batch_NNN_<topic-slug>.md`
 
 **Logik:**
-- Pro Cluster ein Batch-File
-- Inhalt: Metadaten, enthaltene Dokumente, bekannte Ähnlichkeiten (TF-IDF + Embeddings), alle Segmente mit IDs + Heading-Pfaden
+- Batches sind **Token-Budget-Splits**, keine semantischen Cluster
+- Inhalt: enthaltene Dokumente, alle Segmente mit IDs + Heading-Pfaden
 - Token-Schätzung pro Batch (Ziel: < 35K Token Input, damit Reasoning-Raum für Qwen bleibt)
 - Batches > 35K werden in Sub-Batches geteilt
 
@@ -366,7 +363,7 @@ python -m pipeline reports
 - [ ] Jeder Batch enthält Anweisungs-Header für Qwen
 - [ ] Token-Schätzung pro Batch geloggt
 
-**→ REVIEW-GATE 1:** Mensch prüft `cluster_report.md` (aus Phase 10 vorgezogen) und entscheidet: weiter, Cluster anpassen, Schwellwerte ändern.
+**→ REVIEW-GATE 1:** Mensch prüft die Batch-/Triage-Karte (`triage_report.md`, `scripts/pkm_triage.py`) und entscheidet: weiter, Batches/Schwellwerte anpassen.
 
 ---
 
@@ -376,6 +373,16 @@ Pro Doc durchlaufen Stage 3 und Stage 4. Failure in einer Stage → Retry oder F
 
 > **Option B:** Stage 1 (Cluster-Analyse) und Stage 2 (Merge-Vorschläge) entfallen vollständig. Kein Cross-Doc-Merge.
 > Historische Referenz: `prompts/v1/stage1_cluster_analysis.md` + `stage2_merge_proposal.md` (deprecated, Option A).
+
+**Routing pro Doc (deterministisch, vor Stage 3):**
+
+| Pfad | Bedingung | Verhalten |
+|---|---|---|
+| `passthrough` | Doc enthält Code **ODER** ≥1 Tabelle **ODER** ≥3 Headings | Body 1:1 aus Segmenten, **kein** Stage-3-LLM-Call, danach Stage 4 |
+| `stage3` | reine Prosa ohne starke Struktur | LLM-Veredelung (Stage 3) + Stage 4 |
+| `gedanken` | `doc_type_guess.label == "gedanke"` | Sonderpfad: kein Stage 3, Minimal-Frontmatter via `stage4_frontmatter_gedanken.md` |
+
+**Mechanik (Toolchain):** Triage (`scripts/pkm_triage.py`) routet Korpus-Slugs auf Actions (`READY_TO_MIGRATE`/`POSTPROCESS`/`RERUN_LM`/`FRESH_RUN`) und erzeugt Batches; `scripts/phase8_runner.py` fährt sie ab (subprocess pro Slug, State-File, **autoritative** Output-Verifikation: existieren `CK_<slug>.md` + `.frontmatter.json` → Erfolg, unabhängig vom Returncode). Slug-Ableitung kanonisch (NFC + Umlaut + 60-Cap), siehe `03_vault_standard.md` §5.
 
 #### Stage 3 — Pro-Doc-Veredelung (Body)
 **Prompt:** `prompts/v1/stage3_synthesis.md`
@@ -500,7 +507,7 @@ class EmbeddingRecord(BaseModel):
     embedding: list[float]              # 768-dim für mpnet-base
     model: str
 
-class ClusterProposal(BaseModel):
+class ClusterProposal(BaseModel):       # VERWORFEN (R9) — nicht im Produktiv-Pfad
     cluster_id: str                     # C_<slug>
     label_guess: str
     segment_ids: list[str]
@@ -575,7 +582,7 @@ Globaler State-File: `data/02_pipeline_output/pipeline_state.json` mit aktueller
 
 | Gate | Nach Phase | Mensch entscheidet |
 |---|---|---|
-| 1 | Phase 6/7 (Cluster) | Cluster-Verteilung okay? Schwellwerte anpassen? Cluster manuell mergen? |
+| 1 | Phase 7 (Batch-/Triage-Karte) | Batch-Verteilung okay? Schwellwerte/Actions anpassen? (kein Cluster-Merge — verworfen) |
 | 3 | Phase 8 Stage 4 (Frontmatter) | Drafts pro Doc prüfen (Veredelung + Frontmatter-Korrektheit), freigeben für Phase 9 |
 
 *(Gate 2 — Merge-Genehmigung — entfällt in Option B)*
@@ -605,7 +612,7 @@ Review-UI: Markdown-Files in Zed öffnen + `git diff` für Vergleich.
 | Phase 1–4 | < 30 s gesamt |
 | Phase 5 (TF-IDF) | < 5 min |
 | Phase 6 (Embeddings) | 5–15 min (mpnet-base auf MPS) |
-| Phase 8 (Qwen pro Batch) | 13–37 min pro Cluster (alle 4 Stages); ~4–12h gesamt bei ~20 Clustern (7.45 t/s gemessen, ~10× Reasoning-Overhead) |
+| Phase 8 (Qwen pro Doc) | passthrough: Sekunden (kein LLM); stage3: Minuten pro Doc (~10× Reasoning-Overhead, 7.45 t/s gemessen) |
 | Phase 9 | < 1 min |
 
 ---
@@ -622,3 +629,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-05-29 — Option-B-Anpassung: Architektur-Diagramm Stage 1/2 + Gate 2 entfernt; Phase-8-Header auf Stage 3+4 pro Doc; Stage 1/2 als entfallen markiert; Stage 3 als Pro-Doc-Veredelung neu definiert; Akzeptanzkriterien merged_from→leer; FrontmatterDraft-Kommentar ergänzt; Gate-2-Zeile entfernt
 - 2026-05-30 — Block 0G.6: FrontmatterDraft.type um "gedanke" erweitert (Sonderpfad 15_Gedanken/)
 - 2026-05-30 — Block 8.A.1: Phase-8-Routing 1:1-Passthrough (code/table/headings); confidence-Hinweis zu Akzeptanzkriterien
+- 2026-06-04 — Clustering-Verwurf (R9): Phase 6 auf Embeddings-nur-Redundanz, Phase 7b verworfen, ClusterProposal/Cluster-Config als ungenutzt markiert; Phase-7-Batches als Token-Budget-Splits; Phase-8-Routing-Tabelle (passthrough/stage3/gedanken) + Triage/Runner-Mechanik; Architektur-Diagramm + Gate-1-Label + Performance-Tabelle auf Ist-Stand

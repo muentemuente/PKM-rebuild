@@ -1,13 +1,14 @@
 # PKM-rebuild
 
-Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung. Ziel: aus ~200 unstrukturierten Markdown-Dateien einen sauber strukturierten Obsidian-Vault mit konsistentem Frontmatter, deduplizierten Inhalten und stabiler Cluster-Struktur generieren.
+Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung. Ziel: aus ~200 unstrukturierten Markdown-Dateien einen sauber strukturierten Obsidian-Vault mit konsistentem Frontmatter, deduplizierten Inhalten und thematischer Ordner-Struktur generieren.
 
 ## Status
 
-- **Phase:** Phasen 1–8 implementiert, Echtlauf ausstehend (Phase 9–10 Stub)
-- **Stand:** 2026-05-28
+- **Phase:** Phase 8 (Qwen-Veredelung) abgeschlossen — **Phase 9 (Vault-Aufbau) als Nächstes**
+- **Stand:** 2026-06-04
+- **Drafts:** 180 vault-ready · 19 `_hold` (Gedanken, deferred) · 3 `_excluded` (denkschulen + 2 Hangs)
 - **Charakter:** Lernprojekt mit produktivem Output
-- **Offene Tasks:** [`docs/tasks/README.md`](docs/tasks/README.md)
+- **Offene Tasks:** [`docs/tasks/README.md`](docs/tasks/README.md), [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md)
 
 ---
 
@@ -15,9 +16,9 @@ Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung
 
 | Stufe | Inhalt |
 |---|---|
-| **A. Vorbereitung (Python)** | Inventar, Normalisierung, Segmentierung, Redundanz-Erkennung (Hash → TF-IDF → Embeddings), thematische Cluster-Bildung |
-| **B. Synthese (Qwen 3.6 27B lokal)** | mehrstufige Verarbeitung: Cluster-Analyse → Merge-Vorschläge → Synthese → Frontmatter-Generierung |
-| **C. Vault-Aufbau** | bereinigte Artikel in neuen Obsidian-Vault mit Cluster-Struktur, Wikilinks, Tag-Vokabular |
+| **A. Vorbereitung (Python)** | Inventar, Normalisierung, Strukturextraktion, Segmentierung, Redundanz-Erkennung (Hash → TF-IDF → Embeddings) |
+| **B. Veredelung (Qwen 3.6 27B lokal, Option B)** | **Pro-Doc** statt Cross-Doc-Merge. Routing je Doc: `passthrough` (Code/Tabellen/Headings → Body 1:1 + Frontmatter) · `stage3` (Prosa → LLM-Veredelung + Frontmatter) · `gedanken` (Sonderpfad, Minimal-Frontmatter). Kein Cluster-Merge, `merged_from` immer leer. |
+| **C. Vault-Aufbau** | bereinigte Artikel in Obsidian-Vault; `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 thematische Ordner, Wikilinks, Tag-Vokabular |
 
 ---
 
@@ -131,6 +132,8 @@ Reihenfolge zum Einstieg (auch für Claude Code als Lese-Kontext):
 | [`docs/05_glossary.md`](docs/05_glossary.md) | Begriffsdefinitionen |
 | [`docs/06_claude_code_workflow.md`](docs/06_claude_code_workflow.md) | Claude Code in Zed, Token-Management, Recovery |
 | [`docs/07_backup_strategy.md`](docs/07_backup_strategy.md) | Backup-Plan für den Vault |
+| [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) | Aktueller Projektstand, Counts, Phase-9-Readiness |
+| [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md) | Backlog nächster Pipeline-Lauf (geparkte Gedanken, Hangs, neue Files) |
 | [`docs/learnings/`](docs/learnings/) | Reflexionsdokumente pro Phase |
 | [`docs/tasks/README.md`](docs/tasks/README.md) | Offene Tasks + Blöcke (P0–P2) |
 

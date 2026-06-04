@@ -3,7 +3,7 @@ title: PKM-rebuild Backup-Strategie
 slug: 07-backup-strategy
 status: stable
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-06-04
 ---
 
 # Backup-Strategie
@@ -131,6 +131,20 @@ bash scripts/snapshot.sh
 ```
 
 **Aufbewahrung:** lokal in `~/projects/aktiv/PKM_rebuild/backups/`. Nach 30 Tagen alte Snapshots manuell aufräumen.
+
+### Backup-Verzeichnis-Konventionen (real in Gebrauch)
+
+In `~/projects/aktiv/PKM_rebuild/backups/` haben sich folgende Präfixe etabliert:
+
+| Präfix | Zweck | Erzeuger |
+|---|---|---|
+| `snapshot_<ts>/` | Pre-Pipeline-/`--force`-Snapshot (Korpus + Vault) | `scripts/snapshot.sh` |
+| `pre_phase9_<ts>/` | gezielter Draft-Snapshot vor Phase 9 | manuell / Hardening-Runs |
+| `archive_<ts>/` | **archive-before-delete** — regenerierbare Outputs (Triage-Batches, phase8_logs, `.DS_Store`) werden hierher verschoben, nie hart gelöscht | Cleanup-Runs |
+| `phase8_<batch>_<ts>/` | vom Runner verdrängte Drafts vor Re-Synthese | `phase8_runner.py` |
+| `cleanup_<ts>/`, `hidden_<ts>/` | ältere manuelle Aufräum-Snapshots | manuell |
+
+**Regel `archive-before-delete`:** Inhalte unter `data/` werden vor dem Entfernen nach `backups/archive_<datum>/` verschoben, niemals hart gelöscht. OS-Junk außerhalb `data/` (z.B. Repo-`.DS_Store`) ist davon ausgenommen.
 
 ---
 

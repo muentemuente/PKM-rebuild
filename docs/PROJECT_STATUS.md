@@ -3,12 +3,30 @@ title: PKM-rebuild — Projektstand
 slug: project-status
 status: draft
 created: 2026-05-28
-updated: 2026-05-30
+updated: 2026-06-04
 ---
 
-# PKM-rebuild — Projektstand (2026-05-28)
+# PKM-rebuild — Projektstand (2026-06-04)
 
 Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus und offenen Punkte. Dient als Review-Basis vor Phase 9.
+
+---
+
+## 0. Aktueller Stand (2026-06-04)
+
+**Phase 8 abgeschlossen — Phase 9 (Vault-Aufbau) als Nächstes.**
+
+| Größe | Wert |
+|---|---|
+| Vault-ready Drafts | **180** (0 Schema-Issues, alle `category` ∈ ALLOWED) |
+| Zurückgestellt `_hold/` | 19 Gedanken (deferred → `docs/FUTURE_RUN.md`) |
+| Exkludiert `_excluded/` | **3** (`denkschulen_…` Survey-Doc + 2 Stage-3-Hangs) |
+| Reconcile | 199 Korpus-Slugs (180 + 19) + 3 excluded = 202 |
+| Test-Suite | **359** grün, ruff sauber |
+| Architektur | Option B (Pro-Doc, kein Merge); Embedding-Clustering **verworfen** (R9) |
+| Hardening | E1 (gedanke-Enum), E2 (NFC-Slug), E3–E5 — gemergt auf main |
+
+Verdikt: **GO für Phase 9.** Details: `docs/learnings/PHASE_08_synthesis.md`, `docs/PRE_PHASE9_HARDENING.md`.
 
 ---
 
@@ -22,9 +40,9 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | 3 | Strukturextraktion | ✅ done | `7af5c95` |
 | 4 | Segmentierung | ✅ done | `87e7311` |
 | 5 | Redundanz-Erkennung | ✅ done | `d9cb420` |
-| 6 | Embeddings + Cluster-Vorbereitung | ✅ done | `74de985` |
-| 7 | LLM-Batch-Bildung | ✅ done | `231a2ff` |
-| 8 | Qwen-Synthese (4-Stage) | 🟡 Code fertig, CLI-Wiring offen, Echtlauf ausstehend | `d586cb8` |
+| 6 | Embeddings (Cluster-Prep verworfen, R9) | ✅ done | `74de985` |
+| 7 | LLM-Batch-Bildung (Token-Budget-Splits) | ✅ done | `231a2ff` |
+| 8 | Qwen-Veredelung (Option B: Stage 3+4 pro Doc) | ✅ done — 180 Drafts | (mehrere) |
 | 9 | Vault-Aufbau | 🔜 nächster Schritt | — |
 | 10 | Kontroll-Berichte | ✅ done | `fd161be` |
 
@@ -199,7 +217,9 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 
 ---
 
-### Phase 8 — Qwen-Synthese (4-Stage)
+### Phase 8 — Qwen-Synthese (4-Stage) — *historisch (Option A)*
+
+> Die folgende 4-Stage-Beschreibung dokumentiert den ursprünglichen Option-A-Entwurf. **Umgesetzt wurde Option B** (Pro-Doc, nur Stage 3+4, Routing). Siehe Update-Hinweis unten und `docs/learnings/PHASE_08_synthesis.md`.
 
 **Modul:** `pipeline/phase_8_synthesis.py` (770 Zeilen)  
 **Input:** `batches/*.md` + `segments.jsonl`  
@@ -234,7 +254,7 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 
 **Tests:** 32 Tests — JSON-Extraktion (Sonderfälle), Slugify-Umlaute, Idempotenz, force-Re-Run, bad-Response-Handling, Pydantic-Validation, kombiniertes Draft-File
 
-> **Wichtig:** Phase 8 wurde noch NIE gegen den echten Korpus gelaufen. Alle 32 Tests laufen gegen Mock-Fixtures. Ein produktiver Lauf ist erst nach Block 0.F und Block 8.A geplant.
+> **Update (2026-06-04):** Phase 8 ist **gegen den echten Korpus gelaufen** und abgeschlossen — 180 vault-ready Drafts. Umgesetzt als **Option B** (Pro-Doc, Routing passthrough/stage3/gedanken), nicht als 4-Stage-Merge. Die 4-Stage-Beschreibung oben ist historisch (Option A); Stage 1/2 sind deprecated. Mechanik: Triage (`pkm_triage.py`) + `phase8_runner.py`. Siehe `docs/learnings/PHASE_08_synthesis.md`.
 
 ---
 
@@ -260,7 +280,7 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | `ruff check` | ✅ clean | alle Phasen + Tests |
 | `ruff format` | ✅ clean | |
 | `mypy pipeline/` | ⚠️ 17 Fehler in 4 Dateien | Phase 8: 0 Fehler |
-| Tests gesamt | ✅ 282/282 grün | |
+| Tests gesamt | ✅ 359/359 grün | inkl. Runner-, NFD-Slug-, gedanke-Type-Tests (Pre-Phase-9-Hardening) |
 
 ### Mypy-Fehler nach Datei
 
@@ -372,13 +392,13 @@ PKM-rebuild/
 
 Gemäß CLAUDE.md Sektion 8 sollte jede Phase mit `docs/learnings/PHASE_NN_<slug>.md` abschließen. Bisher nur `PHASE_00_setup.md` vorhanden.
 
-### 7.4 Phase 8 CLI-Integration fehlt
+### 7.4 ✅ Phase 8 CLI-Integration (behoben)
 
-`pipeline/__main__.py` Zeile 23: `_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6, 7}`. Phase 8 ist nicht in der CLI registriert. Wird in Block 0.F behoben.
+Phase 8 ist in der CLI registriert und gelaufen (`--phase 8`, `--file` für Einzel-Korpus-Files). Produktiv über `phase8_runner.py`.
 
-### 7.5 Clustering-Mega-Cluster (Block 0.L)
+### 7.5 ✅ Clustering-Mega-Cluster (aufgelöst durch Verwurf, R9)
 
-`C_cluster-0000` enthält 168 Docs (83 % des Korpus) bei `similarity_threshold=0.65`. Problem ist nicht denkschulen-spezifisch — agglomeratives Clustering kann bei diesem Korpus ohne HDBSCAN oder Strategie-Wechsel keinen sinnvollen Schwellwert finden (0.75 → 85.9 % unsortiert, 0.65 → Mega-Cluster). Strategieoptionen A–D in Block 0.L zu entscheiden.
+`C_cluster-0000` enthielt 168 Docs (83 %) bei `similarity_threshold=0.65`; 0.75 → 85.9 % unsortiert, 0.85 → 0 Cluster. **Befund:** der Korpus hat keine inhärente Cluster-Struktur. **Entscheidung:** Embedding-/HDBSCAN-Clustering als Vault-Strukturprinzip **verworfen**. `category` kommt aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner (`apply_category_mapping.py`, `03_vault_standard.md` Appendix A). Embeddings dienen nur noch der Redundanz-Erkennung.
 
 ### 7.6 ✅ Reports-Generator-Bug Cluster-Größen (Block 0.M — behoben)
 
@@ -388,18 +408,17 @@ Gemäß CLAUDE.md Sektion 8 sollte jede Phase mit `docs/learnings/PHASE_NN_<slug
 
 ## 8. Nächste Schritte
 
-Laut Roadmap (`docs/tasks/0L_roadmap_option-b.md` §3) — Option B (Pro-Doc-Veredelung):
+Option B (Pro-Doc-Veredelung) — Stand 2026-06-04:
 
 ```
-✅ 0.N  CC-Autonomie-Setup
-✅ 0J.8 + 0.M  Doku-Update + Reports-Bug
-→  0.L-Impl  Option-B-Routing: Stage-1/2-Bypass, Stage-3 als Pro-Doc-Veredelung
-→  0.G  Vault-Foundations (Tag-Vokabular, Templates, Gedanken-Pfad)
-→  0.I  Backup-DoD (Time Machine, 2. Medium)
-→  8.A  Phase-8-Smoke-Test (1 Batch)
-→  8.B  Phase-8-Voll-Lauf
-→  9    Vault-Aufbau
+✅ 0.L-Impl  Option-B-Routing (passthrough/stage3/gedanken)
+✅ 0.G  Vault-Foundations (Tag-Vokabular, Templates, Gedanken-Pfad)
+✅ 8.A/8.B  Phase-8-Lauf → 180 vault-ready Drafts
+✅ E1–E5  Pre-Phase-9-Hardening (gedanke-Enum, NFC-Slug, Category-Mapping, Runner)
+→  9    Vault-Aufbau (16 Ordner, _index.md, Wikilink-Auflösung)
 →  10   Kontroll-Berichte final + DoD-Check
+↪  FUTURE_RUN  19 _hold-Gedanken + 2 Hangs + neue Files (docs/FUTURE_RUN.md)
+○  0.I  Backup-DoD (Time Machine, 2. Medium) — vor Produktiv-Abschluss
 ```
 
 ---
@@ -412,3 +431,4 @@ Laut Roadmap (`docs/tasks/0L_roadmap_option-b.md` §3) — Option B (Pro-Doc-Ver
 - 2026-05-29 — Block-0.K: denkschulen_ueberblick exkludiert; Blöcke 0.J+0.K in Sektion 2 ergänzt; Befund: `C_cluster-0000` Mega-Cluster (similarity_threshold-Problem) bleibt offen
 - 2026-05-29 — Block-0.J.8: Phase-10 done (`fd161be`), Tests 222→275, Threshold-Iteration + Block-0.K in Phase-4-Sektion, Offene Punkte 7.5+7.6 ergänzt
 - 2026-05-30 — Block-0.M abgeschlossen (`fa9669c`): §7.6 als behoben markiert; Block-0.N ergänzt (Autonomie-Setup, Permissions, Hooks); Tests 275→282; §8 Nächste Schritte auf Option-B-Roadmap aktualisiert
+- 2026-06-04 — Phase 8 abgeschlossen (180 Drafts); §0 Aktueller Stand mit Counts (180/19/3); Clustering verworfen (§7.5 aufgelöst, R9); Phase-8-CLI §7.4 behoben; Tests 282→359; Phasen-Tabelle + §8 auf Ist-Stand; Pre-Phase-9-Hardening E1–E5

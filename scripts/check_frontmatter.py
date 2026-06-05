@@ -43,53 +43,23 @@ except ImportError:
     print("FEHLER: pyyaml fehlt. Installation: pip install pyyaml", file=sys.stderr)
     sys.exit(2)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts._pkm_common import (
+    ALLOWED_CATEGORIES,
+    ALLOWED_CONFIDENCE,
+    ALLOWED_DOC_ROLE,
+    ALLOWED_REVIEW,
+    ALLOWED_STATUS,
+    ALLOWED_TYPE,
+    REQUIRED_FIELDS,
+    SLUG_RE,
+)
+
 # === Konfiguration ===
 DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
 DRAFTS_DIR = DATA_ROOT / "03_drafts"
 OUTPUT_DIR = DATA_ROOT / "02_pipeline_output"
 REPORT_FILE = OUTPUT_DIR / "frontmatter_check_report.md"
-
-# 16 erlaubte category-Werte (Ordnernamen ohne Nummern-Präfix, plus unsortiert)
-ALLOWED_CATEGORIES = {
-    "meta",
-    "grundlagen",
-    "webentwicklung",
-    "betriebssysteme",
-    "protokolle-und-standards",
-    "dateitypen-und-konfiguration",
-    "methoden-und-prozesse",
-    "best-practices",
-    "cheatsheets",
-    "ki-und-semantische-systeme",
-    "datenarchitektur-und-datenbanken",
-    "dokumentenverarbeitung-und-extraktion",
-    "wissensmodellierung-und-knowledge-graphs",
-    "visualisierung-reporting-und-design-systeme",
-    "automatisierung-scripting-und-pipelines",
-    "gedanken",
-    "kunst-kultur",
-    "unsortiert",
-}
-
-# Enums aus Vault-Standard (docs/03_vault_standard.md Sektion 3)
-ALLOWED_TYPE = {"process-document", "knowledge-article", "compact-reference", "gedanke"}
-ALLOWED_DOC_ROLE = {
-    "manual", "how-to", "best-practice", "workflow",
-    "explanation", "reference", "cheatsheet", "wiki",
-}
-ALLOWED_STATUS = {"draft", "review", "stable", "deprecated"}
-ALLOWED_REVIEW = {"ai_drafted", "human_reviewed", "verified"}
-ALLOWED_CONFIDENCE = {"low", "medium", "high"}
-
-# Pflichtfelder (Vault-Standard Sektion 3 "Pflicht")
-REQUIRED_FIELDS = {
-    "title", "slug", "summary",
-    "type", "doc_role", "category",
-    "sources_docs", "source_chunks",
-    "status", "review_status", "confidence",
-    "doc_version", "created", "updated",
-    "last_synthesized", "prompt_version",
-}
 
 # Felder, die für Inkonsistenz-Check (.md vs .json) entscheidend sind
 COMPARE_FIELDS = [
@@ -101,8 +71,7 @@ COMPARE_FIELDS = [
     "created", "updated", "last_synthesized",
 ]
 
-# Slug-Pattern: nur kleinbuchstaben, ziffern, bindestriche
-SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+# Slug-Umlaut-Paare (skript-lokal: check_schema meldet erwartete Ersetzung)
 UMLAUT_PAIRS = [("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")]
 
 

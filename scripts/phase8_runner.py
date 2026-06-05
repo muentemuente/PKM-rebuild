@@ -40,7 +40,6 @@ import signal
 import subprocess
 import sys
 import time
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -59,46 +58,15 @@ TIMEOUT_PER_SLUG = 30 * 60  # 30 min Maximum pro Slug
 # === Stop-Bedingungen ===
 MAX_CONSECUTIVE_FAILURES = 5
 
-# Slug-Normalisierung (mit NFC für macOS-NFD-Filesystem)
-UMLAUT_MAP = {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}
-
-# Kanonische CK-Slug-Ableitung — Composed-Umlaut-Tabelle + 60-Cap.
-_CK_UMLAUT_TABLE = str.maketrans(
-    {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "ae", "Ö": "oe", "Ü": "ue"}
+# Slug-Werkzeuge (normalize_slug, canonical_ck_slug) → scripts/_pkm_common.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts._pkm_common import (  # noqa: E402
+    canonical_ck_slug,
+    normalize_slug,
 )
-_CK_SPECIAL_RE = re.compile(r"[^a-z0-9]+")
-CK_SLUG_CAP = 60
 
-
-# === Slug-Werkzeuge ===
-
-def normalize_slug(name: str) -> str:
-    s = unicodedata.normalize("NFC", name).lower()
-    for o, r in UMLAUT_MAP.items():
-        s = s.replace(o, r)
-    return re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-
-
-def canonical_ck_slug(name: str) -> str:
-    """Repliziert die Pipeline-Slug-Ableitung für CK-Dateinamen.
-
-    Identisch zu ``_slugify_ck(_filename_to_slug(name))`` aus der Pipeline:
-    NFC-Komposition (macOS-NFD-Fix), Umlaut-Map, NFKD-Akzent-Strip, lowercase,
-    Sonderzeichen→Bindestrich, 60-Cap. Single Source of Truth bleibt die
-    Pipeline; ``tests/test_phase8_runner.py`` bewacht die Übereinstimmung
-    gegen Drift.
-
-    Args:
-        name: Roher Dateiname-Stamm (Korpus) oder Slug.
-
-    Returns:
-        Kanonischer Slug, wie ihn die Pipeline für ``CK_<slug>.*`` schreibt.
-    """
-    s = unicodedata.normalize("NFC", name).translate(_CK_UMLAUT_TABLE)
-    s = unicodedata.normalize("NFKD", s)
-    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
-    s = _CK_SPECIAL_RE.sub("-", s).strip("-")
-    return s[:CK_SLUG_CAP].strip("-") or "concept"
+# Re-Export für test_phase8_runner.py (importiert runner.canonical_ck_slug)
+__all__ = ["canonical_ck_slug", "normalize_slug"]
 
 
 # === Batch-File parsen ===

@@ -3,30 +3,33 @@ title: PKM-rebuild — Projektstand
 slug: project-status
 status: draft
 created: 2026-05-28
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 
-# PKM-rebuild — Projektstand (2026-06-04)
+# PKM-rebuild — Projektstand (2026-06-05)
 
-Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus und offenen Punkte. Dient als Review-Basis vor Phase 9.
+Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus und offenen Punkte.
 
 ---
 
-## 0. Aktueller Stand (2026-06-04)
+## 0. Aktueller Stand (2026-06-05)
 
-**Phase 8 abgeschlossen — Phase 9 (Vault-Aufbau) als Nächstes.**
+**Technischer Abschluss erreicht — Phasen 1–11 implementiert. Verbleibend: manuelle DoD-Reste + AP5-Entscheidung.**
 
 | Größe | Wert |
 |---|---|
-| Vault-ready Drafts | **180** (0 Schema-Issues, alle `category` ∈ ALLOWED) |
-| Zurückgestellt `_hold/` | 19 Gedanken (deferred → `docs/FUTURE_RUN.md`) |
-| Exkludiert `_excluded/` | **3** (`denkschulen_…` Survey-Doc + 2 Stage-3-Hangs) |
-| Reconcile | 199 Korpus-Slugs (180 + 19) + 3 excluded = 202 |
-| Test-Suite | **359** grün, ruff sauber |
+| Vault-Artikel (`04_vault/`) | **180** in 15 genutzten Ordnern, 0 Pydantic-Fails, 0 SHA-Dups |
+| `_index.md` | 14 (genutzte Ordner − `00_Meta`) |
+| Kontroll-Berichte | corpus / duplicate / cluster (Vault-Ground-Truth) + `DOD_CHECK.md` |
+| `unsortiert/` | 8 Artikel (Diagnose: `unsortiert_diagnose.md`) — manuelle Zuordnung offen |
+| Reconcile | 199 Korpus-Slugs (180 ready + 19 hold) + 3 excluded = 202 |
+| Test-Suite | **377** grün, ruff-Gate sauber, `mypy pipeline/ scripts/` clean |
 | Architektur | Option B (Pro-Doc, kein Merge); Embedding-Clustering **verworfen** (R9) |
-| Hardening | E1 (gedanke-Enum), E2 (NFC-Slug), E3–E5 — gemergt auf main |
+| Cleanup (Phase 11) | AP1 `_pkm_common` (Drift weg) · AP2 Config-Prune · AP3 mypy-clean · AP4 unsortiert-Diagnose · **AP5 nicht ausgeführt** (Triage hängt an Intermediates) |
 
-Verdikt: **GO für Phase 9.** Details: `docs/learnings/PHASE_08_synthesis.md`, `docs/PRE_PHASE9_HARDENING.md`.
+**DoD (`scripts/dod_check.py`):** 9 ✅ / 1 ⚠️ (dokumentierte Kleinordner-Ausnahme) automatisch; 2 offen (Backup 2. Medium, Qualitätsstufe-2-Review) = menschlich.
+
+Details: `docs/learnings/PHASE_09_vault-build.md`, `PHASE_10_reports.md`, `PHASE_11_cleanup.md`.
 
 ---
 
@@ -43,8 +46,9 @@ Verdikt: **GO für Phase 9.** Details: `docs/learnings/PHASE_08_synthesis.md`, `
 | 6 | Embeddings (Cluster-Prep verworfen, R9) | ✅ done | `74de985` |
 | 7 | LLM-Batch-Bildung (Token-Budget-Splits) | ✅ done | `231a2ff` |
 | 8 | Qwen-Veredelung (Option B: Stage 3+4 pro Doc) | ✅ done — 180 Drafts | (mehrere) |
-| 9 | Vault-Aufbau | 🔜 nächster Schritt | — |
-| 10 | Kontroll-Berichte | ✅ done | `fd161be` |
+| 9 | Vault-Aufbau (180 Artikel, 15 Ordner, _index) | ✅ done | `493b2f0` |
+| 10 | Kontroll-Berichte (Vault-Ground-Truth) + DoD-Check | ✅ done | `03ecaaf` |
+| 11 | Cleanup (AP1–4 done, AP5 deferred) | ✅ techn. Abschluss | (feature/cleanup) |
 
 ---
 

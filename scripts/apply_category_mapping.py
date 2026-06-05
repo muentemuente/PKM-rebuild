@@ -113,7 +113,7 @@ def main() -> int:
     mapping = parse_mapping(PROPOSAL)
     print(f"Mapping-Eintraege: {len(mapping)}")
 
-    transitions: Counter = Counter()
+    transitions: Counter[tuple[str, str]] = Counter()
     n_changed = 0
     n_skipped_same = 0
     n_unmapped = 0

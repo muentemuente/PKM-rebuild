@@ -82,15 +82,13 @@ class BatchingConfig(BaseModel):
 
 
 class QwenTemperatureConfig(BaseModel):
-    stage1_cluster_analysis: float
-    stage2_merge_proposal: float
+    # stage1/stage2 entfernt (Option B, DEPRECATED — kein Cross-Doc-Merge)
     stage3_synthesis: float
     stage4_frontmatter: float
 
 
 class QwenMaxTokensConfig(BaseModel):
-    stage1: int
-    stage2: int
+    # stage1/stage2 entfernt (Option B, DEPRECATED)
     stage3: int
     stage4: int
 
@@ -124,7 +122,7 @@ class ClusteringConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     min_cluster_size: int
-    initial_strategy: str
+    # initial_strategy + umap_hdbscan entfernt (Embedding-Clustering verworfen, R9)
 
 
 class StructureConfig(BaseModel):

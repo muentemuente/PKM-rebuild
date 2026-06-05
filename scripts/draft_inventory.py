@@ -55,7 +55,6 @@ Exit-Codes:
 from __future__ import annotations
 
 import json
-import re
 import sys
 from collections import Counter
 from dataclasses import asdict, dataclass, field
@@ -71,6 +70,30 @@ except ImportError:
     sys.exit(2)
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts._pkm_common import (
+    ALLOWED_CATEGORIES,
+    ALLOWED_CONFIDENCE,
+    ALLOWED_DOC_ROLE,
+    ALLOWED_REVIEW,
+    ALLOWED_STATUS,
+    ALLOWED_TYPE,
+    CRITICAL_DIFF_FIELDS,
+    MAX_SUMMARY_WORDS,
+    MAX_TAGS,
+    MIN_BODY_WORDS,
+    MIN_SUMMARY_WORDS,
+    MINOR_DIFF_FIELDS,
+    REQUIRED_FIELDS,
+    SLUG_RE,
+    UMLAUT_CHARS,
+    _normalize_for_diff,
+    compute_body_metrics,
+    parse_json_file,
+    parse_yaml_text,
+    split_md,
+)
+
 # === Pfad-Konfiguration ===
 DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
 DRAFTS_DIR = DATA_ROOT / "03_drafts"
@@ -79,63 +102,8 @@ INVENTORY_JSONL = OUTPUT_DIR / "draft_inventory.jsonl"
 INVENTORY_REPORT = OUTPUT_DIR / "draft_inventory_report.md"
 CLASSIFICATION_DIR = OUTPUT_DIR / "classification"
 
-
-# === Schwellwerte (für Klassifikation) ===
-MIN_BODY_WORDS = 50            # darunter = STUB
-RICH_BODY_WORDS = 300          # ab dann inhaltlich substanziell (Report-Bucket)
-MIN_SUMMARY_WORDS = 8
-MAX_SUMMARY_WORDS = 60
-MAX_TAGS = 10
-
-
-# === Schema-Vokabular (aus docs/03_vault_standard.md Sektion 3) ===
-ALLOWED_CATEGORIES = {
-    "meta", "grundlagen", "webentwicklung", "betriebssysteme",
-    "protokolle-und-standards", "dateitypen-und-konfiguration",
-    "methoden-und-prozesse", "best-practices", "cheatsheets",
-    "ki-und-semantische-systeme", "datenarchitektur-und-datenbanken",
-    "dokumentenverarbeitung-und-extraktion",
-    "wissensmodellierung-und-knowledge-graphs",
-    "visualisierung-reporting-und-design-systeme",
-    "automatisierung-scripting-und-pipelines",
-    "gedanken", "kunst-kultur", "unsortiert",
-}
-ALLOWED_TYPE = {"process-document", "knowledge-article", "compact-reference", "gedanke"}
-ALLOWED_DOC_ROLE = {
-    "manual", "how-to", "best-practice", "workflow",
-    "explanation", "reference", "cheatsheet", "wiki",
-}
-ALLOWED_STATUS = {"draft", "review", "stable", "deprecated"}
-ALLOWED_REVIEW = {"ai_drafted", "human_reviewed", "verified"}
-ALLOWED_CONFIDENCE = {"low", "medium", "high"}
-
-REQUIRED_FIELDS = {
-    "title", "slug", "summary",
-    "type", "doc_role", "category",
-    "sources_docs", "source_chunks",
-    "status", "review_status", "confidence",
-    "doc_version", "created", "updated",
-    "last_synthesized", "prompt_version",
-}
-
-# Diff-Klassifikation: kritisch = semantischer Drift (Halluzinations-Verdacht)
-CRITICAL_DIFF_FIELDS = {"title", "type", "summary", "slug"}
-# Minor = erwartbare LLM-Drift / Timestamps
-MINOR_DIFF_FIELDS = {
-    "tags", "aliases", "category", "doc_role", "confidence",
-    "subcategory", "created", "updated", "last_synthesized",
-    "status", "review_status",
-}
-
-SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-UMLAUT_CHARS = ("ä", "ö", "ü", "ß")
-
-# Body-Metrik-Patterns
-HEADING_RE = re.compile(r"^(#{1,6})\s+\S", re.MULTILINE)
-CODE_FENCE_RE = re.compile(r"^```", re.MULTILINE)
-TABLE_SEP_RE = re.compile(r"^\|[\s\-:|]+\|\s*$", re.MULTILINE)
-WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
-QUESTION_RE = re.compile(r"^>\s*\[!question\]", re.MULTILINE | re.IGNORECASE)
+# === Schwellwerte (skript-lokal; geteilte in _pkm_common) ===
+RICH_BODY_WORDS = 300  # ab dann inhaltlich substanziell (Report-Bucket)
 
 # Variants pro Stem (Reihenfolge wichtig: längere Suffixe zuerst!)
 FILE_VARIANTS = [
@@ -240,61 +208,11 @@ def discover_files() -> dict[str, dict[str, Path | None]]:
     return result
 
 
-# === Body-Verarbeitung ===
-
-def split_md(text: str) -> tuple[str | None, str]:
-    """Teilt .md-Text in (frontmatter_yaml, body)."""
-    if not text.startswith(("---\n", "---\r\n")):
-        return None, text
-    rest = text[4:]
-    end = re.search(r"\n---\s*\n", rest)
-    if not end:
-        return None, text
-    yaml_text = rest[:end.start()]
-    body = rest[end.end():]
-    return yaml_text, body
+# Body-/Frontmatter-Verarbeitung (split_md, compute_body_metrics, parse_yaml_text,
+# parse_json_file) → scripts/_pkm_common.py
 
 
-def compute_body_metrics(body: str) -> dict[str, int]:
-    if not body or not body.strip():
-        return dict(words=0, chars=0, headings=0, code_blocks=0,
-                    tables=0, wikilinks=0, open_questions=0)
-    return {
-        "words": len(body.split()),
-        "chars": len(body),
-        "headings": len(HEADING_RE.findall(body)),
-        "code_blocks": len(CODE_FENCE_RE.findall(body)) // 2,
-        "tables": len(TABLE_SEP_RE.findall(body)),
-        "wikilinks": len(WIKILINK_RE.findall(body)),
-        "open_questions": len(QUESTION_RE.findall(body)),
-    }
-
-
-# === Frontmatter-Verarbeitung ===
-
-def parse_yaml_text(text: str) -> tuple[dict | None, str | None]:
-    if not text or not text.strip():
-        return None, "empty"
-    try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError as e:
-        return None, f"yaml_error: {type(e).__name__}"
-    if not isinstance(data, dict):
-        return None, "not_dict"
-    return data, None
-
-
-def parse_json_file(path: Path) -> tuple[dict | None, str | None]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception as e:
-        return None, f"json_error: {type(e).__name__}"
-    if not isinstance(data, dict):
-        return None, "not_dict"
-    return data, None
-
-
-def check_schema(fm: dict) -> list[str]:
+def check_schema(fm: dict[str, Any]) -> list[str]:
     """Schema-Issues. Format: '<key>:<detail>' für Aggregation."""
     issues: list[str] = []
 
@@ -362,7 +280,7 @@ def guess_title_lang(text: str | None) -> str:
     return "mixed"
 
 
-def compute_fm_metrics(fm: dict) -> dict[str, Any]:
+def compute_fm_metrics(fm: dict[str, Any]) -> dict[str, Any]:
     summary = fm.get("summary") or ""
     sw = len(summary.split()) if isinstance(summary, str) else 0
     tags = fm.get("tags") or []
@@ -386,18 +304,7 @@ def compute_fm_metrics(fm: dict) -> dict[str, Any]:
     }
 
 
-def _normalize_for_diff(v: Any) -> Any:
-    """Normalisiert Werte. None / [] / '' sind alle als 'leer' äquivalent."""
-    if v is None:
-        return None
-    if isinstance(v, list):
-        return tuple(v) if v else None
-    if isinstance(v, str) and not v:
-        return None
-    return v
-
-
-def compare_frontmatter(yaml_fm: dict, json_fm: dict) -> list[str]:
+def compare_frontmatter(yaml_fm: dict[str, Any], json_fm: dict[str, Any]) -> list[str]:
     """Returnt Liste der inkonsistenten Feldnamen."""
     diffs = []
     for k in set(yaml_fm) | set(json_fm):
@@ -426,10 +333,13 @@ def build_record(stem: str, files: dict[str, Path | None]) -> DraftRecord:
             timespec="seconds")
 
     if r.has_md:
+        assert files["md"] is not None
         r.md_bytes, r.md_mtime = stamp(files["md"])
     if r.has_body_md:
+        assert files["body_md"] is not None
         r.body_md_bytes, r.body_md_mtime = stamp(files["body_md"])
     if r.has_frontmatter:
+        assert files["frontmatter"] is not None
         r.frontmatter_bytes, r.frontmatter_mtime = stamp(files["frontmatter"])
 
     # Routing-Inferenz
@@ -439,9 +349,10 @@ def build_record(stem: str, files: dict[str, Path | None]) -> DraftRecord:
         r.routing = "passthrough"
 
     # Parse .md
-    yaml_fm: dict | None = None
+    yaml_fm: dict[str, Any] | None = None
     md_body = ""
     if r.has_md:
+        assert files["md"] is not None
         try:
             text = files["md"].read_text(encoding="utf-8")
             yaml_text, md_body = split_md(text)
@@ -458,6 +369,7 @@ def build_record(stem: str, files: dict[str, Path | None]) -> DraftRecord:
     # Parse .body.md
     body_md_text = ""
     if r.has_body_md:
+        assert files["body_md"] is not None
         try:
             body_md_text = files["body_md"].read_text(encoding="utf-8")
             r.body_md_present = bool(body_md_text.strip())
@@ -465,8 +377,9 @@ def build_record(stem: str, files: dict[str, Path | None]) -> DraftRecord:
             pass
 
     # Parse .frontmatter.json
-    json_fm: dict | None = None
+    json_fm: dict[str, Any] | None = None
     if r.has_frontmatter:
+        assert files["frontmatter"] is not None
         json_fm, err = parse_json_file(files["frontmatter"])
         if err:
             r.json_error = err

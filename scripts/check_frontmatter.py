@@ -43,53 +43,23 @@ except ImportError:
     print("FEHLER: pyyaml fehlt. Installation: pip install pyyaml", file=sys.stderr)
     sys.exit(2)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts._pkm_common import (
+    ALLOWED_CATEGORIES,
+    ALLOWED_CONFIDENCE,
+    ALLOWED_DOC_ROLE,
+    ALLOWED_REVIEW,
+    ALLOWED_STATUS,
+    ALLOWED_TYPE,
+    REQUIRED_FIELDS,
+    SLUG_RE,
+)
+
 # === Konfiguration ===
 DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
 DRAFTS_DIR = DATA_ROOT / "03_drafts"
 OUTPUT_DIR = DATA_ROOT / "02_pipeline_output"
 REPORT_FILE = OUTPUT_DIR / "frontmatter_check_report.md"
-
-# 16 erlaubte category-Werte (Ordnernamen ohne Nummern-Präfix, plus unsortiert)
-ALLOWED_CATEGORIES = {
-    "meta",
-    "grundlagen",
-    "webentwicklung",
-    "betriebssysteme",
-    "protokolle-und-standards",
-    "dateitypen-und-konfiguration",
-    "methoden-und-prozesse",
-    "best-practices",
-    "cheatsheets",
-    "ki-und-semantische-systeme",
-    "datenarchitektur-und-datenbanken",
-    "dokumentenverarbeitung-und-extraktion",
-    "wissensmodellierung-und-knowledge-graphs",
-    "visualisierung-reporting-und-design-systeme",
-    "automatisierung-scripting-und-pipelines",
-    "gedanken",
-    "kunst-kultur",
-    "unsortiert",
-}
-
-# Enums aus Vault-Standard (docs/03_vault_standard.md Sektion 3)
-ALLOWED_TYPE = {"process-document", "knowledge-article", "compact-reference", "gedanke"}
-ALLOWED_DOC_ROLE = {
-    "manual", "how-to", "best-practice", "workflow",
-    "explanation", "reference", "cheatsheet", "wiki",
-}
-ALLOWED_STATUS = {"draft", "review", "stable", "deprecated"}
-ALLOWED_REVIEW = {"ai_drafted", "human_reviewed", "verified"}
-ALLOWED_CONFIDENCE = {"low", "medium", "high"}
-
-# Pflichtfelder (Vault-Standard Sektion 3 "Pflicht")
-REQUIRED_FIELDS = {
-    "title", "slug", "summary",
-    "type", "doc_role", "category",
-    "sources_docs", "source_chunks",
-    "status", "review_status", "confidence",
-    "doc_version", "created", "updated",
-    "last_synthesized", "prompt_version",
-}
 
 # Felder, die für Inkonsistenz-Check (.md vs .json) entscheidend sind
 COMPARE_FIELDS = [
@@ -101,14 +71,13 @@ COMPARE_FIELDS = [
     "created", "updated", "last_synthesized",
 ]
 
-# Slug-Pattern: nur kleinbuchstaben, ziffern, bindestriche
-SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+# Slug-Umlaut-Paare (skript-lokal: check_schema meldet erwartete Ersetzung)
 UMLAUT_PAIRS = [("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")]
 
 
 # === Hilfsfunktionen ===
 
-def extract_yaml_from_md(md_path: Path) -> tuple[dict | None, str | None]:
+def extract_yaml_from_md(md_path: Path) -> tuple[dict[str, Any] | None, str | None]:
     """YAML-Frontmatter aus .md extrahieren. Returnt (dict, error_or_None)."""
     try:
         text = md_path.read_text(encoding="utf-8")
@@ -135,7 +104,7 @@ def extract_yaml_from_md(md_path: Path) -> tuple[dict | None, str | None]:
     return data, None
 
 
-def load_json(path: Path) -> tuple[dict | None, str | None]:
+def load_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
     """JSON-Frontmatter laden. Returnt (dict, error_or_None)."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -147,7 +116,7 @@ def load_json(path: Path) -> tuple[dict | None, str | None]:
     return data, None
 
 
-def check_schema(fm: dict) -> list[str]:
+def check_schema(fm: dict[str, Any]) -> list[str]:
     """Frontmatter gegen Schema prüfen. Returnt Liste von Issue-Strings."""
     issues: list[str] = []
 
@@ -214,7 +183,7 @@ def normalize_for_compare(value: Any) -> Any:
     return value
 
 
-def compare_fm(yaml_fm: dict, json_fm: dict) -> list[dict]:
+def compare_fm(yaml_fm: dict[str, Any], json_fm: dict[str, Any]) -> list[dict[str, Any]]:
     """Feld-für-Feld-Diff. Returnt Liste von {field, md_value, json_value}."""
     diffs = []
     for field in COMPARE_FIELDS:
@@ -272,7 +241,7 @@ def main() -> int:
     counters: Counter[str] = Counter()
     issue_counter: Counter[tuple[str, str]] = Counter()
     diff_field_counter: Counter[str] = Counter()
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
 
     for stem in all_stems:
         record: dict[str, Any] = {
@@ -284,8 +253,8 @@ def main() -> int:
             "diffs": [],
         }
 
-        yaml_fm: dict | None = None
-        json_fm: dict | None = None
+        yaml_fm: dict[str, Any] | None = None
+        json_fm: dict[str, Any] | None = None
 
         if record["has_md"]:
             yaml_fm, err = extract_yaml_from_md(md_by_stem[stem])

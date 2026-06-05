@@ -6,7 +6,7 @@ Doku-Sektion 7 aktualisieren.
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -35,7 +35,7 @@ class CleanedDocument(BaseModel):
 
     doc_id: str
     body: str
-    frontmatter: dict
+    frontmatter: dict[str, Any]
     normalized_sha256: str
 
 
@@ -68,8 +68,8 @@ class StructuredDocumentRecord(BaseModel):
 
     doc_id: str
     title: str
-    headings: list[dict]  # [{"level": 2, "text": "..."}]
-    code_blocks: list[dict]  # [{"lang": "bash", "content": "..."}]
+    headings: list[dict[str, Any]]  # [{"level": 2, "text": "..."}]
+    code_blocks: list[dict[str, Any]]  # [{"lang": "bash", "content": "..."}]
     tables_count: int
     links: list[str]
     images: list[str]

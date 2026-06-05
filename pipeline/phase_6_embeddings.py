@@ -124,7 +124,7 @@ def _write_parquet(
             ),
         }
     )
-    pq.write_table(table, path, compression="snappy")
+    pq.write_table(table, path, compression="snappy")  # type: ignore[no-untyped-call]  # pyarrow untyped
 
 
 def _load_parquet(path: Path) -> tuple[list[str], np.ndarray]:
@@ -133,7 +133,7 @@ def _load_parquet(path: Path) -> tuple[list[str], np.ndarray]:
     Returns:
         (segment_ids, embeddings) wobei embeddings shape (n, dim) hat.
     """
-    table = pq.read_table(path, columns=["segment_id", "embedding"])
+    table = pq.read_table(path, columns=["segment_id", "embedding"])  # type: ignore[no-untyped-call]  # pyarrow untyped
     segment_ids = table["segment_id"].to_pylist()
     embeddings = np.array(table["embedding"].to_pylist(), dtype=np.float32)
     return segment_ids, embeddings
@@ -153,7 +153,7 @@ def _find_component_labels(embeddings: np.ndarray, threshold: float) -> np.ndarr
     adj = (sim >= threshold).astype(np.uint8)
     np.fill_diagonal(adj, 0)
     _, labels = _scipy_connected_components(csr_matrix(adj), directed=False)
-    return labels
+    return np.asarray(labels)
 
 
 def _internal_mean_similarity(indices: list[int], sim_matrix: np.ndarray) -> float:

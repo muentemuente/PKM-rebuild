@@ -50,9 +50,7 @@ Exit-Codes:
 from __future__ import annotations
 
 import json
-import re
 import sys
-import unicodedata
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -66,6 +64,28 @@ except ImportError:
     sys.exit(2)
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts._pkm_common import (
+    ALLOWED_CATEGORIES,
+    ALLOWED_CONFIDENCE,
+    ALLOWED_DOC_ROLE,
+    ALLOWED_REVIEW,
+    ALLOWED_STATUS,
+    ALLOWED_TYPE,
+    CRITICAL_DIFF_FIELDS,
+    MIN_BODY_WORDS,
+    MINOR_DIFF_FIELDS,
+    REQUIRED_FIELDS,
+    SLUG_RE,
+    UMLAUT_CHARS,
+    compute_body_metrics,
+    draft_stem_to_slug,
+    normalize_to_slug,
+    parse_json_file,
+    parse_yaml_text,
+    split_md,
+)
+
 # === Pfade ===
 DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
 CORPUS_DIR = DATA_ROOT / "01_corpus_input"
@@ -76,65 +96,11 @@ OUTPUT_DIR = DATA_ROOT / "02_pipeline_output" / "triage"
 # Batch-Größe für Re-Run-Listen
 BATCH_SIZE = 10
 
-
-# === Schwellwerte für Draft-Klassifikation ===
-MIN_BODY_WORDS = 50
-MIN_SUMMARY_WORDS = 8
-MAX_SUMMARY_WORDS = 60
-MAX_TAGS = 10
-
-
-# === Schema (aus docs/03_vault_standard.md) ===
-ALLOWED_CATEGORIES = {
-    "meta", "grundlagen", "webentwicklung", "betriebssysteme",
-    "protokolle-und-standards", "dateitypen-und-konfiguration",
-    "methoden-und-prozesse", "best-practices", "cheatsheets",
-    "ki-und-semantische-systeme", "datenarchitektur-und-datenbanken",
-    "dokumentenverarbeitung-und-extraktion",
-    "wissensmodellierung-und-knowledge-graphs",
-    "visualisierung-reporting-und-design-systeme",
-    "automatisierung-scripting-und-pipelines",
-    "gedanken", "kunst-kultur", "unsortiert",
-}
-ALLOWED_TYPE = {"process-document", "knowledge-article", "compact-reference", "gedanke"}
-ALLOWED_DOC_ROLE = {
-    "manual", "how-to", "best-practice", "workflow",
-    "explanation", "reference", "cheatsheet", "wiki",
-}
-ALLOWED_STATUS = {"draft", "review", "stable", "deprecated"}
-ALLOWED_REVIEW = {"ai_drafted", "human_reviewed", "verified"}
-ALLOWED_CONFIDENCE = {"low", "medium", "high"}
-
-REQUIRED_FIELDS = {
-    "title", "slug", "summary", "type", "doc_role", "category",
-    "sources_docs", "source_chunks",
-    "status", "review_status", "confidence",
-    "doc_version", "created", "updated",
-    "last_synthesized", "prompt_version",
-}
-
-CRITICAL_DIFF_FIELDS = {"title", "type", "summary", "slug"}
-MINOR_DIFF_FIELDS = {
-    "tags", "aliases", "category", "doc_role", "confidence",
-    "subcategory", "created", "updated", "last_synthesized",
-    "status", "review_status",
-}
-
 # Fixable durch Post-Processing-Skript
 FIXABLE_ISSUE_PREFIXES = (
     "unknown_category:", "invalid_doc_role:",
     "umlaut_in_slug:", "invalid_slug_format:",
 )
-
-SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-UMLAUT_CHARS = ("ä", "ö", "ü", "ß")
-UMLAUT_MAP = {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}
-
-# Body-Metrik-Patterns
-HEADING_RE = re.compile(r"^(#{1,6})\s+\S", re.MULTILINE)
-CODE_FENCE_RE = re.compile(r"^```", re.MULTILINE)
-TABLE_SEP_RE = re.compile(r"^\|[\s\-:|]+\|\s*$", re.MULTILINE)
-WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
 # Draft-File-Variants (Reihenfolge wichtig: längere Suffixe zuerst)
 DRAFT_VARIANTS = [
@@ -146,27 +112,7 @@ DRAFT_VARIANTS = [
 ]
 
 
-# === Slug-Normalisierung ===
-
-def normalize_to_slug(name: str) -> str:
-    """Korpus-Filename → kanonischer Slug.
-
-    `api_grundlagen.md` → `api-grundlagen`
-    `Befriffssammlung Tags.md` → `befriffssammlung-tags`
-    `erklärung_sage.md` → `erklaerung-sage` (auch wenn macOS-NFD-codiert)
-    """
-    # macOS-APFS speichert Umlaute als NFD (a + Combining Diaeresis).
-    # NFC stellt die precomposed Form her, sodass die Umlaut-Map greift.
-    s = unicodedata.normalize("NFC", name).lower()
-    for o, r in UMLAUT_MAP.items():
-        s = s.replace(o, r)
-    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-    return s
-
-
-def draft_stem_to_slug(stem: str) -> str:
-    """Draft-Stem `CK_foo` → Slug `foo`. Kein `CK_`-Prefix → bleibt unverändert."""
-    return stem[3:] if stem.startswith("CK_") else stem
+# Slug-Normalisierung (normalize_to_slug, draft_stem_to_slug) → scripts/_pkm_common.py
 
 
 # === Discover ===
@@ -239,58 +185,13 @@ def discover_vault() -> set[str]:
     return slugs
 
 
-# === Frontmatter-Parsing ===
-
-def split_md(text: str) -> tuple[str | None, str]:
-    if not text.startswith(("---\n", "---\r\n")):
-        return None, text
-    rest = text[4:]
-    end = re.search(r"\n---\s*\n", rest)
-    if not end:
-        return None, text
-    return rest[:end.start()], rest[end.end():]
-
-
-def parse_yaml_text(text: str) -> tuple[dict | None, str | None]:
-    if not text or not text.strip():
-        return None, "empty"
-    try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError as e:
-        return None, f"yaml_error: {type(e).__name__}"
-    if not isinstance(data, dict):
-        return None, "not_dict"
-    return data, None
-
-
-def parse_json_file(path: Path) -> tuple[dict | None, str | None]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception as e:
-        return None, f"json_error: {type(e).__name__}"
-    if not isinstance(data, dict):
-        return None, "not_dict"
-    return data, None
-
-
-# === Body-Metriken ===
-
-def compute_body_metrics(body: str) -> dict[str, int]:
-    if not body or not body.strip():
-        return dict(words=0, headings=0, code_blocks=0,
-                    tables=0, wikilinks=0)
-    return {
-        "words": len(body.split()),
-        "headings": len(HEADING_RE.findall(body)),
-        "code_blocks": len(CODE_FENCE_RE.findall(body)) // 2,
-        "tables": len(TABLE_SEP_RE.findall(body)),
-        "wikilinks": len(WIKILINK_RE.findall(body)),
-    }
+# Frontmatter-Parsing + Body-Metriken (split_md, parse_yaml_text, parse_json_file,
+# compute_body_metrics) → scripts/_pkm_common.py
 
 
 # === Schema-Check ===
 
-def check_schema(fm: dict) -> list[str]:
+def check_schema(fm: dict[str, Any]) -> list[str]:
     issues: list[str] = []
 
     missing = REQUIRED_FIELDS - set(fm.keys())
@@ -350,7 +251,7 @@ def _norm(v: Any) -> Any:
     return v
 
 
-def compare_frontmatter(yaml_fm: dict, json_fm: dict) -> list[str]:
+def compare_frontmatter(yaml_fm: dict[str, Any], json_fm: dict[str, Any]) -> list[str]:
     diffs = []
     for k in set(yaml_fm) | set(json_fm):
         if _norm(yaml_fm.get(k)) != _norm(json_fm.get(k)):
@@ -409,9 +310,10 @@ def assess_draft(stem: str, files: dict[str, Path | None]) -> DraftAssessment:
     a.has_body_md = files.get("body_md") is not None
     a.has_frontmatter = files.get("frontmatter") is not None
 
-    yaml_fm: dict | None = None
+    yaml_fm: dict[str, Any] | None = None
     md_body = ""
     if a.has_md:
+        assert files["md"] is not None
         try:
             text = files["md"].read_text(encoding="utf-8")
             yaml_text, md_body = split_md(text)
@@ -426,13 +328,15 @@ def assess_draft(stem: str, files: dict[str, Path | None]) -> DraftAssessment:
 
     body_md_text = ""
     if a.has_body_md:
+        assert files["body_md"] is not None
         try:
             body_md_text = files["body_md"].read_text(encoding="utf-8")
         except Exception:
             pass
 
-    json_fm: dict | None = None
+    json_fm: dict[str, Any] | None = None
     if a.has_frontmatter:
+        assert files["frontmatter"] is not None
         json_fm, err = parse_json_file(files["frontmatter"])
         if err:
             a.json_error = err

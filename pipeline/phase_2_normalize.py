@@ -36,7 +36,7 @@ _FRONTMATTER_RE = re.compile(
 )
 
 
-def _extract_frontmatter(text: str) -> tuple[dict, str]:
+def _extract_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     """Extrahiert YAML-Frontmatter aus einem Markdown-Text.
 
     Gibt (frontmatter_dict, body) zurück. Bei fehlendem oder

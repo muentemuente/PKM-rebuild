@@ -105,24 +105,12 @@ embeddings:
   cache_path: "${pipeline_output}/embeddings.parquet"
 
 
-# === Cluster (Phase 6/7) ======================================================
+# === Cluster (Phase 6) ========================================================
+# Embedding-/HDBSCAN-Clustering ist verworfen (R9). Phase 6 nutzt nur noch
+# min_cluster_size (Komponenten < min → "unsortiert/"); initial_strategy und der
+# UMAP+HDBSCAN-Block (Phase 7b) sind entfernt.
 clustering:
   min_cluster_size: 3           # bottom-up Regel: <3 Files → "unsortiert/"
-  initial_strategy: "greedy"    # für Phase 6, einfache erste Cluster
-
-  # Phase 7b — UMAP+HDBSCAN (optional, nicht DoD-blockierend)
-  umap_hdbscan:
-    enabled: false
-    umap:
-      n_neighbors: 15
-      min_dist: 0.1
-      n_components: 2
-      metric: "cosine"
-    hdbscan:
-      min_cluster_size: 3
-      min_samples: 2
-      cluster_selection_epsilon: 0.0
-    output_visualization: "${pipeline_output}/cluster_visualization.html"
 
 
 # === LLM-Batch-Bildung (Phase 7) ==============================================
@@ -144,21 +132,14 @@ qwen:
   timeout_seconds: 600           # Pro Qwen-Call (Stage 3/4); Reasoning-Modell kann lange brauchen — eher großzügig
 
   # Temperaturen pro Stage (siehe docs/04_qwen_prompts.md)
-  # HINWEIS (Option B): stage1/stage2 sind DEPRECATED — die Cluster-/Merge-Stages
-  # entfallen (1 Doc → 1 Concept). Werte bleiben nur, weil das Config-Schema
-  # (QwenTemperatureConfig) sie als Pflichtfelder verlangt. Vollständiges Prunen
-  # erst nach koordiniertem Schema-Umbau in pipeline/config.py.
+  # Option B (1 Doc → 1 Concept): nur Stage 3 (Synthese) + Stage 4 (Frontmatter).
+  # stage1/stage2 (Cluster-/Merge-Stages) entfallen und sind entfernt.
   temperature:
-    stage1_cluster_analysis: 0.3   # DEPRECATED (Option B, ungenutzt)
-    stage2_merge_proposal: 0.2     # DEPRECATED (Option B, ungenutzt)
     stage3_synthesis: 0.4
     stage4_frontmatter: 0.1
 
-  # max_tokens pro Stage: Reasoning-Overhead ~93%, daher 10× erwarteter Content
-  # HINWEIS (Option B): stage1/stage2 DEPRECATED (siehe temperature-Block oben).
+  # max_tokens pro Stage: Reasoning-Overhead ~93%, daher 10x erwarteter Content
   max_tokens:
-    stage1: 20000                  # DEPRECATED (Option B, ungenutzt)
-    stage2: 14000                  # DEPRECATED (Option B, ungenutzt)
     stage3: 16000                  # Höchster Bedarf: vollständiger Markdown-Body, Context-Window 49152
     stage4: 10000
 

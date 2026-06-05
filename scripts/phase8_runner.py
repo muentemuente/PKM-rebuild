@@ -40,9 +40,9 @@ import signal
 import subprocess
 import sys
 import time
-import unicodedata
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # === Pfade ===
 PROJECT_ROOT = Path.home() / "projects" / "aktiv" / "PKM-rebuild"
@@ -59,46 +59,15 @@ TIMEOUT_PER_SLUG = 30 * 60  # 30 min Maximum pro Slug
 # === Stop-Bedingungen ===
 MAX_CONSECUTIVE_FAILURES = 5
 
-# Slug-Normalisierung (mit NFC für macOS-NFD-Filesystem)
-UMLAUT_MAP = {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}
-
-# Kanonische CK-Slug-Ableitung — Composed-Umlaut-Tabelle + 60-Cap.
-_CK_UMLAUT_TABLE = str.maketrans(
-    {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "ae", "Ö": "oe", "Ü": "ue"}
+# Slug-Werkzeuge (normalize_slug, canonical_ck_slug) → scripts/_pkm_common.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts._pkm_common import (  # noqa: E402
+    canonical_ck_slug,
+    normalize_slug,
 )
-_CK_SPECIAL_RE = re.compile(r"[^a-z0-9]+")
-CK_SLUG_CAP = 60
 
-
-# === Slug-Werkzeuge ===
-
-def normalize_slug(name: str) -> str:
-    s = unicodedata.normalize("NFC", name).lower()
-    for o, r in UMLAUT_MAP.items():
-        s = s.replace(o, r)
-    return re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-
-
-def canonical_ck_slug(name: str) -> str:
-    """Repliziert die Pipeline-Slug-Ableitung für CK-Dateinamen.
-
-    Identisch zu ``_slugify_ck(_filename_to_slug(name))`` aus der Pipeline:
-    NFC-Komposition (macOS-NFD-Fix), Umlaut-Map, NFKD-Akzent-Strip, lowercase,
-    Sonderzeichen→Bindestrich, 60-Cap. Single Source of Truth bleibt die
-    Pipeline; ``tests/test_phase8_runner.py`` bewacht die Übereinstimmung
-    gegen Drift.
-
-    Args:
-        name: Roher Dateiname-Stamm (Korpus) oder Slug.
-
-    Returns:
-        Kanonischer Slug, wie ihn die Pipeline für ``CK_<slug>.*`` schreibt.
-    """
-    s = unicodedata.normalize("NFC", name).translate(_CK_UMLAUT_TABLE)
-    s = unicodedata.normalize("NFKD", s)
-    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
-    s = _CK_SPECIAL_RE.sub("-", s).strip("-")
-    return s[:CK_SLUG_CAP].strip("-") or "concept"
+# Re-Export für test_phase8_runner.py (importiert runner.canonical_ck_slug)
+__all__ = ["canonical_ck_slug", "normalize_slug"]
 
 
 # === Batch-File parsen ===
@@ -131,19 +100,20 @@ def state_path(batch_name: str) -> Path:
     return LOG_BASE / f"state_{batch_name}.json"
 
 
-def load_state(batch_name: str) -> dict:
+def load_state(batch_name: str) -> dict[str, Any]:
     p = state_path(batch_name)
     if not p.exists():
         return {"done": [], "failed": [], "started_at": None,
                 "last_update": None}
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        data: dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
+        return data
     except Exception:
         return {"done": [], "failed": [], "started_at": None,
                 "last_update": None}
 
 
-def save_state(batch_name: str, state: dict) -> None:
+def save_state(batch_name: str, state: dict[str, Any]) -> None:
     state["last_update"] = datetime.now().isoformat(timespec="seconds")
     state_path(batch_name).write_text(
         json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -203,7 +173,7 @@ def run_pipeline(corpus_path: Path, log_file: Path) -> int:
 
 # === Batch-Verarbeitung ===
 
-def process_batch(batch_file: Path, dry_run: bool = False) -> dict:
+def process_batch(batch_file: Path, dry_run: bool = False) -> dict[str, Any]:
     batch_name = batch_file.stem
     items = parse_batch(batch_file)
     state = load_state(batch_name)
@@ -217,7 +187,7 @@ def process_batch(batch_file: Path, dry_run: bool = False) -> dict:
                   / f"phase8_{batch_name}_"
                   f"{datetime.now().strftime('%Y%m%d_%H%M')}")
 
-    stats = {
+    stats: dict[str, Any] = {
         "batch": batch_name,
         "total": len(items),
         "done_new": 0,
@@ -318,8 +288,8 @@ def process_batch(batch_file: Path, dry_run: bool = False) -> dict:
 
 # === Main ===
 
-def install_signal_handlers():
-    def handler(signum, frame):
+def install_signal_handlers() -> None:
+    def handler(signum: int, frame: Any) -> None:
         print(f"\nSIGNAL {signum} empfangen — state ist persistiert, beende.",
               flush=True)
         sys.exit(130)

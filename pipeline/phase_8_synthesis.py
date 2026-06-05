@@ -895,8 +895,9 @@ def _process_doc(
         concept["type"] = "gedanke"
         concept["category"] = "gedanken"
         concept["doc_role"] = ["wiki"]
-        body: str | None = _build_gedanken_body(doc_segments)
-        fm = _run_stage4_gedanken(concept, body, drafts_dir, slug, doc_id, cfg)
+        gedanken_body = _build_gedanken_body(doc_segments)  # -> str
+        body: str | None = gedanken_body
+        fm = _run_stage4_gedanken(concept, gedanken_body, drafts_dir, slug, doc_id, cfg)
     elif doc_id in passthrough_doc_ids:
         log.info("phase_8_passthrough", doc_id=doc_id, slug=slug)
         body = _build_passthrough_body(doc_segments)
@@ -916,6 +917,9 @@ def _process_doc(
         return False, True
 
     combined_path = drafts_dir / f"CK_{slug}.md"
+    # body ist hier garantiert gesetzt: gedanken/passthrough liefern str, der
+    # stage3-Pfad ist oben gegen None geguardet (return). Narrowing für mypy.
+    assert body is not None
     if force or not combined_path.exists():
         _write_combined_draft(body, fm, combined_path)
 

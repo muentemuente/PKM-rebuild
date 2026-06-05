@@ -70,6 +70,10 @@ CATEGORY_TO_FOLDER: dict[str, str] = {
 
 _PHASE = "phase_9_vault_build"
 
+# Ordner, die KEIN auto-generiertes `_index.md` bekommen (eigene Regeln,
+# enthalten Templates/Standards statt Concept-Notes).
+_INDEX_EXCLUDED_FOLDERS = {"00_Meta"}
+
 
 @dataclass
 class _Article:
@@ -369,12 +373,19 @@ def run_phase_9(
             content = _render_article(art.data, art.body)
             write_stats[_write_if_changed(target, content, archive_root, dry_run)] += 1
 
-        # _index.md pro genutztem Ordner
+        # _index.md pro genutztem Ordner (außer ausgeschlossene Sonderordner)
         by_folder: dict[str, list[_Article]] = defaultdict(list)
         for art in plan.articles:
             by_folder[art.folder].append(art)
         for folder, arts in by_folder.items():
             idx_path = vault_dir / folder / "_index.md"
+            if folder in _INDEX_EXCLUDED_FOLDERS:
+                # 00_Meta enthält Templates/Standards, keine Concept-Notes → kein Index.
+                # Stale Index aus früherem Lauf entfernen (archive-before-delete).
+                if idx_path.exists():
+                    _archive_existing(idx_path, archive_root)
+                    idx_path.unlink()
+                continue
             idx_content = _render_index(folder, arts)
             _write_if_changed(idx_path, idx_content, archive_root, dry_run)
 

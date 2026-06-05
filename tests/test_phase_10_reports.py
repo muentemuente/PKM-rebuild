@@ -1,417 +1,282 @@
-"""Tests fuer Phase 10 — Kontroll-Berichte.
+"""Tests für Phase 10 — Kontroll-Berichte.
 
-Akzeptanzkriterien aus docs/02_pipeline_spec.md, Phase 10:
-  - corpus_report.md, duplicate_report.md, cluster_report.md werden generiert
-  - Frontmatter valide (YAML-parseable)
-  - Idempotenz: zweiter Lauf erzeugt identische Outputs (Hash-Vergleich)
-  - CLI-Commands funktionieren: --phase 10 und reports
+Fixtures sind synthetisch (nicht gegen den echten Korpus). Der Vault wird über
+den echten Phase-9-Builder aus synthetischen Drafts erzeugt, damit cluster_report
+und corpus_report gegen realistische Ground Truth laufen.
 """
+
+from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
+import pytest
 import yaml
-from click.testing import CliRunner
-from pipeline.__main__ import cli
+from pipeline.phase_9_vault_build import run_phase_9
 from pipeline.phase_10_reports import (
-    _detect_language,
-    _doc_id_from_segment_id,
-    _smoke_test_candidate,
     generate_cluster_report,
     generate_corpus_report,
     generate_duplicate_report,
     run_phase_10,
 )
 
-# === Fixtures =================================================================
+_BASE_FM: dict = {
+    "title": "Testartikel",
+    "slug": "test-artikel",
+    "summary": "Synthetische Zusammenfassung.",
+    "type": "knowledge-article",
+    "doc_role": ["reference"],
+    "category": "grundlagen",
+    "tags": ["tag-a", "tag-b"],
+    "sources_docs": ["D_test"],
+    "source_chunks": ["D_test-S0000"],
+    "confidence": "medium",
+    "created": "2026-06-01",
+    "updated": "2026-06-02",
+    "last_synthesized": "2026-06-02",
+    "prompt_version": "v1",
+}
 
 
-def _write_manifest(path: Path, docs: list[dict[str, Any]]) -> None:
-    path.write_text("\n".join(json.dumps(d) for d in docs) + "\n", encoding="utf-8")
-
-
-def _write_structured(path: Path, docs: list[dict[str, Any]]) -> None:
-    path.write_text("\n".join(json.dumps(d) for d in docs) + "\n", encoding="utf-8")
-
-
-def _write_segments(path: Path, segs: list[dict[str, Any]]) -> None:
-    path.write_text("\n".join(json.dumps(s) for s in segs) + "\n", encoding="utf-8")
-
-
-def _sample_manifest_records() -> list[dict[str, Any]]:
-    return [
-        {
-            "doc_id": "D_alpha",
-            "path": "/data/alpha.md",
-            "filename": "alpha.md",
-            "size_bytes": 1024,
-            "modified_at": "2026-05-27T19:25:00+00:00",
-            "sha256": "abc123",
-            "line_count": 50,
-            "word_count": 300,
-            "char_count": 1800,
-        },
-        {
-            "doc_id": "D_beta",
-            "path": "/data/beta.md",
-            "filename": "beta.md",
-            "size_bytes": 512,
-            "modified_at": "2026-05-27T19:25:00+00:00",
-            "sha256": "def456",
-            "line_count": 20,
-            "word_count": 80,
-            "char_count": 480,
-        },
-    ]
-
-
-def _sample_structured_records() -> list[dict[str, Any]]:
-    return [
-        {
-            "doc_id": "D_alpha",
-            "title": "Alpha",
-            "headings": [],
-            "code_blocks": [],
-            "tables_count": 0,
-            "links": [],
-            "images": [],
-            "doc_type_guess": {"label": "wiki", "confidence": 0.8, "signals": []},
-        },
-        {
-            "doc_id": "D_beta",
-            "title": "Beta",
-            "headings": [],
-            "code_blocks": [],
-            "tables_count": 0,
-            "links": [],
-            "images": [],
-            "doc_type_guess": {"label": "cheat_sheet", "confidence": 0.7, "signals": []},
-        },
-    ]
-
-
-def _sample_segments() -> list[dict[str, Any]]:
-    return [
-        {
-            "segment_id": "D_alpha-S0000",
-            "doc_id": "D_alpha",
-            "source_path": "/data/alpha.md",
-            "heading_path": [],
-            "segment_index": 0,
-            "text": "Alpha text",
-            "word_count": 2,
-            "char_count": 10,
-            "contains_code": False,
-            "contains_table": False,
-        },
-        {
-            "segment_id": "D_beta-S0000",
-            "doc_id": "D_beta",
-            "source_path": "/data/beta.md",
-            "heading_path": [],
-            "segment_index": 0,
-            "text": "Beta text",
-            "word_count": 2,
-            "char_count": 9,
-            "contains_code": False,
-            "contains_table": False,
-        },
-    ]
-
-
-def _make_corpus_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
-    manifest = tmp_path / "files_manifest.jsonl"
-    structured = tmp_path / "documents_structured.jsonl"
-    segments = tmp_path / "segments.jsonl"
-    _write_manifest(manifest, _sample_manifest_records())
-    _write_structured(structured, _sample_structured_records())
-    _write_segments(segments, _sample_segments())
-    return manifest, structured, segments
-
-
-def _make_duplicate_inputs(tmp_path: Path) -> tuple[Path, Path]:
-    exact = tmp_path / "exact_duplicates.json"
-    edges = tmp_path / "near_duplicate_edges.jsonl"
-    exact.write_text("[]", encoding="utf-8")
-    edges.write_text(
-        json.dumps(
-            {"segment_id_a": "D_alpha-S0000", "segment_id_b": "D_beta-S0000", "similarity": 0.85}
-        )
-        + "\n",
+def _make_draft(
+    drafts_dir: Path,
+    stem: str,
+    *,
+    slug: str,
+    category: str = "grundlagen",
+    tags: list[str] | None = None,
+) -> None:
+    fm = dict(_BASE_FM)
+    fm.update(slug=slug, category=category, title=f"Artikel {slug}", tags=tags or ["tag-a"])
+    body = f"# {fm['title']}\n\nKörper von {slug}.\n"
+    (drafts_dir / f"CK_{stem}.md").write_text(
+        "---\n" + yaml.safe_dump(fm, sort_keys=False, allow_unicode=True) + "---\n\n" + body,
         encoding="utf-8",
     )
-    return exact, edges
+    (drafts_dir / f"CK_{stem}.body.md").write_text(body, encoding="utf-8")
 
 
-def _make_cluster_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
-    clusters = tmp_path / "cluster_proposals.json"
-    edges = tmp_path / "near_duplicate_edges.jsonl"
-    batches_dir = tmp_path / "batches"
-    batches_dir.mkdir()
+def _write_manifest(path: Path, n_docs: int) -> None:
+    now = datetime.now(tz=UTC).isoformat()
+    with path.open("w", encoding="utf-8") as fh:
+        for i in range(n_docs):
+            rec = {
+                "doc_id": f"D_doc{i}",
+                "path": f"/corpus/doc{i}.md",
+                "filename": f"doc{i}.md",
+                "size_bytes": 1000 + i,
+                "modified_at": now,
+                "sha256": f"{i:064x}",
+                "line_count": 10,
+                "word_count": 100 + i * 50,
+                "char_count": 600,
+            }
+            fh.write(json.dumps(rec) + "\n")
 
-    cluster_data = [
-        {
-            "cluster_id": "C_cluster-0001",
-            "label_guess": "Test Cluster",
-            "segment_ids": ["D_alpha-S0000", "D_alpha-S0001", "D_alpha-S0002", "D_beta-S0000"],
-            "internal_similarity_mean": 0.8,
-        },
-        {
-            "cluster_id": "C_unsortiert",
-            "label_guess": "Unsortiert",
-            "segment_ids": ["D_gamma-S0000"],
-            "internal_similarity_mean": 0.0,
-        },
-    ]
-    clusters.write_text(json.dumps(cluster_data), encoding="utf-8")
-    edges.write_text(
-        json.dumps(
-            {"segment_id_a": "D_alpha-S0000", "segment_id_b": "D_alpha-S0001", "similarity": 0.9}
-        )
-        + "\n",
+
+def _write_structured(path: Path, n_docs: int) -> None:
+    with path.open("w", encoding="utf-8") as fh:
+        for i in range(n_docs):
+            rec = {
+                "doc_id": f"D_doc{i}",
+                "title": f"Doc {i}",
+                "headings": [],
+                "code_blocks": [],
+                "tables_count": 0,
+                "links": [],
+                "images": [],
+                "doc_type_guess": {"label": "reference", "confidence": 0.8, "signals": []},
+            }
+            fh.write(json.dumps(rec) + "\n")
+
+
+def _write_segments(path: Path, n_segments: int) -> None:
+    with path.open("w", encoding="utf-8") as fh:
+        for i in range(n_segments):
+            fh.write(json.dumps({"segment_id": f"D_doc0-S{i:04d}"}) + "\n")
+
+
+def _write_exact(path: Path, groups: list[list[str]]) -> None:
+    path.write_text(
+        json.dumps([{"sha256": f"{i:064x}", "doc_ids": g} for i, g in enumerate(groups)]),
         encoding="utf-8",
     )
 
-    batch_content = """---
-batch_id: batch_001_test-cluster
-cluster_id: C_cluster-0001
-label_guess: Test Cluster
-segment_count: 7
-doc_count: 2
-token_estimate: 500
-sub_batch: 1/1
-created_at: 2026-05-27T19:26:48.992266+00:00
-pipeline_version: 0.1.0
----
 
-Batch content here.
-"""
-    (batches_dir / "batch_001_test-cluster.md").write_text(batch_content, encoding="utf-8")
-    return clusters, edges, batches_dir
+def _write_edges(path: Path, edges: list[tuple[str, str, float]]) -> None:
+    with path.open("w", encoding="utf-8") as fh:
+        for a, b, s in edges:
+            fh.write(json.dumps({"segment_id_a": a, "segment_id_b": b, "similarity": s}) + "\n")
 
 
-# === Unit Tests ===============================================================
+@pytest.fixture
+def env(temp_dir: Path):
+    """Baut drafts + vault (via Phase 9) + Phase-1/5-Fixtures unter temp_dir."""
+    drafts = temp_dir / "03_drafts"
+    vault = temp_dir / "04_vault"
+    out = temp_dir / "02_pipeline_output"
+    corpus = temp_dir / "01_corpus_input"
+    backups = temp_dir / "backups"
+    for d in (drafts, vault, out, corpus, backups):
+        d.mkdir(parents=True)
+
+    # 5 Drafts: 3 grundlagen, 1 webentwicklung, 1 unsortiert
+    _make_draft(drafts, "a", slug="alpha", category="grundlagen", tags=["x", "y"])
+    _make_draft(drafts, "b", slug="beta", category="grundlagen", tags=["x"])
+    _make_draft(drafts, "c", slug="gamma", category="grundlagen", tags=["x"])
+    _make_draft(drafts, "d", slug="delta", category="webentwicklung", tags=["z"])
+    _make_draft(drafts, "e", slug="epsilon", category="unsortiert", tags=["w"])
+    run_phase_9(drafts, vault, out, backups, force=True)
+
+    _write_manifest(out / "files_manifest.jsonl", 8)  # 8 Korpus-Docs
+    _write_structured(out / "documents_structured.jsonl", 8)
+    _write_segments(out / "segments.jsonl", 25)  # 25 Segmente ≠ 8 Docs
+    _write_exact(out / "exact_duplicates.json", [["D_doc0", "D_doc1"]])
+    _write_edges(out / "near_duplicate_edges.jsonl", [("D_doc0-S0000", "D_doc1-S0000", 0.95)])
+    (corpus / "_excluded").mkdir()
+    (corpus / "_excluded" / "x1.md").write_text("x", encoding="utf-8")
+    (corpus / "_excluded" / "x2.md").write_text("x", encoding="utf-8")
+    return drafts, vault, out, corpus
 
 
-def test_doc_id_from_segment_id() -> None:
-    """Segment-ID-Suffix wird korrekt entfernt."""
-    assert _doc_id_from_segment_id("D_some-slug-S0003") == "D_some-slug"
-    assert _doc_id_from_segment_id("D_short-S0000") == "D_short"
+def _corpus(env, **kw) -> Path:
+    drafts, vault, out, corpus = env
+    return generate_corpus_report(
+        out / "files_manifest.jsonl",
+        out / "documents_structured.jsonl",
+        out / "segments.jsonl",
+        out / "corpus_report.md",
+        drafts_dir=drafts,
+        vault_dir=vault,
+        corpus_input=corpus,
+        **kw,
+    )
 
 
-def test_detect_language_german() -> None:
-    """Deutscher Text wird als 'de' erkannt."""
-    german = "Das ist ein Text und der die das auch mit von zu für eine"
-    result = _detect_language(german)
-    assert result == "de"
+def _cluster(env, **kw) -> Path:
+    drafts, vault, out, _ = env
+    return generate_cluster_report(drafts, vault, out / "cluster_report.md", **kw)
 
 
-def test_detect_language_english() -> None:
-    """Englischer Text wird als 'en' erkannt."""
-    english = "The quick brown fox and the lazy dog is with the other fox"
-    result = _detect_language(english)
-    assert result == "en"
+def _duplicate(env, **kw) -> Path:
+    drafts, vault, out, _ = env
+    return generate_duplicate_report(
+        out / "exact_duplicates.json",
+        out / "near_duplicate_edges.jsonl",
+        out / "duplicate_report.md",
+        drafts_dir=drafts,
+        vault_dir=vault,
+        **kw,
+    )
 
 
-def test_smoke_test_candidate_prefers_5_to_10_segs() -> None:
-    """Smoke-Test-Kandidat bevorzugt Batches mit 5-10 Segmenten."""
-    infos = [
-        {"batch_id": "big", "segment_count": "50", "token_estimate": "1000"},
-        {"batch_id": "small", "segment_count": "7", "token_estimate": "200"},
-        {"batch_id": "tiny", "segment_count": "2", "token_estimate": "50"},
-    ]
-    assert _smoke_test_candidate(infos) == "small"
+# === corpus counts ============================================================
 
 
-# === Integration Tests ========================================================
+def test_corpus_doc_count_and_segment_separation(env) -> None:
+    text = _corpus(env, force=True).read_text(encoding="utf-8")
+    assert "Files gesamt (Korpus, Doc-Ebene): 8" in text
+    assert "Segmente gesamt (Segment-Ebene, ≠ Doc-Count): 25" in text
 
 
-def test_corpus_report_generates(tmp_path: Path) -> None:
-    """corpus_report.md wird erstellt und hat gültiges Frontmatter."""
-    manifest, structured, segments = _make_corpus_inputs(tmp_path)
-    output = tmp_path / "corpus_report.md"
-
-    result = generate_corpus_report(manifest, structured, segments, output)
-
-    assert result.exists()
-    content = result.read_text(encoding="utf-8")
-    assert content.startswith("---")
-    fm_end = content.find("---", 3)
-    fm = yaml.safe_load(content[3:fm_end])
-    assert fm["slug"] == "corpus-report"
-    assert fm["status"] == "stable"
-    assert "2" in content  # doc count
-    assert "2" in content  # segment count
+def test_corpus_processing_status(env) -> None:
+    """ready=5 (gebaut), excluded=2, hold=8-5-2=1; Summe == 8."""
+    text = _corpus(env, force=True).read_text(encoding="utf-8")
+    assert "`ready` (im Vault) | 5" in text
+    assert "`excluded` | 2" in text
+    assert "`hold` (pending) | 1" in text
+    assert "**Summe** | **8**" in text
 
 
-def test_duplicate_report_generates(tmp_path: Path) -> None:
-    """duplicate_report.md wird erstellt und hat gültiges Frontmatter."""
-    exact, edges = _make_duplicate_inputs(tmp_path)
-    output = tmp_path / "duplicate_report.md"
-
-    result = generate_duplicate_report(exact, edges, output)
-
-    assert result.exists()
-    content = result.read_text(encoding="utf-8")
-    fm_end = content.find("---", 3)
-    fm = yaml.safe_load(content[3:fm_end])
-    assert fm["slug"] == "duplicate-report"
-    assert "0.85" in content  # edge similarity
+# === duplicate report =========================================================
 
 
-def test_cluster_report_generates(tmp_path: Path) -> None:
-    """cluster_report.md wird erstellt und hat gültiges Frontmatter."""
-    clusters, edges, batches_dir = _make_cluster_inputs(tmp_path)
-    output = tmp_path / "cluster_report.md"
-
-    result = generate_cluster_report(clusters, batches_dir, edges, output)
-
-    assert result.exists()
-    content = result.read_text(encoding="utf-8")
-    fm_end = content.find("---", 3)
-    fm = yaml.safe_load(content[3:fm_end])
-    assert fm["slug"] == "cluster-report"
-    assert "C_cluster-0001" in content
-    assert "C_unsortiert" in content
+def test_duplicate_groups_and_merged_from_note(env) -> None:
+    text = _duplicate(env, force=True).read_text(encoding="utf-8")
+    assert "Anzahl Gruppen: 1" in text
+    assert "Keine Konsolidierungen" in text
+    assert "`merged_from` ist bei allen 5 Vault-Artikeln leer (0 mit Einträgen)" in text
 
 
-def test_reports_idempotent(tmp_path: Path) -> None:
-    """Zweiter Lauf erzeugt identische Outputs (Hash-Vergleich)."""
-    manifest, structured, segments = _make_corpus_inputs(tmp_path)
-    output = tmp_path / "corpus_report.md"
-
-    generate_corpus_report(manifest, structured, segments, output)
-    hash1 = hashlib.sha256(output.read_bytes()).hexdigest()
-
-    generate_corpus_report(manifest, structured, segments, output)
-    hash2 = hashlib.sha256(output.read_bytes()).hexdigest()
-
-    assert hash1 == hash2, "Zweiter Lauf erzeugte anderen Hash — nicht idempotent"
+# === cluster sum ==============================================================
 
 
-def test_reports_force_regenerates(tmp_path: Path) -> None:
-    """Mit force=True wird der Report auch bei Cache-Hit neu generiert."""
-    exact, edges = _make_duplicate_inputs(tmp_path)
-    output = tmp_path / "duplicate_report.md"
-
-    generate_duplicate_report(exact, edges, output)
-    mtime1 = output.stat().st_mtime
-
-    # Kurze Pause nötig damit mtime sich unterscheidet
-    import time
-
-    time.sleep(0.05)
-    generate_duplicate_report(exact, edges, output, force=True)
-    mtime2 = output.stat().st_mtime
-
-    assert mtime2 >= mtime1
+def test_cluster_sum_equals_total(env) -> None:
+    text = _cluster(env, force=True).read_text(encoding="utf-8")
+    assert "Vault-Artikel gesamt: 5" in text
+    assert "| 01_Grundlagen | 3 |" in text
+    assert "| 02_Webentwicklung | 1 |" in text
+    assert "| **Summe** | **5** |" in text
+    assert "⚠️ Abweichung" not in text
 
 
-def test_run_phase_10_returns_summary(tmp_path: Path) -> None:
-    """run_phase_10 gibt Summary-Dict mit 3 reports_generated zurück."""
-    manifest, structured, segments = _make_corpus_inputs(tmp_path)
-    exact, edges = _make_duplicate_inputs(tmp_path)
-    clusters, _, batches_dir = _make_cluster_inputs(tmp_path)
+def test_cluster_unsorted_section(env) -> None:
+    text = _cluster(env, force=True).read_text(encoding="utf-8")
+    assert "## `unsortiert/`" in text
+    assert "`epsilon`" in text
+    assert "kein** echtes" in text  # Kennzeichnung Mapping-Lücke vs Mikrocluster
 
+
+def test_cluster_tag_frequencies(env) -> None:
+    text = _cluster(env, force=True).read_text(encoding="utf-8")
+    assert "| `x` | 3 |" in text  # x in alpha+beta+gamma
+
+
+# === idempotenz ===============================================================
+
+
+def _run_all(env, out: Path) -> dict[str, str]:
+    drafts, vault, _, corpus = env
+    run_phase_10(
+        out / "files_manifest.jsonl",
+        out / "documents_structured.jsonl",
+        out / "segments.jsonl",
+        out / "exact_duplicates.json",
+        out / "near_duplicate_edges.jsonl",
+        drafts,
+        vault,
+        corpus,
+        out,
+        force=True,
+    )
+    return {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in out.glob("*_report.md")}
+
+
+def test_reports_idempotent(env) -> None:
+    out = env[2]
+    first = _run_all(env, out)
+    second = _run_all(env, out)
+    assert first == second
+    assert len(first) == 3
+
+
+# === human-readable ===========================================================
+
+
+def test_reports_are_human_readable_markdown(env) -> None:
+    for path in (_corpus(env, force=True), _duplicate(env, force=True), _cluster(env, force=True)):
+        text = path.read_text(encoding="utf-8")
+        assert text.startswith("---\n")  # YAML-Frontmatter
+        assert "\n# " in text  # Markdown-H1
+        assert "|---" in text  # mind. eine Tabelle
+        assert not text.lstrip().startswith("{")  # kein roher JSON-Dump
+
+
+def test_run_phase_10_returns_summary(env) -> None:
+    drafts, vault, out, corpus = env
     summary = run_phase_10(
-        manifest_path=manifest,
-        structured_path=structured,
-        segments_path=segments,
-        exact_path=exact,
-        edges_path=edges,
-        clusters_path=clusters,
-        batches_dir=batches_dir,
-        output_dir=tmp_path,
+        out / "files_manifest.jsonl",
+        out / "documents_structured.jsonl",
+        out / "segments.jsonl",
+        out / "exact_duplicates.json",
+        out / "near_duplicate_edges.jsonl",
+        drafts,
+        vault,
+        corpus,
+        out,
+        force=True,
     )
-
     assert summary["reports_generated"] == 3
     assert len(summary["report_paths"]) == 3
-    for p in summary["report_paths"]:
-        assert Path(p).exists()
-
-
-def test_reports_command_runs(tmp_path: Path) -> None:
-    """CLI-Command 'reports' läuft durch ohne Exception (auf echten Outputs)."""
-    runner = CliRunner()
-    result = runner.invoke(cli, ["reports", "--help"])
-    assert result.exit_code == 0
-    assert "Kontroll-Berichte" in result.output
-
-
-def test_cluster_report_doc_count(tmp_path: Path) -> None:
-    """Histogramm zählt distinct Docs, nicht Segmente.
-
-    Cluster mit 10 Segmenten aus 5 verschiedenen Docs → Bin "3-5", nicht "> 50".
-    """
-    clusters = tmp_path / "cluster_proposals.json"
-    edges = tmp_path / "near_duplicate_edges.jsonl"
-    batches_dir = tmp_path / "batches"
-    batches_dir.mkdir()
-
-    # 10 Segmente aus 5 Docs
-    segment_ids = [f"D_doc{i}-S{j:04d}" for i in range(5) for j in range(2)]
-    cluster_data = [
-        {
-            "cluster_id": "C_cluster-0001",
-            "label_guess": "Test",
-            "segment_ids": segment_ids,
-            "internal_similarity_mean": 0.8,
-        }
-    ]
-    clusters.write_text(json.dumps(cluster_data), encoding="utf-8")
-    edges.write_text("", encoding="utf-8")
-
-    output = tmp_path / "cluster_report.md"
-    generate_cluster_report(clusters, batches_dir, edges, output)
-
-    content = output.read_text(encoding="utf-8")
-    # Histogramm-Sektion zeigt Docs
-    assert "Docs/Cluster" in content
-    # Bin "3-5" hat genau 1 Cluster (5 Docs)
-    assert "| 3-5 | 1 |" in content
-    # Bin "> 50" hat 0 Cluster (wäre der falsche Wert bei Segment-Count)
-    assert "| > 50 | 0 |" in content
-    # Top-20 zeigt ebenfalls 5 Docs
-    assert "| C_cluster-0001 |" in content
-    assert "| 5 |" in content or "5" in content
-
-
-def test_cluster_report_excludes_unsortiert_from_stats(tmp_path: Path) -> None:
-    """C_unsortiert fließt nicht in large/micro/Histogramm ein."""
-    clusters = tmp_path / "cluster_proposals.json"
-    edges = tmp_path / "near_duplicate_edges.jsonl"
-    batches_dir = tmp_path / "batches"
-    batches_dir.mkdir()
-
-    cluster_data = [
-        {
-            "cluster_id": "C_cluster-0001",
-            "label_guess": "Echt",
-            "segment_ids": ["D_a-S0000", "D_b-S0000", "D_c-S0000"],
-            "internal_similarity_mean": 0.8,
-        },
-        {
-            "cluster_id": "C_unsortiert",
-            "label_guess": "Unsortiert",
-            # 200 Segmente aus 100 verschiedenen Docs — darf nicht in Statistik
-            "segment_ids": [f"D_unsort{i}-S0000" for i in range(100)],
-            "internal_similarity_mean": 0.0,
-        },
-    ]
-    clusters.write_text(json.dumps(cluster_data), encoding="utf-8")
-    edges.write_text("", encoding="utf-8")
-
-    output = tmp_path / "cluster_report.md"
-    generate_cluster_report(clusters, batches_dir, edges, output)
-
-    content = output.read_text(encoding="utf-8")
-    # Übersicht: 1 Cluster gesamt (C_unsortiert zählt nicht als named)
-    assert "Cluster gesamt: 1" in content
-    # davon mit ≥3 Docs: 1 (der echte Cluster mit 3 Docs)
-    assert "davon mit ≥ 3 Docs: 1" in content
-    # Mikrocluster: 0
-    assert "Mikrocluster (< 3 Docs): 0" in content
-    # C_unsortiert-Segment-Count erscheint im Unsortiert-Zähler
-    assert "100 Segmente" in content

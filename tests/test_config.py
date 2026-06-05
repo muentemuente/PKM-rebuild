@@ -15,7 +15,7 @@ def test_config_loads_vault_section() -> None:
     assert cfg.vault.generate_cluster_index is True
     assert cfg.vault.validate_wikilinks is True
     assert cfg.vault.attic_folder == "_attic"
-    assert cfg.vault.unsorted_folder == "unsortiert"
+    assert cfg.vault.unsorted_folder == "17_unsortiert"
 
 
 def test_config_loads_tags_section() -> None:

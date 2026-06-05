@@ -4,11 +4,13 @@ Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung
 
 ## Status
 
-- **Phase:** Phase 8 (Qwen-Veredelung) abgeschlossen — **Phase 9 (Vault-Aufbau) als Nächstes**
-- **Stand:** 2026-06-04
-- **Drafts:** 180 vault-ready · 19 `_hold` (Gedanken, deferred) · 3 `_excluded` (denkschulen + 2 Hangs)
+- **Phase:** **Erstlauf abgeschlossen** (Phasen 1–10) + **inkrementell nutzbar** (`pipeline ingest`)
+- **Stand:** 2026-06-05
+- **Vault:** 180 Artikel in 15 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups), inkl. `17_unsortiert` (8)
+- **Deferred:** 19 `_hold` (Gedanken) · 3 `_excluded` (denkschulen + 2 Hangs) — über Inbox nachziehbar
 - **Charakter:** Lernprojekt mit produktivem Output
-- **Offene Tasks:** [`docs/tasks/README.md`](docs/tasks/README.md), [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md)
+- **Laufender Betrieb:** [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md) (inkrementeller Standard-Workflow)
+- **Verbleibend:** nur menschliche Qualitätsstufe-2-Review + Backup 2. Medium ([`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md))
 
 ---
 
@@ -18,7 +20,8 @@ Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung
 |---|---|
 | **A. Vorbereitung (Python)** | Inventar, Normalisierung, Strukturextraktion, Segmentierung, Redundanz-Erkennung (Hash → TF-IDF → Embeddings) |
 | **B. Veredelung (Qwen 3.6 27B lokal, Option B)** | **Pro-Doc** statt Cross-Doc-Merge. Routing je Doc: `passthrough` (Code/Tabellen/Headings → Body 1:1 + Frontmatter) · `stage3` (Prosa → LLM-Veredelung + Frontmatter) · `gedanken` (Sonderpfad, Minimal-Frontmatter). Kein Cluster-Merge, `merged_from` immer leer. |
-| **C. Vault-Aufbau** | bereinigte Artikel in Obsidian-Vault; `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 thematische Ordner, Wikilinks, Tag-Vokabular |
+| **C. Vault-Aufbau** | bereinigte Artikel in Obsidian-Vault; `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 thematische Ordner (+ `17_unsortiert` Catch-all), Wikilinks, Tag-Vokabular |
+| **D. Inkrementell** | neue `.md` → `data/00_inbox/` → `pipeline ingest` (Phasen 1–4 + 8, Option B) → Review → `build-vault`. Vokabular-Pflege über `scripts/manage_vocab.py`. |
 
 ---
 
@@ -68,9 +71,18 @@ python -m pipeline run --phase 1 --sample 10
 
 # Ab Phase 5 weiterlaufen
 python -m pipeline run --from-phase 5
+
+# Inkrementell: neue .md aus data/00_inbox/ verarbeiten (Option B)
+python -m pipeline ingest --dry-run     # Plan zeigen, nichts schreiben
+python -m pipeline ingest               # verarbeiten (braucht laufendes LM Studio)
+
+# Vault bauen + Vokabular pflegen
+python -m pipeline build-vault
+python3 scripts/manage_vocab.py list
+python3 scripts/manage_vocab.py validate
 ```
 
-Details zu Setup, Daten-Layout und Datenpfaden: [`docs/02_pipeline_spec.md`](docs/02_pipeline_spec.md).
+Details zu Setup, Daten-Layout und Datenpfaden: [`docs/02_pipeline_spec.md`](docs/02_pipeline_spec.md); inkrementeller Workflow: [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md).
 
 ---
 
@@ -106,10 +118,11 @@ PKM-rebuild/
 ```
 ~/projects/aktiv/PKM_rebuild/
 ├── data/
+│   ├── 00_inbox/              ← Inbox für inkrementellen Lauf (pipeline ingest)
 │   ├── 01_corpus_input/       ← Original-Markdown (read-only)
-│   ├── 02_pipeline_output/    ← JSONL, Embeddings, Cluster
+│   ├── 02_pipeline_output/    ← JSONL, Embeddings, Reports, ingest_report.md
 │   ├── 03_drafts/             ← Qwen-generierte Drafts
-│   └── 04_vault/              ← finaler Obsidian-Vault
+│   └── 04_vault/              ← finaler Obsidian-Vault (16 Ordner + 17_unsortiert)
 └── backups/                   ← Time Machine + manuelle Snapshots
 ```
 
@@ -132,10 +145,10 @@ Reihenfolge zum Einstieg (auch für Claude Code als Lese-Kontext):
 | [`docs/05_glossary.md`](docs/05_glossary.md) | Begriffsdefinitionen |
 | [`docs/06_claude_code_workflow.md`](docs/06_claude_code_workflow.md) | Claude Code in Zed, Token-Management, Recovery |
 | [`docs/07_backup_strategy.md`](docs/07_backup_strategy.md) | Backup-Plan für den Vault |
-| [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) | Aktueller Projektstand, Counts, Phase-9-Readiness |
-| [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md) | Backlog nächster Pipeline-Lauf (geparkte Gedanken, Hangs, neue Files) |
+| [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) | Aktueller Projektstand, Counts, DoD |
+| [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md) | Inkrementeller Standard-Workflow (Inbox → ingest → Vault) + Backlog |
 | [`docs/learnings/`](docs/learnings/) | Reflexionsdokumente pro Phase |
-| [`docs/tasks/README.md`](docs/tasks/README.md) | Offene Tasks + Blöcke (P0–P2) |
+| [`docs/_archive/`](docs/_archive/) | Erledigte Handover-/Task-Artefakte (Historie) |
 
 ---
 

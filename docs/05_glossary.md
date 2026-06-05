@@ -3,7 +3,7 @@ title: PKM-rebuild Glossar
 slug: 05-glossary
 status: stable
 created: 2026-05-25
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 
 # Glossar
@@ -59,8 +59,11 @@ Punkt im Pipeline-Ablauf, an dem ein Mensch eine Entscheidung treffen muss, bevo
 ### Cluster *(verworfen als Vault-Strukturprinzip)*
 Gruppe semantisch verwandter Segmente. Embedding-/HDBSCAN-Clustering wurde **verworfen** — der Korpus hat keine inhärente Cluster-Struktur (`01_strategy.md` R9). Embeddings/TF-IDF dienen nur noch der **Redundanz-Erkennung** (Phase 5/6); die Vault-Ordner sind ein fixes kuratiertes 16er-Schema, `category` kommt aus Qwen-Stage-4 + deterministischem Mapping.
 
-### `unsortiert`
-Vault-Ordner für schwache/uneindeutige `category`-Zuordnungen (z.B. Business-Domänen ohne eigenen Ordner). Später per Hand zuordnen oder löschen.
+### UMAP / HDBSCAN *(nicht verwendet)*
+Dimensionsreduktion (UMAP) + dichtebasiertes Clustering (HDBSCAN), ursprünglich als Phase 7b geplant. **Nicht verwendet / verworfen** (R9) — der Korpus clustert nicht sinnvoll. Code als Lern-Artefakt in `scripts/clustering_analysis.py`, nicht im Produktiv-Pfad.
+
+### `17_unsortiert`
+Vollwertiger nummerierter Vault-Cluster (vormals `unsortiert/`) für schwache/uneindeutige `category`-Zuordnungen (z.B. Business-Domänen ohne eigenen Ordner). `category`-Wert bleibt `unsortiert`; bekommt wie jeder genutzte Cluster ein `_index.md`. Zuordnung per Hand über `scripts/manage_vocab.py` + Frontmatter-Edit.
 
 ### Embedding
 Numerische Vektor-Repräsentation eines Text-Segments, erzeugt durch `paraphrase-multilingual-mpnet-base-v2`. Dimensionsanzahl: 768. Verwendet für semantische Ähnlichkeits-Berechnungen.
@@ -153,6 +156,12 @@ Unterordner in `03_drafts/` für **zurückgestellte** Drafts (aktuell 19 Gedanke
 ### `_excluded/`
 Unterordner in `01_corpus_input/` für aus der Mainstream-Pipeline **ausgeschlossene** Korpus-Files (aktuell 3: `denkschulen_…` als Survey-Doc + 2 Stage-3-Hangs). Phase 1 überspringt `_*`-Prefix.
 
+### Inbox (`00_inbox/`)
+Ablage in `data/` für **neue Roh-`.md`** im inkrementellen Modus. `pipeline ingest` verarbeitet nur diese Files; nach Vault-Übernahme wandern sie nach `01_corpus_input/` (Korpus). Außerhalb Git (`.gitignore`).
+
+### `ingest` (inkrementeller Modus)
+CLI-Kommando (`python -m pipeline ingest`): verarbeitet neue Files aus `00_inbox/` durch Phasen 1→4 (isoliertes Work-Dir) + Phase 8 (Option-B-Routing); Phasen 5/6/7 entfallen. Erzeugt `ingest_report.md` (category/tags neu-vs-bestehend). Bestehender Vault unberührt; idempotent. Workflow: `docs/FUTURE_RUN.md`.
+
 ### Snapshot
 Manuelle oder automatische Sicherung des aktuellen Sessions-Kontexts oder Vault-Zustands. Wird vor Token-Limits, Pausen oder größeren Änderungen erstellt. Pfad: `.claude/snapshots/` (Session) oder `~/projects/aktiv/PKM_rebuild/backups/` (Vault).
 
@@ -184,6 +193,9 @@ Offenes Protokoll für IDE-zu-AI-Agent-Kommunikation, seit Q1 2026 in Zed verfü
 ### CLAUDE.md
 Markdown-File mit Working Rules / Conventions für Claude Code. Wird zu Beginn jeder Session gelesen. In diesem Projekt: Root + Pipeline + Prompts (3 Stück, kaskadierend).
 
+### `manage_vocab.py`
+Helper-Skript (`scripts/manage_vocab.py`) zur Vokabular-Pflege: `add-category` (legt category konsistent in `CATEGORY_TO_FOLDER` + Vault-Ordner + Doku an; `ALLOWED_CATEGORIES` folgt abgeleitet), `add-tag --reason` (Kern-Vokabular in `00_Meta/tag-system.md`), `list`, `validate` (Drift: fehlende Ordner / Tags außerhalb Vokabular). Idempotent.
+
 ---
 
 ## Aktualisierungs-Routine
@@ -196,3 +208,4 @@ Neue Begriffe werden ergänzt, wenn sie im Projekt zum ersten Mal verwendet werd
 
 - 2026-05-25 — Initial-Version
 - 2026-06-04 — Option B + Clustering-Verwurf: Stage/Review-Gate/Cluster/category/type auf Ist-Stand; neue Begriffe Routing, passthrough, canonical_ck_slug, Triage-Action, _hold, _excluded, unsortiert, Ordner-Index
+- 2026-06-05 — Phase 12: `unsortiert` → `17_unsortiert`; neue Begriffe Inbox, `ingest`, `manage_vocab.py`, UMAP/HDBSCAN (nicht verwendet)

@@ -3,7 +3,7 @@ title: PKM-rebuild Strategie
 slug: 01-strategy
 status: stable
 created: 2026-05-25
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 
 # Strategie — PKM-rebuild
@@ -46,17 +46,17 @@ Aus ~200 unstrukturierten Markdown-Dateien einen kuratierten, deduplizierten Obs
 Alle Kriterien müssen erfüllt sein:
 
 ### Primary
-- [ ] `~/projects/aktiv/PKM_rebuild/data/04_vault/` enthält strukturierten Obsidian-Vault
-- [ ] Jede `.md` im Vault hat valides Frontmatter nach `docs/03_vault_standard.md`
-- [ ] Keine SHA-256-Duplikate im Vault
-- [ ] `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner (kein Embedding-Cluster); `unsortiert/` für schwache Zuordnungen erlaubt
-- [ ] `merged_from` leer in allen Vault-Files (kein Cross-Doc-Merge, Option B)
-- [ ] Index-Files (`_index.md`) pro genutztem Vault-Ordner generiert
-- [ ] Alle Vault-Artikel mindestens auf Qualitätsstufe 2 (Strukturierter Artikel)
+- [x] `~/projects/aktiv/PKM_rebuild/data/04_vault/` enthält strukturierten Obsidian-Vault (180 Artikel)
+- [x] Jede `.md` im Vault hat valides Frontmatter nach `docs/03_vault_standard.md` (0 Pydantic-Fails)
+- [x] Keine SHA-256-Duplikate im Vault
+- [x] `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner (kein Embedding-Cluster); `17_unsortiert/` als regulärer Catch-all-Cluster für schwache Zuordnungen
+- [x] `merged_from` leer in allen Vault-Files (kein Cross-Doc-Merge, Option B)
+- [x] Index-Files (`_index.md`) pro genutztem Vault-Ordner generiert (außer `00_Meta`)
+- [ ] Alle Vault-Artikel mindestens auf Qualitätsstufe 2 — **offen: menschliche Qualitätsstufe-2-Review**
 
 ### Secondary
-- [ ] `corpus_report.md`, `duplicate_report.md`, `cluster_report.md` in `data/02_pipeline_output/`
-- [ ] Pipeline läuft idempotent (zweimaliger Lauf = identische Outputs)
+- [x] `corpus_report.md`, `duplicate_report.md`, `cluster_report.md` in `data/02_pipeline_output/`
+- [x] Pipeline läuft idempotent (zweimaliger Lauf = identische Outputs)
 - [ ] `--sample 10` Modus funktioniert
 - [ ] Alle Qwen-Prompts in `prompts/v1/` versioniert + Git-getrackt
 - [ ] Pipeline-Tests (`pytest`) laufen grün
@@ -165,7 +165,11 @@ Drei Szenarien pro Phase. **Realistic** ist Planungs-Basis.
 | 8. Qwen-Veredelung (Stage 3+4 pro Doc, Option B) | 6h | 14h | 28h | `data/03_drafts/CK_*.{md,body.md,frontmatter.json}` |
 | 9. Vault-Aufbau | 4h | 8h | 16h | `data/04_vault/` |
 | 10. Kontroll-Berichte | 1h | 2h | 4h | 3× `*_report.md` |
+| 11. Cleanup | — | — | — | `_pkm_common`, Config-Prune, mypy-clean, Intermediates-Entscheidung |
+| 12. Finalisierung | — | — | — | Workspace clean, `17_unsortiert`, `ingest`+`manage_vocab`, Docs Ist-Stand |
 | **SUMME** | **27h** | **51h** | **100h+** | |
+
+> **Laufender Betrieb (nach Erstlauf):** inkrementell über `pipeline ingest` (Inbox → Phasen 1–4 + 8, Option B) + `scripts/manage_vocab.py` (Vokabular-Pflege). Workflow: `docs/FUTURE_RUN.md`.
 
 **Bei 4–6h-Sessions = ~9–13 Sessions Realistic**, über mehrere Wochen mit Reflexions-Puffern.
 
@@ -201,3 +205,4 @@ Dieses Doc wird gepflegt bei:
 - 2026-05-25 — Initial-Version
 - 2026-05-29 — Option-B-Anpassung: In-Scope Phase 8 auf Stage 3+4 pro Doc; Out-of-Scope Cross-Doc-Synthese ergänzt; DoD Cluster-Kriterium entschärft + merged_from-Kriterium neu; Annahme Kontext-Window 128K→50K korrigiert; R1 Gegenmaßnahme auf Pro-Doc-Kontext; Phase-8-Zeitschätzung angepasst; Abbruchkriterium Cluster→Doc
 - 2026-06-04 — Clustering-Verwurf (R9 realisiert + aufgelöst): Embedding-/HDBSCAN-Clustering verworfen, `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner; Annahmen §6 (bottom-up, mpnet-Cluster) revidiert; Stakeholder-Tabelle + DoD + Phasen-Tabelle (6/7/7b) auf Ist-Stand; Phase 8 abgeschlossen
+- 2026-06-05 — Phase 12: DoD auf Ist-Stand (Primary erfüllt außer menschl. Qualitätsstufe-2); `17_unsortiert` als regulärer Cluster; Phasen-Tabelle um 11/12 + inkrementellen Betrieb (`ingest`/`manage_vocab`)

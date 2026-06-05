@@ -15,6 +15,7 @@ _VAR_RE = re.compile(r"\$\{(\w+)\}")
 
 class PathsConfig(BaseModel):
     data_root: Path
+    inbox: Path
     corpus_input: Path
     pipeline_output: Path
     drafts: Path

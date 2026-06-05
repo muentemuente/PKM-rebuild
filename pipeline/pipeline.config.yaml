@@ -14,6 +14,7 @@
 # Override per Env-Variable: PKM_DATA_ROOT
 paths:
   data_root: "~/projects/aktiv/PKM_rebuild/data"
+  inbox: "${data_root}/00_inbox"                 # inkrementeller Modus: neue Roh-.md (pipeline ingest)
   corpus_input: "${data_root}/01_corpus_input"
   pipeline_output: "${data_root}/02_pipeline_output"
   drafts: "${data_root}/03_drafts"
@@ -150,7 +151,7 @@ vault:
   generate_cluster_index: true      # _index.md pro Cluster automatisch
   validate_wikilinks: true          # broken links → Warning
   attic_folder: "_attic"            # für deprecated
-  unsorted_folder: "unsortiert"     # für Mikrocluster < min_cluster_size
+  unsorted_folder: "17_unsortiert"  # regulärer Cluster (Mapping-Lücke / Domäne ohne eigenen Ordner)
 
 
 # === Tag-Vokabular ============================================================

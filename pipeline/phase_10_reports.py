@@ -611,7 +611,7 @@ def generate_cluster_report(
             f"| Slug | Titel |\n|---|---|\n{unsorted_rows}"
         )
     else:
-        unsorted_section = "_`unsortiert/` ist leer._"
+        unsorted_section = f"_`{_UNSORTED_FOLDER}/` ist leer._"
 
     missing_section = (
         "\n".join(f"| {m['folder']} | `{m['slug']}` |" for m in missing)
@@ -649,7 +649,7 @@ pipeline_version: {pipeline_version}
 {folder_rows}
 | **Summe** | **{sum_check}**{sum_marker} |
 
-## `unsortiert/`
+## `{_UNSORTED_FOLDER}/`
 {unsorted_section}
 
 ## Tag-Häufigkeiten (gesamt, Top 30)

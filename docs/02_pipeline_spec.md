@@ -3,7 +3,7 @@ title: PKM-rebuild Pipeline-Spezifikation
 slug: 02-pipeline-spec
 status: stable
 created: 2026-05-25
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 
 # Pipeline-Spezifikation
@@ -189,9 +189,32 @@ python -m pipeline build-vault
 
 # Bericht-Generierung
 python -m pipeline reports
+
+# Inkrementell: neue .md aus data/00_inbox/ (Phasen 1-4 + 8, Option B)
+python -m pipeline ingest                # braucht laufendes LM Studio
+python -m pipeline ingest --dry-run      # Plan zeigen, kein Qwen, nichts schreiben
 ```
 
 **Globale Flags:** `--config <path>`, `--verbose`, `--dry-run`
+
+### Vokabular-Pflege (Skript)
+
+```bash
+python3 scripts/manage_vocab.py list                          # Kategorien + Tags
+python3 scripts/manage_vocab.py validate                      # Drift prüfen
+python3 scripts/manage_vocab.py add-category <name>           # neue category konsistent anlegen
+python3 scripts/manage_vocab.py add-tag <tag> --reason "..."  # Tag ins Kern-Vokabular
+```
+
+### Inkrementeller Modus (`ingest`)
+
+`ingest` verarbeitet **nur** Files aus `data/00_inbox/` durch die Per-Doc-Pipeline
+(Phasen 1→4 in einem isolierten Work-Dir `02_pipeline_output/ingest/`, dann Phase 8
+mit Option-B-Routing). Die Phasen 5/6/7 (Redundanz/Embeddings/Batches) entfallen —
+Option B konsumiert sie nicht. Bestehender Korpus/Vault/Drafts bleiben unberührt
+(Hash-/Slug-Skip); zweiter Lauf ohne neue Files = no-op. Output:
+`02_pipeline_output/ingest_report.md` (pro neuem Doc: vorgeschlagene `category` +
+`tags` mit Flag neu-vs-bestehend). Vollständiger Workflow: `docs/FUTURE_RUN.md`.
 
 ---
 
@@ -424,7 +447,7 @@ Pro Doc durchlaufen Stage 3 und Stage 4. Failure in einer Stage → Retry oder F
 - `duplicate_report`: exakte Gruppen + near-dup-Kanten; **Option B**: `merged_from` überall leer →
   „keine Konsolidierungen" explizit vermerkt.
 - `cluster_report`: Artikel-Verteilung pro Vault-Ordner (Build-Plan gegen Vault gecheckt, Summe == 180),
-  `unsortiert/`-Sektion (Mapping-Lücke gekennzeichnet, nicht verschoben), Tag-Häufigkeiten gesamt + pro Ordner.
+  `17_unsortiert/`-Sektion (Mapping-Lücke gekennzeichnet, nicht verschoben), Tag-Häufigkeiten gesamt + pro Ordner.
 - Idempotent via Input-Hash; mensch-lesbares Markdown (keine JSON-Dumps).
 
 **Akzeptanzkriterien:**
@@ -638,3 +661,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-05-30 — Block 0G.6: FrontmatterDraft.type um "gedanke" erweitert (Sonderpfad 15_Gedanken/)
 - 2026-05-30 — Block 8.A.1: Phase-8-Routing 1:1-Passthrough (code/table/headings); confidence-Hinweis zu Akzeptanzkriterien
 - 2026-06-04 — Clustering-Verwurf (R9): Phase 6 auf Embeddings-nur-Redundanz, Phase 7b verworfen, ClusterProposal/Cluster-Config als ungenutzt markiert; Phase-7-Batches als Token-Budget-Splits; Phase-8-Routing-Tabelle (passthrough/stage3/gedanken) + Triage/Runner-Mechanik; Architektur-Diagramm + Gate-1-Label + Performance-Tabelle auf Ist-Stand
+- 2026-06-05 — Phase 12: CLI um `ingest` + `manage_vocab` erweitert; Abschnitt „Inkrementeller Modus" (Inbox → Phasen 1-4 + 8, Option B); `17_unsortiert/` im cluster_report

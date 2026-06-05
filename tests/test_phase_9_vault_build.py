@@ -91,15 +91,15 @@ def _all_vault_md(vault: Path) -> list[Path]:
 
 
 def test_mapping_covers_all_canonical_folders() -> None:
-    """16 thematische + meta + unsortiert; korrekte Nummern-Präfixe."""
+    """meta + 16 thematische + 17_unsortiert; alle nummeriert (00-17)."""
     assert CATEGORY_TO_FOLDER["meta"] == "00_Meta"
     assert CATEGORY_TO_FOLDER["grundlagen"] == "01_Grundlagen"
     assert CATEGORY_TO_FOLDER["gedanken"] == "15_Gedanken"
     assert CATEGORY_TO_FOLDER["kunst-kultur"] == "16_Kunst-Kultur"
-    assert CATEGORY_TO_FOLDER["unsortiert"] == "unsortiert"
-    # 16 nummerierte (00-16 = 17 inkl. 00_Meta) + unsortiert
+    assert CATEGORY_TO_FOLDER["unsortiert"] == "17_unsortiert"
+    # alle 18 Ordner sind nummeriert (00..17), unsortiert ist regulärer Cluster
     numbered = [v for v in CATEGORY_TO_FOLDER.values() if v[:2].isdigit()]
-    assert len(numbered) == 17  # 00..16
+    assert len(numbered) == 18  # 00..17
     assert len(CATEGORY_TO_FOLDER) == 18
 
 
@@ -116,8 +116,26 @@ def test_unknown_category_routes_to_unsortiert(vault_env) -> None:
     drafts, vault, _, _ = vault_env
     _make_draft(drafts, "x", slug="weird", category="gibt-es-nicht")
     summary = _run(vault_env, force=True)
-    assert (vault / "unsortiert" / "weird.md").exists()
+    assert (vault / "17_unsortiert" / "weird.md").exists()
     assert summary["unknown_categories"] == ["gibt-es-nicht"]
+
+
+def test_unsortiert_is_regular_cluster_with_index(vault_env) -> None:
+    """category=unsortiert landet in 17_unsortiert und bekommt ein _index.md."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "u1", slug="u-eins", category="unsortiert")
+    _make_draft(drafts, "u2", slug="u-zwei", category="unsortiert")
+    summary = _run(vault_env, force=True)
+    assert (vault / "17_unsortiert" / "u-eins.md").exists()
+    assert (vault / "17_unsortiert" / "u-zwei.md").exists()
+    # regulärer Cluster → _index.md wird erzeugt (anders als 00_Meta)
+    idx = vault / "17_unsortiert" / "_index.md"
+    assert idx.exists()
+    fm = yaml.safe_load(idx.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert fm["article_count"] == 2
+    assert fm["folder"] == "17_unsortiert"
+    # keine als unknown gewertet (unsortiert ist gültige category)
+    assert summary["unknown_categories"] == []
 
 
 # === frontmatter valid ========================================================

@@ -1,7 +1,7 @@
 ---
 title: PKM-rebuild — Projektstand
 slug: project-status
-status: draft
+status: stable
 created: 2026-05-28
 updated: 2026-06-05
 ---
@@ -14,20 +14,24 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 
 ## 0. Aktueller Stand (2026-06-05)
 
-**Technischer Abschluss erreicht — Phasen 1–11 implementiert. Verbleibend: manuelle DoD-Reste + AP5-Entscheidung.**
+**Projekt abgeschlossen — Phasen 1–10 implementiert, Phase 11 (Cleanup) + Phase 12 (Finalisierung) erledigt; inkrementeller Modus live. Verbleibend: nur menschliche Qualitätsstufe-2-Review + Backup 2. Medium.**
 
 | Größe | Wert |
 |---|---|
 | Vault-Artikel (`04_vault/`) | **180** in 15 genutzten Ordnern, 0 Pydantic-Fails, 0 SHA-Dups |
 | `_index.md` | 14 (genutzte Ordner − `00_Meta`) |
 | Kontroll-Berichte | corpus / duplicate / cluster (Vault-Ground-Truth) + `DOD_CHECK.md` |
-| `unsortiert/` | 8 Artikel (Diagnose: `unsortiert_diagnose.md`) — manuelle Zuordnung offen |
+| `17_unsortiert/` | 8 Artikel — vollwertiger nummerierter Cluster (AP2; vormals `unsortiert/`); Diagnose `unsortiert_diagnose.md` |
 | Reconcile | 199 Korpus-Slugs (180 ready + 19 hold) + 3 excluded = 202 |
-| Test-Suite | **377** grün, ruff-Gate sauber, `mypy pipeline/ scripts/` clean |
+| Test-Suite | **399** grün, ruff-Gate sauber, `mypy pipeline/ scripts/` clean |
 | Architektur | Option B (Pro-Doc, kein Merge); Embedding-Clustering **verworfen** (R9) |
-| Cleanup (Phase 11) | AP1 `_pkm_common` (Drift weg) · AP2 Config-Prune · AP3 mypy-clean · AP4 unsortiert-Diagnose · **AP5 nicht ausgeführt** (Triage hängt an Intermediates) |
+| Inkrementell | `pipeline ingest` (Inbox → Phasen 1–4 + 8) + `scripts/manage_vocab.py` (Vokabular-Pflege) — Phase 12 |
+| Cleanup (Phase 11) | AP1 `_pkm_common` (Drift weg) · AP2 Config-Prune · AP3 mypy-clean · AP4 unsortiert-Diagnose · AP5 Intermediates als Provenance behalten |
+| Finalisierung (Phase 12) | Workspace clean · `17_unsortiert`-Cluster · `ingest`+`manage_vocab`+Inbox · Docs Ist-Stand · Reflexion |
 
 **DoD (`scripts/dod_check.py`):** 9 ✅ / 1 ⚠️ (dokumentierte Kleinordner-Ausnahme) automatisch; 2 offen (Backup 2. Medium, Qualitätsstufe-2-Review) = menschlich.
+
+> **Befund (Phase 12, `manage_vocab validate`):** der Vault enthält viele Tags außerhalb des kontrollierten 47er-Kern-Vokabulars (Stage 8 lief mit `strict_vocabulary: false`). Das ist Teil der offenen Qualitätsstufe-2-Review, kein Blocker.
 
 Details: `docs/learnings/PHASE_09_vault-build.md`, `PHASE_10_reports.md`, `PHASE_11_cleanup.md`.
 
@@ -48,7 +52,8 @@ Details: `docs/learnings/PHASE_09_vault-build.md`, `PHASE_10_reports.md`, `PHASE
 | 8 | Qwen-Veredelung (Option B: Stage 3+4 pro Doc) | ✅ done — 180 Drafts | (mehrere) |
 | 9 | Vault-Aufbau (180 Artikel, 15 Ordner, _index) | ✅ done | `493b2f0` |
 | 10 | Kontroll-Berichte (Vault-Ground-Truth) + DoD-Check | ✅ done | `03ecaaf` |
-| 11 | Cleanup (AP1–4 done, AP5 deferred) | ✅ techn. Abschluss | (feature/cleanup) |
+| 11 | Cleanup (AP1–5) | ✅ done | (feature/cleanup) |
+| 12 | Finalisierung (Workspace, 17_unsortiert, ingest/manage_vocab, Docs) | ✅ done | (feature/finalize) |
 
 ---
 
@@ -436,3 +441,4 @@ Option B (Pro-Doc-Veredelung) — Stand 2026-06-04:
 - 2026-05-29 — Block-0.J.8: Phase-10 done (`fd161be`), Tests 222→275, Threshold-Iteration + Block-0.K in Phase-4-Sektion, Offene Punkte 7.5+7.6 ergänzt
 - 2026-05-30 — Block-0.M abgeschlossen (`fa9669c`): §7.6 als behoben markiert; Block-0.N ergänzt (Autonomie-Setup, Permissions, Hooks); Tests 275→282; §8 Nächste Schritte auf Option-B-Roadmap aktualisiert
 - 2026-06-04 — Phase 8 abgeschlossen (180 Drafts); §0 Aktueller Stand mit Counts (180/19/3); Clustering verworfen (§7.5 aufgelöst, R9); Phase-8-CLI §7.4 behoben; Tests 282→359; Phasen-Tabelle + §8 auf Ist-Stand; Pre-Phase-9-Hardening E1–E5
+- 2026-06-05 — Phase 12 (Finalisierung): §0 auf Projekt-Abschluss; `17_unsortiert` als regulärer Cluster (AP2); inkrementeller Modus (`ingest` + `manage_vocab`, AP3); Phasen-Tabelle 11/12; Tests 377→399; status → stable; Tag-Vokabular-Befund (`strict_vocabulary: false`)

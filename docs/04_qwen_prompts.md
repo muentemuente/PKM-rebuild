@@ -3,7 +3,7 @@ title: PKM-rebuild Qwen-Prompt-Spezifikation
 slug: 04-qwen-prompts
 status: stable
 created: 2026-05-25
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 
 # Qwen-Prompt-Spezifikation
@@ -33,6 +33,8 @@ Gilt für alle Prompts in `prompts/v1/` und nachfolgende Versionen (`v2/`, `v3/`
 | JSON-Mode | **deaktiviert** (LM Studio inkompatibel mit Reasoning-Modell; JSON im Prompt erzwingen + Python parsen) |
 
 **Reasoning-Charakter:** Qwen 3.6 27B denkt vor jeder Antwort (ähnlich o1). Gemessener Overhead: ~91–93 % der generierten Tokens sind Thinking-Tokens, nicht Content. `max_tokens` muss **10× die geplante Content-Größe** betragen, sonst wird die Antwort abgeschnitten (`finish_reason: length`).
+
+**Hang-Lehre (2 Files):** Meta-/Prompt-Inhalt (`Prompt-Verbesserung.md`, `prompts_text_stil_grammatik.md`) triggert im Stage-3-Call einen **nicht-terminierenden Reasoning-Loop** (das Modell „denkt über Prompts nach"). **Timeout-Hochsetzen hilft nicht** — der Loop terminiert nicht von selbst. Mitigation: hart auf `passthrough` routen **oder** Reasoning/`max_tokens` je Call cappen. Die beiden Files liegen in `_excluded/` (siehe `docs/FUTURE_RUN.md`).
 
 **Memory-Workflow während Qwen-Läufen:** nur Zed + Ghostty + LM Studio offen. Browser/Mail/Slack zu. Memory-Pressure in Aktivitätsanzeige im Blick behalten.
 
@@ -436,3 +438,4 @@ Dieses Doc wird gepflegt bei:
 - 2026-05-25 — Initial-Version
 - 2026-05-29 — Option-B-Anpassung: Stage-Übersicht Stage 1/2 als deaktiviert markiert; Stage-1/2-Detailabschnitte mit Status-Note versehen; Review-Gate-2-Verweis gestrichen; Stage 3 zu Pro-Doc-Veredelung umbenannt + Input neu; Stage 4 Input auf Segment-Metadaten, Aliases-Constraint auf Source-Doc-only, merged_from-Kommentar
 - 2026-06-04 — Routing-Modell in Stage 3 (passthrough vs. stage3 vs. gedanken) ergänzt; `max_tokens`-Bezug zur Config (stage3=16000); Intro + Token-Budget auf Ist-Stand
+- 2026-06-05 — Phase 12: Hang-Lehre dokumentiert (Reasoning-Loop bei Meta-/Prompt-Inhalt, Timeout wirkungslos, Mitigation passthrough/cap)

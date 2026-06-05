@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from pipeline.config import PipelineConfig, load_config
+from pipeline.ingest import run_ingest
 from pipeline.phase_1_inventory import run_phase_1
 from pipeline.phase_2_normalize import run_phase_2
 from pipeline.phase_3_structure import run_phase_3
@@ -372,6 +373,13 @@ def status(config: str) -> None:
         console.print(f"  Phase {p:2d}: {label}")
 
     console.print()
+    console.print("[bold]Kommandos:[/bold] run · status · reports · build-vault · ingest")
+    console.print(
+        "  [dim]ingest[/dim]: inkrementell — neue .md aus data/00_inbox/ "
+        "durch Phasen 1-4 + 8 (Option B)"
+    )
+
+    console.print()
     manifest = pipeline_output / "files_manifest.jsonl"
     if manifest.exists():
         lines = manifest.read_text(encoding="utf-8").splitlines()
@@ -407,6 +415,49 @@ def build_vault(force: bool, dry_run: bool, config: str) -> None:
     """Phase 9: Vault aus Drafts aufbauen (data/04_vault/<NN_Cluster>/<slug>.md)."""
     cfg = load_config(Path(config))
     _dispatch_phase_9(cfg, force, dry_run)
+
+
+@cli.command()
+@click.option("--force", is_flag=True, help="Phasen-Cache ignorieren, neu berechnen")
+@click.option("--dry-run", "dry_run", is_flag=True, help="Plan zeigen, nichts schreiben, kein Qwen")
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def ingest(force: bool, dry_run: bool, config: str) -> None:
+    """Inkrementell: neue .md aus data/00_inbox/ durch Phasen 1-4 + 8 (Option B)."""
+    cfg = load_config(Path(config))
+    summary = run_ingest(cfg, force=force, dry_run=dry_run)
+
+    if summary["inbox_files"] == 0:
+        console.print("[yellow]ingest:[/yellow] Inbox leer (data/00_inbox/) — nichts zu tun.")
+        return
+
+    if dry_run:
+        console.print(f"[cyan]--dry-run:[/cyan] {summary['inbox_files']} Inbox-File(s):")
+        table = Table(title="Ingest-Plan")
+        table.add_column("Datei")
+        table.add_column("Status")
+        for name, status in summary.get("plan", []):
+            table.add_row(name, status)
+        console.print(table)
+        console.print("[cyan]--dry-run:[/cyan] nichts geschrieben, kein Qwen-Aufruf.")
+        return
+
+    console.print(
+        f"[green]✓ ingest:[/green] {summary['inbox_files']} Inbox-File(s) → "
+        f"{summary['new_drafts']} neue Drafts "
+        f"({summary['new_categories']} neue Kategorien, {summary['new_tags']} neue Tags)"
+    )
+    if summary.get("report_path"):
+        console.print(f"  Report: {summary['report_path']}")
+    if summary["new_categories"] or summary["new_tags"]:
+        console.print(
+            "[yellow]  ⏸ Review:[/yellow] neue category/tag — siehe Report, dann "
+            "scripts/manage_vocab.py add-* oder bestehende zuordnen."
+        )
 
 
 if __name__ == "__main__":

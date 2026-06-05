@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts._pkm_common import SLUG_RE, parse_yaml_text, split_md  # noqa: E402
+from scripts._pkm_common import SLUG_RE, parse_yaml_text, split_md
 
 # === Pfade (Defaults; in Tests überschreibbar) ===
 _REPO = Path(__file__).resolve().parent.parent
@@ -219,13 +219,16 @@ def validate(
     tag_issues: list[str] = []
 
     mapping = parse_category_mapping(phase9_path)
+    used_tags, used_categories = _collect_used_tags_and_categories(vault_dir, drafts_dir)
 
-    # category: jeder Ordner muss im Vault existieren (außer 00_Meta-Spezial entfällt nicht)
+    # category: nur tatsächlich belegte Kategorien (≥1 Artikel) verlangen einen Ordner.
+    # Definierte, aber unbenutzte Kategorien sind kein Drift (Ordner wird erst bei
+    # Belegung vom Builder angelegt).
     for cat, folder in sorted(mapping.items()):
-        if not (vault_dir / folder).is_dir():
-            cat_issues.append(f"Vault-Ordner fehlt für category '{cat}': {folder}/")
+        if cat in used_categories and not (vault_dir / folder).is_dir():
+            cat_issues.append(f"Vault-Ordner fehlt für belegte category '{cat}': {folder}/")
 
-    # category: Doku §4 sollte jeden Ordner führen
+    # category: Doku §4 sollte jeden Ordner führen (Doku-Vollständigkeit, unabhängig von Belegung)
     if vault_standard_path.exists():
         doc = vault_standard_path.read_text(encoding="utf-8")
         for cat, folder in sorted(mapping.items()):
@@ -234,23 +237,23 @@ def validate(
 
     # tags: alle in Vault/Drafts verwendeten Tags müssen im Vokabular sein
     vocab = parse_tag_vocab(tag_system_path)
-    used = _collect_used_tags(vault_dir, drafts_dir)
-    for tag in sorted(used - vocab):
+    for tag in sorted(used_tags - vocab):
         tag_issues.append(f"Tag nicht im Vokabular: '{tag}'")
 
     return {"category_issues": cat_issues, "tag_issues": tag_issues}
 
 
-def _collect_used_tags(vault_dir: Path, drafts_dir: Path) -> set[str]:
-    """Tags aus allen Frontmattern in Vault (ohne _index) + aktiven Drafts."""
-    used: set[str] = set()
+def _collect_used_tags_and_categories(
+    vault_dir: Path, drafts_dir: Path
+) -> tuple[set[str], set[str]]:
+    """Tags + category-Werte aus allen Frontmattern in Vault (ohne _index) + aktiven Drafts."""
+    tags_used: set[str] = set()
+    cats_used: set[str] = set()
     md_files: list[Path] = []
     if vault_dir.exists():
         md_files += [p for p in vault_dir.rglob("*.md") if p.name != "_index.md"]
     if drafts_dir.exists():
-        md_files += [
-            p for p in drafts_dir.glob("*.md") if not p.name.endswith(".body.md")
-        ]
+        md_files += [p for p in drafts_dir.glob("*.md") if not p.name.endswith(".body.md")]
     for p in md_files:
         fm_yaml, _ = split_md(p.read_text(encoding="utf-8"))
         if fm_yaml is None:
@@ -260,8 +263,11 @@ def _collect_used_tags(vault_dir: Path, drafts_dir: Path) -> set[str]:
             continue
         tags = data.get("tags")
         if isinstance(tags, list):
-            used.update(str(t) for t in tags)
-    return used
+            tags_used.update(str(t) for t in tags)
+        cat = data.get("category")
+        if isinstance(cat, str) and cat:
+            cats_used.add(cat)
+    return tags_used, cats_used
 
 
 def list_vocab(
@@ -292,6 +298,67 @@ def _bump_updated(doc: str) -> str:
 # === CLI =====================================================================
 
 
+def _cmd_add_category(args: argparse.Namespace) -> int:
+    try:
+        res = add_category(args.name, dry_run=args.dry_run)
+    except ValueError as e:
+        print(f"FEHLER: {e}", file=sys.stderr)
+        return 2
+    changed = res.get("changed") or []
+    changed_str = ", ".join(str(c) for c in changed) if isinstance(changed, list) else ""
+    if res.get("already"):
+        print(f"category '{res['category']}' existiert bereits → {res['folder']} (no-op)")
+    elif res.get("dry_run"):
+        print(f"[dry-run] würde anlegen: '{res['category']}' → {res['folder']}/")
+        print(f"          Stellen: {changed_str}")
+    else:
+        print(f"category '{res['category']}' → {res['folder']}/ angelegt")
+        print(f"  geändert: {changed_str}")
+        print("  Hinweis: Appendix-A-Tabelle in 03_vault_standard.md ggf. manuell ergänzen.")
+    return 0
+
+
+def _cmd_add_tag(args: argparse.Namespace) -> int:
+    try:
+        res = add_tag(args.tag, args.reason, dry_run=args.dry_run)
+    except ValueError as e:
+        print(f"FEHLER: {e}", file=sys.stderr)
+        return 2
+    if res.get("already"):
+        print(f"Tag '{res['tag']}' ist bereits im Vokabular (no-op)")
+    elif res.get("dry_run"):
+        print(f"[dry-run] würde Tag '{res['tag']}' aufnehmen")
+    else:
+        print(f"Tag '{res['tag']}' ins Kern-Vokabular aufgenommen")
+    return 0
+
+
+def _cmd_list(_args: argparse.Namespace) -> int:
+    v = list_vocab()
+    categories = v["categories"]
+    tags = v["tags"]
+    assert isinstance(categories, dict)
+    assert isinstance(tags, list)
+    print("== Kategorien (category → Ordner) ==")
+    for cat, folder in categories.items():
+        print(f"  {cat:45} {folder}")
+    print(f"\n== Tags ({len(tags)}) ==")
+    print("  " + " · ".join(tags))
+    return 0
+
+
+def _cmd_validate(_args: argparse.Namespace) -> int:
+    vres = validate()
+    issues = vres["category_issues"] + vres["tag_issues"]
+    if not issues:
+        print("✓ Vokabular konsistent (Kategorien + Tags, keine Drift).")
+        return 0
+    print("⚠️ Drift gefunden:")
+    for i in issues:
+        print(f"  - {i}")
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Vokabular-Pflege (category + tags).")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -310,64 +377,13 @@ def main(argv: list[str] | None = None) -> int:
 
     args = ap.parse_args(argv)
 
-    if args.cmd == "add-category":
-        try:
-            res = add_category(args.name, dry_run=args.dry_run)
-        except ValueError as e:
-            print(f"FEHLER: {e}", file=sys.stderr)
-            return 2
-        changed = res.get("changed") or []
-        changed_str = ", ".join(str(c) for c in changed) if isinstance(changed, list) else ""
-        if res.get("already"):
-            print(f"category '{res['category']}' existiert bereits → {res['folder']} (no-op)")
-        elif res.get("dry_run"):
-            print(f"[dry-run] würde anlegen: '{res['category']}' → {res['folder']}/")
-            print(f"          Stellen: {changed_str}")
-        else:
-            print(f"category '{res['category']}' → {res['folder']}/ angelegt")
-            print(f"  geändert: {changed_str}")
-            print("  Hinweis: Appendix-A-Tabelle in 03_vault_standard.md ggf. manuell ergänzen.")
-        return 0
-
-    if args.cmd == "add-tag":
-        try:
-            res = add_tag(args.tag, args.reason, dry_run=args.dry_run)
-        except ValueError as e:
-            print(f"FEHLER: {e}", file=sys.stderr)
-            return 2
-        if res.get("already"):
-            print(f"Tag '{res['tag']}' ist bereits im Vokabular (no-op)")
-        elif res.get("dry_run"):
-            print(f"[dry-run] würde Tag '{res['tag']}' aufnehmen")
-        else:
-            print(f"Tag '{res['tag']}' ins Kern-Vokabular aufgenommen")
-        return 0
-
-    if args.cmd == "list":
-        v = list_vocab()
-        categories = v["categories"]
-        tags = v["tags"]
-        assert isinstance(categories, dict)
-        assert isinstance(tags, list)
-        print("== Kategorien (category → Ordner) ==")
-        for cat, folder in categories.items():
-            print(f"  {cat:45} {folder}")
-        print(f"\n== Tags ({len(tags)}) ==")
-        print("  " + " · ".join(tags))
-        return 0
-
-    if args.cmd == "validate":
-        vres = validate()
-        issues = vres["category_issues"] + vres["tag_issues"]
-        if not issues:
-            print("✓ Vokabular konsistent (Kategorien + Tags, keine Drift).")
-            return 0
-        print("⚠️ Drift gefunden:")
-        for i in issues:
-            print(f"  - {i}")
-        return 1
-
-    return 2
+    handlers = {
+        "add-category": _cmd_add_category,
+        "add-tag": _cmd_add_tag,
+        "list": _cmd_list,
+        "validate": _cmd_validate,
+    }
+    return handlers[args.cmd](args)
 
 
 if __name__ == "__main__":

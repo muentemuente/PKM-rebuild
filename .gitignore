@@ -40,6 +40,7 @@ secrets/
 # =============================================================================
 
 # Falls jemand das Data-Verzeichnis ins Repo verschiebt: blockieren
+data/00_inbox/
 data/01_corpus_input/
 data/02_pipeline_output/
 data/03_drafts/

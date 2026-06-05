@@ -35,6 +35,7 @@ if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
 import yaml  # noqa: E402
+from pipeline.phase_9_vault_build import CATEGORY_TO_FOLDER  # noqa: E402
 from pipeline.schemas import FrontmatterDraft  # noqa: E402
 
 # === Enums (aus pipeline.schemas abgeleitet — Drift unmöglich) ================
@@ -46,19 +47,11 @@ ALLOWED_REVIEW: set[str] = set(get_args(_FIELDS["review_status"].annotation))
 ALLOWED_CONFIDENCE: set[str] = set(get_args(_FIELDS["confidence"].annotation))
 
 # `category` und `doc_role` sind im Schema freie Strings (keine Literals).
-# ALLOWED_CATEGORIES wird gegen pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER
-# getestet (tests/test_pkm_common.py); ALLOWED_DOC_ROLE ist skript-kanonisch.
-ALLOWED_CATEGORIES: set[str] = {
-    "meta", "grundlagen", "webentwicklung", "betriebssysteme",
-    "protokolle-und-standards", "dateitypen-und-konfiguration",
-    "methoden-und-prozesse", "best-practices", "cheatsheets",
-    "ki-und-semantische-systeme", "datenarchitektur-und-datenbanken",
-    "dokumentenverarbeitung-und-extraktion",
-    "wissensmodellierung-und-knowledge-graphs",
-    "visualisierung-reporting-und-design-systeme",
-    "automatisierung-scripting-und-pipelines",
-    "gedanken", "kunst-kultur", "unsortiert",
-}
+# ALLOWED_CATEGORIES wird DIREKT aus pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER
+# abgeleitet → Single Source of Truth, Drift unmöglich. Neue Kategorien legt
+# scripts/manage_vocab.py add-category in CATEGORY_TO_FOLDER an; alles hier folgt
+# automatisch. ALLOWED_DOC_ROLE ist skript-kanonisch.
+ALLOWED_CATEGORIES: set[str] = set(CATEGORY_TO_FOLDER)
 ALLOWED_DOC_ROLE: set[str] = {
     "manual", "how-to", "best-practice", "workflow",
     "explanation", "reference", "cheatsheet", "wiki",

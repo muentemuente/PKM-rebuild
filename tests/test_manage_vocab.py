@@ -183,10 +183,11 @@ def test_add_tag_invalid_slug(env: dict[str, Path]) -> None:
 # === validate ================================================================
 
 
-def _write_draft(drafts: Path, slug: str, tags: list[str]) -> None:
+def _write_draft(drafts: Path, slug: str, tags: list[str], category: str | None = None) -> None:
     tag_yaml = "\n".join(f"  - {t}" for t in tags)
+    cat_line = f"category: {category}\n" if category else ""
     (drafts / f"CK_{slug}.md").write_text(
-        f"---\nslug: {slug}\ntags:\n{tag_yaml}\n---\n\n# {slug}\n", encoding="utf-8"
+        f"---\nslug: {slug}\n{cat_line}tags:\n{tag_yaml}\n---\n\n# {slug}\n", encoding="utf-8"
     )
 
 
@@ -202,8 +203,9 @@ def test_validate_clean(env: dict[str, Path]) -> None:
     assert res["tag_issues"] == []
 
 
-def test_validate_detects_missing_folder(env: dict[str, Path]) -> None:
-    # künstlicher Drift: Ordner für 'grundlagen' entfernen
+def test_validate_detects_missing_folder_for_used_category(env: dict[str, Path]) -> None:
+    # belegte category 'grundlagen' (Artikel vorhanden), aber Ordner fehlt → Drift
+    _write_draft(env["drafts"], "doc-g", ["api"], category="grundlagen")
     (env["vault"] / "01_Grundlagen").rmdir()
     res = mv.validate(
         phase9_path=env["p9"],
@@ -213,6 +215,19 @@ def test_validate_detects_missing_folder(env: dict[str, Path]) -> None:
         vault_standard_path=env["vstd"],
     )
     assert any("01_Grundlagen" in i for i in res["category_issues"])
+
+
+def test_validate_ignores_missing_folder_for_unused_category(env: dict[str, Path]) -> None:
+    # 'unsortiert' hat keinen Artikel → fehlender Ordner ist KEIN Drift
+    (env["vault"] / "17_unsortiert").rmdir()
+    res = mv.validate(
+        phase9_path=env["p9"],
+        vault_dir=env["vault"],
+        drafts_dir=env["drafts"],
+        tag_system_path=env["tagsys"],
+        vault_standard_path=env["vstd"],
+    )
+    assert not any("17_unsortiert" in i for i in res["category_issues"])
 
 
 def test_validate_detects_unknown_tag(env: dict[str, Path]) -> None:

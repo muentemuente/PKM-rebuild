@@ -25,9 +25,13 @@ from pathlib import Path
 from typing import Any
 
 import structlog
+import yaml
 
+from pipeline.phase_9_vault_build import (
+    CATEGORY_TO_FOLDER,
+    _build_plan,
+)
 from pipeline.schemas import (
-    ClusterProposal,
     DocumentRecord,
     ExactDuplicateGroup,
     NearDuplicateEdge,
@@ -36,7 +40,7 @@ from pipeline.schemas import (
 
 log = structlog.get_logger()
 
-_UNSORTED_ID = "C_unsortiert"
+_UNSORTED_FOLDER = CATEGORY_TO_FOLDER["unsortiert"]
 
 _DE_WORDS = frozenset(
     [
@@ -127,7 +131,7 @@ def _is_cached(output_path: Path, meta_path: Path, input_hash: str) -> bool:
         return False
     try:
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        return meta.get("input_hash") == input_hash
+        return bool(meta.get("input_hash") == input_hash)
     except Exception:
         return False
 
@@ -155,11 +159,6 @@ def _write_meta(
 
 def _meta_path_for(output_path: Path) -> Path:
     return output_path.parent / f".{output_path.name}.meta.json"
-
-
-def _doc_id_from_segment_id(seg_id: str) -> str:
-    """Extrahiert doc_id aus segment_id (D_slug-S0003 → D_slug)."""
-    return re.sub(r"-S\d{4}$", "", seg_id)
 
 
 def _detect_language(text: str) -> str:
@@ -205,11 +204,6 @@ def _load_segment_counts(path: Path) -> int:
     return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
 
 
-def _load_clusters(path: Path) -> list[ClusterProposal]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return [ClusterProposal.model_validate(item) for item in data]
-
-
 def _load_edges(path: Path) -> list[NearDuplicateEdge]:
     result = []
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -233,90 +227,68 @@ def _load_language_map(cleaned_path: Path) -> dict[str, str]:
     return result
 
 
-_FM_LINE_RE = re.compile(r"^(\w+):\s*(.*)", re.MULTILINE)
-
-
-def _load_batch_infos(batches_dir: Path) -> list[dict[str, Any]]:
-    """Liest Frontmatter aus allen batch_*.md-Dateien (Regex, kein YAML-Parse).
-
-    Kein yaml.safe_load hier — label_guess kann Markdown-Syntax enthalten
-    (z.B. **bold**), die YAML als Alias interpretiert.
-    """
-    infos: list[dict[str, Any]] = []
-    for batch_file in sorted(batches_dir.glob("batch_*.md")):
-        content = batch_file.read_text(encoding="utf-8")
-        if not content.startswith("---"):
-            continue
-        end = content.find("---", 3)
-        if end == -1:
-            continue
-        fm_text = content[3:end]
-        fm: dict[str, Any] = {"_path": batch_file}
-        for m in _FM_LINE_RE.finditer(fm_text):
-            key, val = m.group(1), m.group(2).strip()
-            if val.isdigit():
-                fm[key] = int(val)
-            else:
-                fm[key] = val
-        infos.append(fm)
-    return infos
-
-
-# === Cluster-Report Helpers ===================================================
-
-
-def _build_seg_cluster_map(clusters: list[ClusterProposal]) -> dict[str, str]:
-    """Baut {segment_id: cluster_id} aus allen Cluster-Proposals."""
-    mapping: dict[str, str] = {}
-    for c in clusters:
-        for sid in c.segment_ids:
-            mapping[sid] = c.cluster_id
-    return mapping
-
-
-def _count_intra_inter(
-    edges: list[NearDuplicateEdge], seg_cluster: dict[str, str]
-) -> tuple[int, int]:
-    """Zählt Kanten innerhalb vs. zwischen Clustern."""
-    intra = 0
-    inter = 0
-    for e in edges:
-        ca = seg_cluster.get(e.segment_id_a)
-        cb = seg_cluster.get(e.segment_id_b)
-        if ca is not None and cb is not None:
-            if ca == cb:
-                intra += 1
-            else:
-                inter += 1
-    return intra, inter
-
-
-def _cluster_size_histogram(
-    clusters: list[ClusterProposal],
-    doc_counts: dict[str, int],
-) -> dict[str, int]:
-    """Histogramm nach Doc-Anzahl pro Cluster (ohne C_unsortiert)."""
-    hist: dict[str, int] = {"1": 0, "2": 0, "3-5": 0, "6-10": 0, "11-50": 0, "> 50": 0}
-    for c in clusters:
-        if c.cluster_id == _UNSORTED_ID:
-            continue
-        n = doc_counts.get(c.cluster_id, 0)
-        if n <= 1:
-            hist["1"] += 1
-        elif n <= 2:
-            hist["2"] += 1
-        elif n <= 5:
-            hist["3-5"] += 1
-        elif n <= 10:
-            hist["6-10"] += 1
-        elif n <= 50:
-            hist["11-50"] += 1
-        else:
-            hist["> 50"] += 1
-    return hist
-
-
 # === Report Generators ========================================================
+
+
+def _load_vault_fm(path: Path) -> dict[str, Any] | None:
+    """Liest das YAML-Frontmatter einer Vault-Datei. None bei Fehler/kein Block."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    parts = text.split("---\n", 2)
+    if len(parts) < 3:
+        return None
+    try:
+        data = yaml.safe_load(parts[1])
+    except yaml.YAMLError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    return {str(k): v for k, v in data.items()}
+
+
+def _count_excluded(corpus_input: Path) -> int:
+    """Anzahl excluded Korpus-Dateien in `01_corpus_input/_excluded/`."""
+    excluded_dir = corpus_input / "_excluded"
+    if not excluded_dir.exists():
+        return 0
+    return sum(1 for _ in excluded_dir.glob("*.md"))
+
+
+def _vault_ground_truth(
+    drafts_dir: Path, vault_dir: Path
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Ermittelt die Phase-9-Artikel als Ground Truth aus Build-Plan + Vault-Dateien.
+
+    Der Build-Plan (aus den Drafts) bestimmt deterministisch die erwarteten
+    (Ordner, Slug)-Paare; jede zugehörige Vault-Datei wird gelesen (Tags/Status/Titel).
+    So werden kuratierte Sonderdateien (z.B. in `00_Meta`) korrekt ausgeschlossen.
+
+    Returns:
+        (articles, missing). articles: dicts mit folder/slug/title/status/tags.
+        missing: erwartete Dateien, die im Vault fehlen (Cross-Check-Abweichung).
+    """
+    plan = _build_plan(drafts_dir)
+    articles: list[dict[str, Any]] = []
+    missing: list[dict[str, str]] = []
+    for art in plan.articles:
+        path = vault_dir / art.folder / f"{art.final_slug}.md"
+        fm = _load_vault_fm(path)
+        if fm is None:
+            missing.append({"folder": art.folder, "slug": art.final_slug})
+            continue
+        articles.append(
+            {
+                "folder": art.folder,
+                "slug": art.final_slug,
+                "title": str(fm.get("title", art.final_slug)),
+                "status": str(fm.get("status", "")),
+                "tags": list(fm.get("tags") or []),
+                "merged_from": list(fm.get("merged_from") or []),
+            }
+        )
+    return articles, missing
 
 
 def generate_corpus_report(
@@ -324,14 +296,18 @@ def generate_corpus_report(
     structured_path: Path,
     segments_path: Path,
     output_path: Path,
+    drafts_dir: Path,
+    vault_dir: Path,
+    corpus_input: Path,
     cleaned_path: Path | None = None,
     force: bool = False,
     pipeline_version: str = "0.0.0",
 ) -> Path:
-    """Generiert corpus_report.md aus Phase-1/3/4-Outputs."""
+    """Generiert corpus_report.md aus Phase-1/3/4-Outputs + Verarbeitungs-Status."""
     input_paths = [manifest_path, structured_path, segments_path]
     if cleaned_path and cleaned_path.exists():
         input_paths.append(cleaned_path)
+    input_paths += sorted(drafts_dir.glob("*.md"))
     input_hash = _combined_hash(input_paths)
     meta_path = _meta_path_for(output_path)
 
@@ -343,6 +319,12 @@ def generate_corpus_report(
     docs = _load_manifest(manifest_path)
     structured = _load_structured(structured_path)
     seg_count = _load_segment_counts(segments_path)
+
+    # Verarbeitungs-Status (Ground Truth: gebauter Vault + _excluded/-Ordner)
+    articles, _missing = _vault_ground_truth(drafts_dir, vault_dir)
+    n_ready = len(articles)
+    n_excluded = _count_excluded(corpus_input)
+    n_hold = len(docs) - n_ready - n_excluded
 
     total_words = sum(d.word_count for d in docs)
     total_chars = sum(d.char_count for d in docs)
@@ -404,11 +386,19 @@ pipeline_version: {pipeline_version}
 # Korpus-Bericht
 
 ## Übersicht
-- Files gesamt: {len(docs):,}
+- Files gesamt (Korpus, Doc-Ebene): {len(docs):,}
 - Dateigröße gesamt: {total_bytes / 1_048_576:.1f} MB
 - Wörter gesamt: {total_words:,}
 - Zeichen gesamt: {total_chars:,}
-- Segmente gesamt: {seg_count:,}
+- Segmente gesamt (Segment-Ebene, ≠ Doc-Count): {seg_count:,}
+
+## Verarbeitungs-Status (Ground Truth: Vault + `_excluded/`)
+| Status | Anzahl | Bedeutung |
+|---|---:|---|
+| `ready` (im Vault) | {n_ready} | Draft sauber → als Vault-Artikel gebaut |
+| `hold` (pending) | {n_hold} | Korpus-Doc ohne gebauten Artikel, nicht excluded |
+| `excluded` | {n_excluded} | bewusst ausgeschlossen (`01_corpus_input/_excluded/`) |
+| **Summe** | **{n_ready + n_hold + n_excluded}** | == Files gesamt ({len(docs)}) |
 
 ## Doc-Typ-Verteilung (heuristisch)
 | Typ | Anzahl | Anteil |
@@ -454,11 +444,14 @@ def generate_duplicate_report(
     exact_path: Path,
     edges_path: Path,
     output_path: Path,
+    drafts_dir: Path,
+    vault_dir: Path,
     force: bool = False,
     pipeline_version: str = "0.0.0",
 ) -> Path:
-    """Generiert duplicate_report.md aus Phase-5-Outputs."""
-    input_hash = _combined_hash([exact_path, edges_path])
+    """Generiert duplicate_report.md aus Phase-5-Outputs + Option-B-Merge-Status."""
+    input_paths = [exact_path, edges_path, *sorted(drafts_dir.glob("*.md"))]
+    input_hash = _combined_hash(input_paths)
     meta_path = _meta_path_for(output_path)
 
     if not force and _is_cached(output_path, meta_path, input_hash):
@@ -469,6 +462,15 @@ def generate_duplicate_report(
     exact_groups = _load_exact_duplicates(exact_path)
     edges = _load_edges(edges_path)
     sims = [e.similarity for e in edges]
+
+    # Option B: kein Cross-Doc-Merge → merged_from muss überall leer sein (verifizieren)
+    articles, _missing = _vault_ground_truth(drafts_dir, vault_dir)
+    n_with_merge = sum(1 for a in articles if a["merged_from"])
+    merge_note = (
+        f"**Keine Konsolidierungen (Pro-Doc-Veredelung, Option B).** "
+        f"`merged_from` ist bei allen {len(articles)} Vault-Artikeln leer "
+        f"({n_with_merge} mit Einträgen)."
+    )
 
     affected_docs = sum(len(g.doc_ids) for g in exact_groups)
 
@@ -509,6 +511,9 @@ pipeline_version: {pipeline_version}
 
 # Duplikat-Bericht
 
+## Konsolidierungen (Option B)
+{merge_note}
+
 ## Exakte Duplikate (SHA-256)
 - Anzahl Gruppen: {len(exact_groups)}
 - Betroffene Files: {affected_docs}
@@ -545,15 +550,19 @@ pipeline_version: {pipeline_version}
 
 
 def generate_cluster_report(
-    clusters_path: Path,
-    batches_dir: Path,
-    edges_path: Path,
+    drafts_dir: Path,
+    vault_dir: Path,
     output_path: Path,
     force: bool = False,
     pipeline_version: str = "0.0.0",
 ) -> Path:
-    """Generiert cluster_report.md (Gate-1-Input) aus Phase-6/7-Outputs."""
-    input_paths = [clusters_path, edges_path, *sorted(batches_dir.glob("batch_*.md"))]
+    """Generiert cluster_report.md aus dem gebauten Vault (Ground Truth).
+
+    Embedding-/HDBSCAN-Clustering ist verworfen (R9). Die 16 Ordner sind ein
+    kuratiertes Schema; dieser Report beschreibt die reale Artikel-Verteilung
+    im gebauten `04_vault/`, nicht berechnete Cluster.
+    """
+    input_paths = sorted(drafts_dir.glob("*.md")) + sorted(vault_dir.rglob("*.md"))
     input_hash = _combined_hash(input_paths)
     meta_path = _meta_path_for(output_path)
 
@@ -562,107 +571,99 @@ def generate_cluster_report(
         return output_path
 
     t0 = time.monotonic()
-    clusters = _load_clusters(clusters_path)
-    edges = _load_edges(edges_path)
-    batch_infos = _load_batch_infos(batches_dir)
+    articles, missing = _vault_ground_truth(drafts_dir, vault_dir)
+    total = len(articles)
 
-    named = [c for c in clusters if c.cluster_id != _UNSORTED_ID]
-    unsorted_cluster = next((c for c in clusters if c.cluster_id == _UNSORTED_ID), None)
-    unsorted_segs = len(unsorted_cluster.segment_ids) if unsorted_cluster else 0
+    folder_counts: Counter[str] = Counter(a["folder"] for a in articles)
+    folder_rows = "\n".join(f"| {folder} | {n} |" for folder, n in sorted(folder_counts.items()))
+    sum_check = sum(folder_counts.values())
+    sum_marker = "" if sum_check == total else f" ⚠️ Abweichung (erwartet {total})"
 
-    doc_counts: dict[str, int] = {}
-    for c in named:
-        unique_docs = {_doc_id_from_segment_id(s) for s in c.segment_ids}
-        doc_counts[c.cluster_id] = len(unique_docs)
-
-    micro = [c for c in named if doc_counts.get(c.cluster_id, 0) < 3]
-    large = [c for c in named if doc_counts.get(c.cluster_id, 0) >= 3]
-    hist = _cluster_size_histogram(clusters, doc_counts)
-
-    top20 = sorted(named, key=lambda c: doc_counts.get(c.cluster_id, 0), reverse=True)[:20]
-
-    # Summe Token-Estimates pro Cluster aus Batch-Files
-    cluster_tokens: dict[str, int] = {}
-    for b in batch_infos:
-        cid = str(b.get("cluster_id", ""))
-        cluster_tokens[cid] = cluster_tokens.get(cid, 0) + int(b.get("token_estimate", 0))
-
-    seg_cluster = _build_seg_cluster_map(clusters)
-    intra, inter = _count_intra_inter(edges, seg_cluster)
-
-    top20_rows = "\n".join(
-        f"| {c.cluster_id} | {c.label_guess[:40]} | {doc_counts.get(c.cluster_id, 0)} "
-        f"| {len(c.segment_ids)} | {cluster_tokens.get(c.cluster_id, 0):,} |"
-        for c in top20
+    # Tag-Häufigkeiten gesamt
+    tag_total: Counter[str] = Counter()
+    for a in articles:
+        tag_total.update(a["tags"])
+    tag_total_rows = (
+        "\n".join(f"| `{t}` | {n} |" for t, n in tag_total.most_common(30)) or "| — | 0 |"
     )
-    micro_rows = (
-        "\n".join(
-            f"| {c.cluster_id} | {c.label_guess[:40]} | {doc_counts.get(c.cluster_id, 0)} |"
-            for c in micro
+
+    # Tag-Häufigkeiten pro Ordner (Top 5 je Ordner)
+    per_folder_tags: dict[str, Counter[str]] = {}
+    for a in articles:
+        per_folder_tags.setdefault(a["folder"], Counter()).update(a["tags"])
+    per_folder_blocks = []
+    for folder in sorted(per_folder_tags):
+        top = per_folder_tags[folder].most_common(5)
+        tags_str = ", ".join(f"`{t}` ({n})" for t, n in top) or "—"
+        per_folder_blocks.append(f"- **{folder}** ({folder_counts[folder]}): {tags_str}")
+    per_folder_section = "\n".join(per_folder_blocks)
+
+    # unsortiert/-Sektion (Mapping-Lücke vs. echtes Mikrocluster — nur kennzeichnen)
+    unsorted_articles = sorted(
+        (a for a in articles if a["folder"] == _UNSORTED_FOLDER), key=lambda a: a["slug"]
+    )
+    if unsorted_articles:
+        unsorted_rows = "\n".join(f"| `{a['slug']}` | {a['title']} |" for a in unsorted_articles)
+        unsorted_section = (
+            f"{len(unsorted_articles)} Artikel ohne eindeutige Kategorie "
+            f"(Mapping-Lücke / Business-Domäne ohne eigenen Ordner — **kein** echtes "
+            f"Mikrocluster, nicht automatisch verschoben):\n\n"
+            f"| Slug | Titel |\n|---|---|\n{unsorted_rows}"
         )
-        or "| — | keine Mikrocluster | — |"
-    )
+    else:
+        unsorted_section = "_`unsortiert/` ist leer._"
 
-    smoke_candidate = _smoke_test_candidate(batch_infos)
-
-    batch_token_estimates = [int(b.get("token_estimate", 0)) for b in batch_infos]
-    mean_tokens = (
-        int(sum(batch_token_estimates) / len(batch_token_estimates)) if batch_token_estimates else 0
+    missing_section = (
+        "\n".join(f"| {m['folder']} | `{m['slug']}` |" for m in missing)
+        if missing
+        else "| — | keine |"
     )
-    max_batch = max(batch_infos, key=lambda b: int(b.get("token_estimate", 0)), default=None)
-    min_batch = min(batch_infos, key=lambda b: int(b.get("token_estimate", 0)), default=None)
+    errors_note = (
+        f"⚠️ {len(missing)} erwartete Vault-Dateien fehlen (s. Tabelle)."
+        if missing
+        else "Keine fehlenden Dateien (Build-Plan deckt sich mit Vault)."
+    )
 
     content = f"""---
-title: Cluster-Bericht (Gate-1-Input)
+title: Cluster-Bericht (Vault-Verteilung)
 slug: cluster-report
 status: stable
 generated: {_iso_date()}
 pipeline_version: {pipeline_version}
 ---
 
-# Cluster-Bericht — Review-Gate 1
+# Cluster-Bericht — Vault-Verteilung
+
+> Quelle: gebauter `04_vault/` (Ground Truth). Embedding-Clustering ist verworfen (R9);
+> die Ordner sind ein kuratiertes Schema, keine berechneten Cluster.
 
 ## Übersicht
-- Cluster gesamt: {len(named)}
-- davon mit ≥ 3 Docs: {len(large)}
-- Mikrocluster (< 3 Docs): {len(micro)}
-- Unsortiert (`C_unsortiert`): {unsorted_segs} Segmente
+- Vault-Artikel gesamt: {total}
+- Genutzte Ordner: {len(folder_counts)}
+- Summe über Ordner: {sum_check}{sum_marker}
+- Cross-Check Build-Plan vs. Vault: {errors_note}
 
-## Cluster-Größen-Histogramm (Docs, ohne C_unsortiert)
-| Docs/Cluster | Anzahl Cluster |
+## Artikel pro Vault-Ordner
+| Ordner | Artikel |
 |---|---|
-| 1 | {hist["1"]} |
-| 2 | {hist["2"]} |
-| 3-5 | {hist["3-5"]} |
-| 6-10 | {hist["6-10"]} |
-| 11-50 | {hist["11-50"]} |
-| > 50 | {hist["> 50"]} |
+{folder_rows}
+| **Summe** | **{sum_check}**{sum_marker} |
 
-## Top-20 Cluster nach Doc-Count
-| Cluster-ID | Label-Guess | Docs | Segmente | Token-Estimate |
-|---|---|---|---|---|
-{top20_rows}
+## `unsortiert/`
+{unsorted_section}
 
-## Mikrocluster-Liste
-| Cluster-ID | Label-Guess | Docs |
-|---|---|---|
-{micro_rows}
+## Tag-Häufigkeiten (gesamt, Top 30)
+| Tag | Anzahl |
+|---|---|
+{tag_total_rows}
 
-## Batch-Übersicht
-- Batches gesamt: {len(batch_infos)}
-- Batch mit größtem Token-Estimate: {max_batch.get("batch_id", "—") if max_batch else "—"} ({max(batch_token_estimates, default=0)} Tokens)
-- Batch mit kleinstem Token-Estimate: {min_batch.get("batch_id", "—") if min_batch else "—"}
-- Mittlere Token-Estimate: {mean_tokens}
-- Empfehlung Smoke-Test: `{smoke_candidate}`
+## Tag-Häufigkeiten pro Ordner (Top 5)
+{per_folder_section}
 
-## Nahe-Duplikat-Verteilung
-- Kanten innerhalb gleicher Cluster: {intra}
-- Kanten zwischen verschiedenen Clustern: {inter} (potenziell falsche Cluster-Zuordnung)
-
-## Re-Run-Befehl
-```bash
-python -m pipeline run --from-phase 6 --force
-```
+## Fehlende Dateien (Cross-Check)
+| Ordner | Slug |
+|---|---|
+{missing_section}
 """
     output_path.write_text(content.strip() + "\n", encoding="utf-8")
     _write_meta(
@@ -674,22 +675,13 @@ python -m pipeline run --from-phase 6 --force
         time.monotonic() - t0,
     )
     log.info(
-        "phase_10_cluster_done", clusters=len(named), micro=len(micro), batches=len(batch_infos)
+        "phase_10_cluster_done",
+        articles=total,
+        folders=len(folder_counts),
+        unsorted=len(unsorted_articles),
+        missing=len(missing),
     )
     return output_path
-
-
-def _smoke_test_candidate(batch_infos: list[dict[str, Any]]) -> str:
-    """Wählt kleinsten Batch mit 5-10 Segmenten als Smoke-Test-Kandidat."""
-    candidates = [b for b in batch_infos if 5 <= int(b.get("segment_count", 0)) <= 10]
-    if candidates:
-        best = min(candidates, key=lambda b: int(b.get("token_estimate", 999999)))
-        return str(best.get("batch_id", "—"))
-    # Fallback: kleinster Batch
-    if batch_infos:
-        fallback = min(batch_infos, key=lambda b: int(b.get("segment_count", 999999)))
-        return str(fallback.get("batch_id", "—"))
-    return "—"
 
 
 # === Orchestrator =============================================================
@@ -701,8 +693,9 @@ def run_phase_10(
     segments_path: Path,
     exact_path: Path,
     edges_path: Path,
-    clusters_path: Path,
-    batches_dir: Path,
+    drafts_dir: Path,
+    vault_dir: Path,
+    corpus_input: Path,
     output_dir: Path,
     cleaned_path: Path | None = None,
     force: bool = False,
@@ -716,8 +709,9 @@ def run_phase_10(
         segments_path: segments.jsonl (Phase 4)
         exact_path: exact_duplicates.json (Phase 5)
         edges_path: near_duplicate_edges.jsonl (Phase 5)
-        clusters_path: cluster_proposals.json (Phase 6)
-        batches_dir: Verzeichnis mit batch_*.md (Phase 7)
+        drafts_dir: 03_drafts (Ground-Truth-Basis für Build-Plan)
+        vault_dir: 04_vault (gebauter Vault, Ground Truth für cluster_report)
+        corpus_input: 01_corpus_input (für `_excluded/`-Zählung)
         output_dir: Zielverzeichnis für Reports
         cleaned_path: cleaned_documents.jsonl (optional, für Sprach-Heuristik)
         force: Cache ignorieren
@@ -737,6 +731,9 @@ def run_phase_10(
         structured_path=structured_path,
         segments_path=segments_path,
         output_path=corpus_out,
+        drafts_dir=drafts_dir,
+        vault_dir=vault_dir,
+        corpus_input=corpus_input,
         cleaned_path=cleaned_path,
         force=force,
         pipeline_version=pipeline_version,
@@ -745,13 +742,14 @@ def run_phase_10(
         exact_path=exact_path,
         edges_path=edges_path,
         output_path=dup_out,
+        drafts_dir=drafts_dir,
+        vault_dir=vault_dir,
         force=force,
         pipeline_version=pipeline_version,
     )
     generate_cluster_report(
-        clusters_path=clusters_path,
-        batches_dir=batches_dir,
-        edges_path=edges_path,
+        drafts_dir=drafts_dir,
+        vault_dir=vault_dir,
         output_path=cluster_out,
         force=force,
         pipeline_version=pipeline_version,

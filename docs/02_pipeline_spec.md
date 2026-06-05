@@ -409,22 +409,30 @@ Pro Doc durchlaufen Stage 3 und Stage 4. Failure in einer Stage → Retry oder F
 
 ### Phase 9: Vault-Aufbau
 
-**Input:** Reviewte Drafts in `data/03_drafts/`
-**Output:** `data/04_vault/<cluster>/<slug>.md`
+> **Hinweis (2026-06-05):** Vault-Aufbau ist **Phase 9** (`build-vault`). Phase 10 erzeugt
+> nur die **Kontroll-Berichte** über den bereits gebauten Vault. Embedding-Clustering ist
+> verworfen (R9); `cluster_report` beschreibt die reale Ordner-Verteilung, keine berechneten Cluster.
+
+**Input:** gebauter Vault `data/04_vault/`, Build-Plan aus `data/03_drafts/`, Phase-1/5-Outputs.
+**Output (alle in `data/02_pipeline_output/`):** `corpus_report.md`, `duplicate_report.md`, `cluster_report.md`.
 
 **Logik:**
-- Cluster aus `category` im Frontmatter ableiten
-- Cluster-Ordner mit Nummern-Präfix anlegen (`02_webentwicklung/`)
-- Datei-Slug = `slug` aus Frontmatter
-- `_index.md` pro Cluster generieren (aggregiert Frontmatter aller Files im Cluster)
-- Wikilinks aus `related: [[...]]` validieren (alle Targets müssen existieren)
-- Vault-internes Glossar nicht aufbauen (in 1.0 Out-of-Scope)
+- **Ground-Truth-Regel:** alle Zähl-Werte direkt aus Quelldaten (manifest, segments, exact/edges,
+  gebauter Vault) ableiten — **nie** aus anderen Reports.
+- `corpus_report`: Doc-Count (manifest), Größen/Typ/Sprache, **Segment-Counts strikt von Doc-Counts
+  getrennt**, Verarbeitungs-Status (ready/hold/excluded) aus Vault + `_excluded/`.
+- `duplicate_report`: exakte Gruppen + near-dup-Kanten; **Option B**: `merged_from` überall leer →
+  „keine Konsolidierungen" explizit vermerkt.
+- `cluster_report`: Artikel-Verteilung pro Vault-Ordner (Build-Plan gegen Vault gecheckt, Summe == 180),
+  `unsortiert/`-Sektion (Mapping-Lücke gekennzeichnet, nicht verschoben), Tag-Häufigkeiten gesamt + pro Ordner.
+- Idempotent via Input-Hash; mensch-lesbares Markdown (keine JSON-Dumps).
 
 **Akzeptanzkriterien:**
-- [ ] Jeder Vault-File hat valides Frontmatter (Pydantic-Validation)
-- [ ] Alle Wikilinks auflösbar
-- [ ] Cluster-Index-Files vorhanden
-- [ ] Keine SHA-256-Duplikate
+- [ ] 3× `*_report.md` vorhanden + mensch-lesbar
+- [ ] Counts gegen Ground Truth verifiziert (Ordner-Summe 180, manifest 202)
+- [ ] segment- vs doc-Counts getrennt; `merged_from`-leer vermerkt
+- [ ] Reports idempotent (2. Lauf byte-identisch)
+- [ ] `docs/DOD_CHECK.md` erzeugt (`scripts/dod_check.py`)
 
 ---
 

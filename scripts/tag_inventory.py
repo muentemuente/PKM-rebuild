@@ -192,19 +192,37 @@ def extract_filename_tokens(filename: str) -> list[str]:
 # === Aggregation ================================================================
 
 
+def _list_md_files(corpus_dir: Path, recursive: bool) -> list[Path]:
+    """Markdown-Files unter corpus_dir. Rekursiv ohne `_index.md`/`*.body.md`."""
+    if recursive:
+        return sorted(
+            p
+            for p in corpus_dir.rglob("*.md")
+            if p.name != "_index.md" and not p.name.endswith(".body.md")
+        )
+    return sorted(corpus_dir.glob("*.md"))
+
+
 def build_inventory(
     corpus_dir: Path,
+    recursive: bool = False,
 ) -> tuple[
     dict[str, list[str]],  # Section A: tag → [files]
     dict[str, list[str]],  # Section B: token → [files]
     dict[str, list[str]],  # Section C: token → [files]
 ]:
-    """Scannt alle Markdown-Files und aggregiert Tag-Kandidaten."""
+    """Scannt alle Markdown-Files und aggregiert Tag-Kandidaten.
+
+    Args:
+        corpus_dir: Wurzel-Verzeichnis.
+        recursive: Wenn True, rekursiv (für den Vault, dessen Artikel in
+            Unterordnern liegen); `_index.md` und `*.body.md` werden ausgelassen.
+    """
     section_a: dict[str, list[str]] = defaultdict(list)
     section_b: dict[str, list[str]] = defaultdict(list)
     section_c: dict[str, list[str]] = defaultdict(list)
 
-    md_files = sorted(corpus_dir.glob("*.md"))
+    md_files = _list_md_files(corpus_dir, recursive)
 
     for md_path in md_files:
         filename = md_path.name
@@ -410,23 +428,29 @@ def main() -> None:
         default=_DEFAULT_OUTPUT,
         help=f"Ausgabe-Pfad (default: {_DEFAULT_OUTPUT})",
     )
+    parser.add_argument(
+        "--recursive",
+        action="store_true",
+        help="rekursiv scannen (für den Vault; lässt _index.md und *.body.md aus)",
+    )
     args = parser.parse_args()
 
     corpus_dir: Path = args.corpus_dir
     output_path: Path = args.output
+    recursive: bool = args.recursive
 
     if not corpus_dir.exists():
         print(f"Fehler: corpus_dir nicht gefunden: {corpus_dir}", file=sys.stderr)
         sys.exit(1)
 
-    md_files = list(corpus_dir.glob("*.md"))
+    md_files = _list_md_files(corpus_dir, recursive)
     total_files = len(md_files)
     if total_files == 0:
         print(f"Warnung: Keine .md-Dateien in {corpus_dir}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Scanne {total_files} Markdown-Files in {corpus_dir}...")
-    section_a, section_b, section_c = build_inventory(corpus_dir)
+    section_a, section_b, section_c = build_inventory(corpus_dir, recursive)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     rendered = render_inventory(section_a, section_b, section_c, total_files)

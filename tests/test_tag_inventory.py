@@ -220,6 +220,33 @@ def test_build_inventory_extracts_tags(tmp_path: Path) -> None:
     assert len(a["python"]) == 2
 
 
+def test_build_inventory_non_recursive_ignores_subfolders(tmp_path: Path) -> None:
+    """Ohne recursive werden Unterordner (wie im Vault) nicht gescannt."""
+    (tmp_path / "01_Grundlagen").mkdir()
+    (tmp_path / "01_Grundlagen" / "a.md").write_text(
+        "---\ntags:\n  - python\n---\n# A\n", encoding="utf-8"
+    )
+    a, _b, _c = build_inventory(tmp_path)
+    assert a == {}
+
+
+def test_build_inventory_recursive_scans_vault_layout(tmp_path: Path) -> None:
+    """recursive findet Artikel in Unterordnern, lässt _index.md + .body.md aus."""
+    folder = tmp_path / "01_Grundlagen"
+    folder.mkdir()
+    (folder / "a.md").write_text("---\ntags:\n  - python\n---\n# A\n", encoding="utf-8")
+    (folder / "b.md").write_text("---\ntags:\n  - python\n---\n# B\n", encoding="utf-8")
+    # _index.md mit Tag-Häufigkeitsliste darf NICHT mitgezählt werden
+    (folder / "_index.md").write_text("# Index\n- `python`: 2\n", encoding="utf-8")
+    # .body.md (Draft-Artefakt) ebenfalls nicht
+    (folder / "a.body.md").write_text("---\ntags:\n  - djangoooo\n---\n# Body\n", encoding="utf-8")
+
+    a, _b, _c = build_inventory(tmp_path, recursive=True)
+    assert "python" in a
+    assert len(a["python"]) == 2
+    assert "djangoooo" not in a
+
+
 def test_render_inventory_has_required_sections() -> None:
     """render_inventory produziert valides Markdown mit allen Sektionen."""
     a = {"python": ["a.md", "b.md"]}

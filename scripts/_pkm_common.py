@@ -124,7 +124,7 @@ def split_md(text: str) -> tuple[str | None, str]:
     return rest[: end.start()], rest[end.end() :]
 
 
-def parse_yaml_text(text: str) -> tuple[dict | None, str | None]:
+def parse_yaml_text(text: str) -> tuple[dict[str, Any] | None, str | None]:
     """YAML-Frontmatter-Text → (dict | None, error | None)."""
     if not text or not text.strip():
         return None, "empty"
@@ -137,7 +137,7 @@ def parse_yaml_text(text: str) -> tuple[dict | None, str | None]:
     return data, None
 
 
-def parse_json_file(path: Path) -> tuple[dict | None, str | None]:
+def parse_json_file(path: Path) -> tuple[dict[str, Any] | None, str | None]:
     """JSON-Datei → (dict | None, error | None)."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))

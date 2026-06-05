@@ -18,6 +18,7 @@ import sys
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pyarrow.parquet as pq
@@ -37,7 +38,7 @@ _UNSORTED_ID = "C_unsortiert"
 
 def _load_embeddings(path: Path) -> tuple[list[str], np.ndarray]:
     """Liest segment_ids und Embedding-Matrix aus Parquet."""
-    table = pq.read_table(path, columns=["segment_id", "embedding"])
+    table = pq.read_table(path, columns=["segment_id", "embedding"])  # type: ignore[no-untyped-call]  # pyarrow untyped
     segment_ids: list[str] = table["segment_id"].to_pylist()
     embeddings = np.array(table["embedding"].to_pylist(), dtype=np.float32)
     return segment_ids, embeddings
@@ -53,9 +54,10 @@ def _load_segment_texts(segments_path: Path) -> dict[str, str]:
     return texts
 
 
-def _load_clusters(clusters_path: Path) -> list[dict]:
+def _load_clusters(clusters_path: Path) -> list[dict[str, Any]]:
     """Liest cluster_proposals.json."""
-    return json.loads(clusters_path.read_text(encoding="utf-8"))
+    data: list[dict[str, Any]] = json.loads(clusters_path.read_text(encoding="utf-8"))
+    return data
 
 
 # === Clustering-Logik (In-Memory, identisch zu Phase 6) ======================
@@ -67,7 +69,7 @@ def _find_component_labels(embeddings: np.ndarray, threshold: float) -> np.ndarr
     adj = (sim >= threshold).astype(np.uint8)
     np.fill_diagonal(adj, 0)
     _, labels = scipy_connected_components(csr_matrix(adj), directed=False)
-    return labels
+    return np.asarray(labels)
 
 
 # === Analysen =================================================================
@@ -97,7 +99,7 @@ def simulate_threshold(
     seg_ids: list[str],
     threshold: float,
     min_cluster_size: int = 3,
-) -> dict:
+) -> dict[str, Any]:
     """Greedy-Clustering wie Phase 6 — nur In-Memory, kein Datei-Schreiben."""
     labels = _find_component_labels(embeddings, threshold)
     label_counts = Counter(labels.tolist())
@@ -121,7 +123,7 @@ def simulate_threshold(
 
 
 def tfidf_top_terms(
-    clusters: list[dict],
+    clusters: list[dict[str, Any]],
     seg_texts: dict[str, str],
     top_n: int = 10,
 ) -> dict[str, list[str]]:
@@ -161,7 +163,7 @@ def run_hdbscan_trial(
     embeddings: np.ndarray,
     min_cluster_size: int = 3,
     min_samples: int = 2,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """HDBSCAN-Lauf auf bestehenden Embeddings. None wenn Library fehlt."""
     try:
         import hdbscan
@@ -193,16 +195,16 @@ def run_hdbscan_trial(
 # === Report-Generierung =======================================================
 
 
-def _row(values: list) -> str:
+def _row(values: list[Any]) -> str:
     return "| " + " | ".join(str(v) for v in values) + " |"
 
 
 def build_report(
     sim_hist: dict[str, int],
-    threshold_sims: list[dict],
+    threshold_sims: list[dict[str, Any]],
     tfidf_terms: dict[str, list[str]],
-    clusters: list[dict],
-    hdbscan_result: dict | None,
+    clusters: list[dict[str, Any]],
+    hdbscan_result: dict[str, Any] | None,
     current_threshold: float,
     n_total_segs: int,
 ) -> str:

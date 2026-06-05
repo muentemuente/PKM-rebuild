@@ -34,7 +34,7 @@ _TABLE_SEP_RE = re.compile(r"^\|[-:\s|]+\|$")
 _NUMBERED_STEP_RE = re.compile(r"\bschritt\s*\d+|\bstep\s*\d+", re.IGNORECASE)
 
 
-def _partition_body(body: str) -> tuple[str, list[dict]]:
+def _partition_body(body: str) -> tuple[str, list[dict[str, Any]]]:
     """Teilt body in non-code-Text und extrahierte Code-Blöcke.
 
     Im non-code-Text werden Code-Block-Zeilen (inkl. Fence-Marker) durch
@@ -46,7 +46,7 @@ def _partition_body(body: str) -> tuple[str, list[dict]]:
     """
     lines = body.splitlines()
     non_code: list[str] = []
-    code_blocks: list[dict] = []
+    code_blocks: list[dict[str, Any]] = []
 
     in_code = False
     fence_char = ""
@@ -85,7 +85,7 @@ def _partition_body(body: str) -> tuple[str, list[dict]]:
     return "\n".join(non_code), code_blocks
 
 
-def _extract_headings(non_code_text: str) -> list[dict]:
+def _extract_headings(non_code_text: str) -> list[dict[str, Any]]:
     """Extrahiert H1-H6-Überschriften als [{"level": int, "text": str}]."""
     return [
         {"level": len(m.group(1)), "text": m.group(2).strip()}
@@ -141,11 +141,11 @@ def _extract_images(non_code_text: str) -> list[str]:
     return [m.group(2).strip() for m in _IMAGE_RE.finditer(non_code_text) if m.group(2).strip()]
 
 
-def _get_title(headings: list[dict], frontmatter: dict, doc_id: str) -> str:
+def _get_title(headings: list[dict[str, Any]], frontmatter: dict[str, Any], doc_id: str) -> str:
     """Liefert den Dokumenttitel: H1 → Frontmatter-title → Slug aus doc_id."""
     for h in headings:
         if h["level"] == 1:
-            return h["text"]
+            return str(h["text"])
     if frontmatter.get("title"):
         return str(frontmatter["title"])
     slug = doc_id[2:] if doc_id.startswith("D_") else doc_id
@@ -279,7 +279,7 @@ def _build_type_rules(
     return fired
 
 
-def _detect_book(headings: list[dict], word_count: int, threshold: int) -> bool:
+def _detect_book(headings: list[dict[str, Any]], word_count: int, threshold: int) -> bool:
     """True für Buch-artige Files: sehr lang + viele H1/H2-Überschriften."""
     h1_h2_count = sum(1 for h in headings if h["level"] in (1, 2))
     return word_count > threshold and h1_h2_count >= 5
@@ -287,8 +287,8 @@ def _detect_book(headings: list[dict], word_count: int, threshold: int) -> bool:
 
 def _guess_doc_type(
     title: str,
-    headings: list[dict],
-    code_blocks: list[dict],
+    headings: list[dict[str, Any]],
+    code_blocks: list[dict[str, Any]],
     tables_count: int,
     word_count: int,
     body_lower: str,
@@ -341,7 +341,9 @@ def _guess_doc_type(
             best_signals = signals_map[label]
 
     confidence = round(min(0.95, max(0.3, best_score)), 2)
-    return DocTypeGuess(label=best_label, confidence=confidence, signals=best_signals[:3])
+    # best_label ∈ fester Regel-Label-Menge (= DocTypeGuess-Literal); Pydantic
+    # validiert zur Laufzeit. Statische Verengung str→Literal hier nicht nötig.
+    return DocTypeGuess(label=best_label, confidence=confidence, signals=best_signals[:3])  # type: ignore[arg-type]
 
 
 def _sha256_file(path: Path) -> str:

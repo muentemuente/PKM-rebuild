@@ -42,6 +42,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # === Pfade ===
 PROJECT_ROOT = Path.home() / "projects" / "aktiv" / "PKM-rebuild"
@@ -99,19 +100,20 @@ def state_path(batch_name: str) -> Path:
     return LOG_BASE / f"state_{batch_name}.json"
 
 
-def load_state(batch_name: str) -> dict:
+def load_state(batch_name: str) -> dict[str, Any]:
     p = state_path(batch_name)
     if not p.exists():
         return {"done": [], "failed": [], "started_at": None,
                 "last_update": None}
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        data: dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
+        return data
     except Exception:
         return {"done": [], "failed": [], "started_at": None,
                 "last_update": None}
 
 
-def save_state(batch_name: str, state: dict) -> None:
+def save_state(batch_name: str, state: dict[str, Any]) -> None:
     state["last_update"] = datetime.now().isoformat(timespec="seconds")
     state_path(batch_name).write_text(
         json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -171,7 +173,7 @@ def run_pipeline(corpus_path: Path, log_file: Path) -> int:
 
 # === Batch-Verarbeitung ===
 
-def process_batch(batch_file: Path, dry_run: bool = False) -> dict:
+def process_batch(batch_file: Path, dry_run: bool = False) -> dict[str, Any]:
     batch_name = batch_file.stem
     items = parse_batch(batch_file)
     state = load_state(batch_name)
@@ -185,7 +187,7 @@ def process_batch(batch_file: Path, dry_run: bool = False) -> dict:
                   / f"phase8_{batch_name}_"
                   f"{datetime.now().strftime('%Y%m%d_%H%M')}")
 
-    stats = {
+    stats: dict[str, Any] = {
         "batch": batch_name,
         "total": len(items),
         "done_new": 0,
@@ -286,8 +288,8 @@ def process_batch(batch_file: Path, dry_run: bool = False) -> dict:
 
 # === Main ===
 
-def install_signal_handlers():
-    def handler(signum, frame):
+def install_signal_handlers() -> None:
+    def handler(signum: int, frame: Any) -> None:
         print(f"\nSIGNAL {signum} empfangen — state ist persistiert, beende.",
               flush=True)
         sys.exit(130)

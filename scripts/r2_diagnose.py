@@ -44,6 +44,7 @@ import unicodedata
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Pfade (Path.home(), kein ~ in Assignments)
@@ -191,7 +192,7 @@ def load_draft_cores() -> set[str]:
     return cores
 
 
-def load_triage() -> list[dict]:
+def load_triage() -> list[dict[str, Any]]:
     if not TRIAGE_JSONL.exists():
         return []
     recs = []
@@ -207,7 +208,7 @@ def load_triage() -> list[dict]:
 # ---------------------------------------------------------------------------
 def analyze_collisions(
     corpus: list[tuple[str, str, bool, bool]], cap: int, draft_cores: set[str]
-) -> dict:
+) -> dict[str, Any]:
     over_cap = [(s, fn) for (s, fn, _, _) in corpus if len(s) > cap]
     groups: dict[str, list[str]] = defaultdict(list)
     for s, fn in over_cap:
@@ -240,7 +241,7 @@ def analyze_collisions(
 # ---------------------------------------------------------------------------
 def analyze_umlauts(
     corpus: list[tuple[str, str, bool, bool]], cap: int, draft_cores: set[str]
-) -> dict:
+) -> dict[str, Any]:
     umlaut_files = [(s, fn, nfc, nfd) for (s, fn, nfc, nfd) in corpus if nfc or nfd]
     rows = []
     for s, fn, nfc, nfd in sorted(umlaut_files):
@@ -263,12 +264,12 @@ def analyze_umlauts(
 # ---------------------------------------------------------------------------
 # Q3 — Hangs
 # ---------------------------------------------------------------------------
-def analyze_hangs(triage: list[dict]) -> list[dict]:
+def analyze_hangs(triage: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_slug = {r["slug"]: r for r in triage}
     out = []
     for slug in HANG_SLUGS:
         logs = list(LOGS_DIR.glob(f"*/{slug}.log"))
-        info: dict = {"slug": slug, "logs": []}
+        info: dict[str, Any] = {"slug": slug, "logs": []}
         for lp in logs:
             text = lp.read_text(encoding="utf-8", errors="replace")
             lines = text.splitlines()
@@ -300,8 +301,8 @@ def analyze_hangs(triage: list[dict]) -> list[dict]:
     return out
 
 
-def read_config_facts() -> dict:
-    facts: dict = {}
+def read_config_facts() -> dict[str, Any]:
+    facts: dict[str, Any] = {}
     if CONFIG_SRC.exists():
         for i, ln in enumerate(CONFIG_SRC.read_text(encoding="utf-8").splitlines(), 1):
             for key, pat in [
@@ -317,7 +318,7 @@ def read_config_facts() -> dict:
 # ---------------------------------------------------------------------------
 # Q4 — RERUN_LM
 # ---------------------------------------------------------------------------
-def analyze_rerun(triage: list[dict]) -> dict:
+def analyze_rerun(triage: list[dict[str, Any]]) -> dict[str, Any]:
     rerun = [r for r in triage if r.get("action") == "RERUN_LM"]
     by_class = Counter(r.get("draft_classification", "?") for r in rerun)
     by_issues = Counter(tuple(sorted(r.get("md_schema_issues", []))) or ("<keine>",) for r in rerun)
@@ -366,7 +367,17 @@ def md_table(headers: list[str], rows: list[list[str]]) -> list[str]:
 
 
 def build_report(
-    corpus, draft_cores, triage, cap, cap_line, cap_src, col, uml, hangs, cfg, rerun
+    corpus: Any,
+    draft_cores: Any,
+    triage: Any,
+    cap: int,
+    cap_line: int,
+    cap_src: str,
+    col: dict[str, Any],
+    uml: dict[str, Any],
+    hangs: list[dict[str, Any]],
+    cfg: dict[str, Any],
+    rerun: dict[str, Any],
 ) -> str:
     L: list[str] = []
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")

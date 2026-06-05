@@ -115,6 +115,7 @@ warn_unused_ignores = true
 module = [
     "sentence_transformers.*",
     "sklearn.*",
+    "scipy.*",
     "umap.*",
     "hdbscan.*",
     "yaml",

@@ -212,7 +212,7 @@ def discover_files() -> dict[str, dict[str, Path | None]]:
 # parse_json_file) → scripts/_pkm_common.py
 
 
-def check_schema(fm: dict) -> list[str]:
+def check_schema(fm: dict[str, Any]) -> list[str]:
     """Schema-Issues. Format: '<key>:<detail>' für Aggregation."""
     issues: list[str] = []
 
@@ -280,7 +280,7 @@ def guess_title_lang(text: str | None) -> str:
     return "mixed"
 
 
-def compute_fm_metrics(fm: dict) -> dict[str, Any]:
+def compute_fm_metrics(fm: dict[str, Any]) -> dict[str, Any]:
     summary = fm.get("summary") or ""
     sw = len(summary.split()) if isinstance(summary, str) else 0
     tags = fm.get("tags") or []
@@ -304,7 +304,7 @@ def compute_fm_metrics(fm: dict) -> dict[str, Any]:
     }
 
 
-def compare_frontmatter(yaml_fm: dict, json_fm: dict) -> list[str]:
+def compare_frontmatter(yaml_fm: dict[str, Any], json_fm: dict[str, Any]) -> list[str]:
     """Returnt Liste der inkonsistenten Feldnamen."""
     diffs = []
     for k in set(yaml_fm) | set(json_fm):
@@ -333,10 +333,13 @@ def build_record(stem: str, files: dict[str, Path | None]) -> DraftRecord:
             timespec="seconds")
 
     if r.has_md:
+        assert files["md"] is not None
         r.md_bytes, r.md_mtime = stamp(files["md"])
     if r.has_body_md:
+        assert files["body_md"] is not None
         r.body_md_bytes, r.body_md_mtime = stamp(files["body_md"])
     if r.has_frontmatter:
+        assert files["frontmatter"] is not None
         r.frontmatter_bytes, r.frontmatter_mtime = stamp(files["frontmatter"])
 
     # Routing-Inferenz
@@ -346,9 +349,10 @@ def build_record(stem: str, files: dict[str, Path | None]) -> DraftRecord:
         r.routing = "passthrough"
 
     # Parse .md
-    yaml_fm: dict | None = None
+    yaml_fm: dict[str, Any] | None = None
     md_body = ""
     if r.has_md:
+        assert files["md"] is not None
         try:
             text = files["md"].read_text(encoding="utf-8")
             yaml_text, md_body = split_md(text)
@@ -365,6 +369,7 @@ def build_record(stem: str, files: dict[str, Path | None]) -> DraftRecord:
     # Parse .body.md
     body_md_text = ""
     if r.has_body_md:
+        assert files["body_md"] is not None
         try:
             body_md_text = files["body_md"].read_text(encoding="utf-8")
             r.body_md_present = bool(body_md_text.strip())
@@ -372,8 +377,9 @@ def build_record(stem: str, files: dict[str, Path | None]) -> DraftRecord:
             pass
 
     # Parse .frontmatter.json
-    json_fm: dict | None = None
+    json_fm: dict[str, Any] | None = None
     if r.has_frontmatter:
+        assert files["frontmatter"] is not None
         json_fm, err = parse_json_file(files["frontmatter"])
         if err:
             r.json_error = err

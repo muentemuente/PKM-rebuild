@@ -77,7 +77,7 @@ UMLAUT_PAIRS = [("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")]
 
 # === Hilfsfunktionen ===
 
-def extract_yaml_from_md(md_path: Path) -> tuple[dict | None, str | None]:
+def extract_yaml_from_md(md_path: Path) -> tuple[dict[str, Any] | None, str | None]:
     """YAML-Frontmatter aus .md extrahieren. Returnt (dict, error_or_None)."""
     try:
         text = md_path.read_text(encoding="utf-8")
@@ -104,7 +104,7 @@ def extract_yaml_from_md(md_path: Path) -> tuple[dict | None, str | None]:
     return data, None
 
 
-def load_json(path: Path) -> tuple[dict | None, str | None]:
+def load_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
     """JSON-Frontmatter laden. Returnt (dict, error_or_None)."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -116,7 +116,7 @@ def load_json(path: Path) -> tuple[dict | None, str | None]:
     return data, None
 
 
-def check_schema(fm: dict) -> list[str]:
+def check_schema(fm: dict[str, Any]) -> list[str]:
     """Frontmatter gegen Schema prüfen. Returnt Liste von Issue-Strings."""
     issues: list[str] = []
 
@@ -183,7 +183,7 @@ def normalize_for_compare(value: Any) -> Any:
     return value
 
 
-def compare_fm(yaml_fm: dict, json_fm: dict) -> list[dict]:
+def compare_fm(yaml_fm: dict[str, Any], json_fm: dict[str, Any]) -> list[dict[str, Any]]:
     """Feld-für-Feld-Diff. Returnt Liste von {field, md_value, json_value}."""
     diffs = []
     for field in COMPARE_FIELDS:
@@ -241,7 +241,7 @@ def main() -> int:
     counters: Counter[str] = Counter()
     issue_counter: Counter[tuple[str, str]] = Counter()
     diff_field_counter: Counter[str] = Counter()
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
 
     for stem in all_stems:
         record: dict[str, Any] = {
@@ -253,8 +253,8 @@ def main() -> int:
             "diffs": [],
         }
 
-        yaml_fm: dict | None = None
-        json_fm: dict | None = None
+        yaml_fm: dict[str, Any] | None = None
+        json_fm: dict[str, Any] | None = None
 
         if record["has_md"]:
             yaml_fm, err = extract_yaml_from_md(md_by_stem[stem])

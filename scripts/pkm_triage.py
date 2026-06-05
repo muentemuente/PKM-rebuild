@@ -191,7 +191,7 @@ def discover_vault() -> set[str]:
 
 # === Schema-Check ===
 
-def check_schema(fm: dict) -> list[str]:
+def check_schema(fm: dict[str, Any]) -> list[str]:
     issues: list[str] = []
 
     missing = REQUIRED_FIELDS - set(fm.keys())
@@ -251,7 +251,7 @@ def _norm(v: Any) -> Any:
     return v
 
 
-def compare_frontmatter(yaml_fm: dict, json_fm: dict) -> list[str]:
+def compare_frontmatter(yaml_fm: dict[str, Any], json_fm: dict[str, Any]) -> list[str]:
     diffs = []
     for k in set(yaml_fm) | set(json_fm):
         if _norm(yaml_fm.get(k)) != _norm(json_fm.get(k)):
@@ -310,9 +310,10 @@ def assess_draft(stem: str, files: dict[str, Path | None]) -> DraftAssessment:
     a.has_body_md = files.get("body_md") is not None
     a.has_frontmatter = files.get("frontmatter") is not None
 
-    yaml_fm: dict | None = None
+    yaml_fm: dict[str, Any] | None = None
     md_body = ""
     if a.has_md:
+        assert files["md"] is not None
         try:
             text = files["md"].read_text(encoding="utf-8")
             yaml_text, md_body = split_md(text)
@@ -327,13 +328,15 @@ def assess_draft(stem: str, files: dict[str, Path | None]) -> DraftAssessment:
 
     body_md_text = ""
     if a.has_body_md:
+        assert files["body_md"] is not None
         try:
             body_md_text = files["body_md"].read_text(encoding="utf-8")
         except Exception:
             pass
 
-    json_fm: dict | None = None
+    json_fm: dict[str, Any] | None = None
     if a.has_frontmatter:
+        assert files["frontmatter"] is not None
         json_fm, err = parse_json_file(files["frontmatter"])
         if err:
             a.json_error = err

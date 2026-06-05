@@ -264,7 +264,8 @@ tags:
 ### Vokabular-Aufbau
 
 - **Initiale Pflege:** Phase 9, Mensch finalisiert Liste in `00_Meta/tag-system.md`
-- **Erweiterung:** neue Tags brauchen Begründung + Eintrag im Vokabular
+- **Erweiterung:** neue Tags brauchen Begründung + Eintrag im Vokabular → `scripts/manage_vocab.py add-tag <tag> --reason "…"` (schreibt mit Begründung ins Kern-Vokabular)
+- **Drift-Check:** `scripts/manage_vocab.py validate` meldet Tags in Vault/Drafts, die nicht im Vokabular stehen
 - **Qwen-Vorschlag in Stage 4:** Tags werden vorgeschlagen, müssen aber gegen Vokabular validiert werden (Pipeline-Check)
 
 ---

@@ -3,12 +3,14 @@ title: PKM-rebuild Backup-Strategie
 slug: 07-backup-strategy
 status: stable
 created: 2026-05-25
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 
 # Backup-Strategie
 
 Vault und Korpus liegen außerhalb des Git-Repos (Entscheidung B6). Ohne ein eigenes Backup-Konzept gäbe es keine Wiederherstellungs-Option bei Datenverlust. Dieses Dokument definiert das Konzept.
+
+> **Status (2026-06-05):** Snapshot-/Restore-Skripte (`scripts/snapshot.sh`, `scripts/restore.sh`) sind ✅ erledigt inkl. Recovery-Drill (Phase 0.C); manuelle Snapshots laufen in `backups/`. **Offen (menschlich, kein Pipeline-Blocker):** Time-Machine-Verifikation (Mount-Fehler Code 18) und Vault-Snapshot auf 2. Medium (externe SSD / iCloud / Backblaze noch nicht entschieden). Siehe Akzeptanz-Checkliste unten + `docs/PROJECT_STATUS.md` §7.1.
 
 ---
 
@@ -243,3 +245,4 @@ Aus `docs/01_strategy.md` Sektion 3 — Backup-Block:
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version
+- 2026-06-05 — Phase 12: Status-Vermerk ergänzt (Snapshot-/Restore-Skripte + Recovery-Drill erledigt; Time-Machine-Verifikation + 2. Medium offen)

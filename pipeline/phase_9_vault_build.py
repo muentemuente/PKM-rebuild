@@ -65,7 +65,7 @@ CATEGORY_TO_FOLDER: dict[str, str] = {
     "automatisierung-scripting-und-pipelines": "14_Automatisierung-Scripting-und-Pipelines",
     "gedanken": "15_Gedanken",
     "kunst-kultur": "16_Kunst-Kultur",
-    "unsortiert": "unsortiert",
+    "unsortiert": "17_unsortiert",
 }
 
 _PHASE = "phase_9_vault_build"

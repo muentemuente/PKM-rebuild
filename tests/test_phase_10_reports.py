@@ -214,7 +214,7 @@ def test_cluster_sum_equals_total(env) -> None:
 
 def test_cluster_unsorted_section(env) -> None:
     text = _cluster(env, force=True).read_text(encoding="utf-8")
-    assert "## `unsortiert/`" in text
+    assert "## `17_unsortiert/`" in text
     assert "`epsilon`" in text
     assert "kein** echtes" in text  # Kennzeichnung Mapping-Lücke vs Mikrocluster
 

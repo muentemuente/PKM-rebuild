@@ -3,7 +3,7 @@ title: PKM-rebuild Vault-Standard
 slug: 03-vault-standard
 status: stable
 created: 2026-05-25
-updated: 2026-06-04
+updated: 2026-06-05
 ---
 
 # Vault-Standard
@@ -54,7 +54,7 @@ aliases: []                        # alternative Bezeichnungen, generiert aus me
 summary: ""                        # 1–2 Sätze, was ist das
 type: ""                           # process-document | knowledge-article | compact-reference | gedanke
 doc_role: []                       # manual | how-to | best-practice | workflow | explanation | reference | cheatsheet | wiki
-category: ""                       # Vault-Ordner ohne Nummern-Präfix, z.B. "webentwicklung" (16 Ordner + meta/unsortiert)
+category: ""                       # Vault-Ordner ohne Nummern-Präfix, z.B. "webentwicklung" (16 Ordner + meta + unsortiert → 17_unsortiert)
 subcategory: ""                    # 2. Ebene, z.B. "rest-apis"
 
 # === Klassifikation ===
@@ -134,16 +134,17 @@ data/04_vault/
 ├── 14_Automatisierung-Scripting-und-Pipelines/
 ├── 15_Gedanken/
 ├── 16_Kunst-Kultur/
-├── unsortiert/                           ← Mikrocluster < 3 Files
-└── _attic/                               ← deprecated, nicht gelöscht
+├── 17_unsortiert/                        ← regulärer Cluster: Mapping-Lücke / Domäne ohne eigenen Ordner
+└── _attic/                               ← deprecated, nicht gelöscht (einziger Sonderordner)
 ```
 
 ### Ordner-Zuordnung (Embedding-Clustering verworfen)
 
 > **Architektur-Hinweis (2026-06-04):** Embedding-/HDBSCAN-Clustering ist **verworfen** — der Korpus hat keine inhärente Cluster-Struktur (siehe `01_strategy.md` R9). Die 16 Ordner sind ein **fixes, kuratiertes Schema**, keine berechneten Cluster. Die Zuordnung läuft über `category` aus **Qwen-Stage-4** plus ein **deterministisches Mapping** auf die 16 Ordner (siehe Appendix A — Category-Mapping).
 
-- **`category` im Frontmatter** entspricht Ordnername **ohne Nummern-Präfix** (z.B. `webentwicklung`, nicht `02_webentwicklung`)
-- **`unsortiert/`**: für schwache/uneindeutige Zuordnungen (z.B. Business-Domänen ohne eigenen Ordner) — später per Hand zuordnen oder löschen
+- **`category` im Frontmatter** entspricht Ordnername **ohne Nummern-Präfix** (z.B. `webentwicklung`, nicht `02_webentwicklung`). Sonderfall: `category: unsortiert` → Ordner `17_unsortiert/` (Wert bleibt `unsortiert`, der Nummern-Präfix ist nur Ordnername).
+- **`17_unsortiert/`**: vollwertiger nummerierter Cluster für schwache/uneindeutige Zuordnungen (z.B. Business-Domänen ohne eigenen Ordner) — bekommt wie jeder genutzte Cluster ein `_index.md`; später per Hand zuordnen (`scripts/manage_vocab.py` + Frontmatter-Edit) oder belassen
+- **`_attic/`** ist der **einzige Sonderordner** (deprecated, kein `_index.md`); `00_Meta` enthält Standards/Templates statt Concept-Notes und bekommt deshalb ebenfalls kein `_index.md`
 - **Ordnernummern sind UX**, keine Daten — können bei Restrukturierung neu vergeben werden
 - **`00_Meta`** und **`15_Gedanken`** folgen eigenen Regeln:
   - `00_Meta`: keine inhaltliche Bewertung, enthält Standards/Templates
@@ -456,7 +457,7 @@ Embedding-Clustering ist verworfen (siehe Sektion 4). `category` entsteht in **z
 
 ### Kanonische `category`-Werte (`ALLOWED_CATEGORIES`, 18)
 
-16 thematische Vault-Ordner (Nummern-Präfix nur als Ordnername, nicht im Feld) plus `meta` (→ `00_Meta/`) und `unsortiert` (→ `unsortiert/`):
+16 thematische Vault-Ordner (Nummern-Präfix nur als Ordnername, nicht im Feld) plus `meta` (→ `00_Meta/`) und `unsortiert` (→ `17_unsortiert/`):
 
 | # | category | # | category |
 |---|---|---|---|
@@ -468,7 +469,7 @@ Embedding-Clustering ist verworfen (siehe Sektion 4). `category` entsteht in **z
 | 06 | `methoden-und-prozesse` | 14 | `automatisierung-scripting-und-pipelines` |
 | 07 | `best-practices` | 15 | `gedanken` |
 | 08 | `cheatsheets` | 16 | `kunst-kultur` |
-| — | `meta` (00_Meta) | — | `unsortiert` |
+| 00 | `meta` (00_Meta) | 17 | `unsortiert` (17_unsortiert) |
 
 ### Resultierende Verteilung (180 aktive Drafts, nach Mapping)
 
@@ -482,3 +483,4 @@ Embedding-Clustering ist verworfen (siehe Sektion 4). `category` entsteht in **z
 
 - 2026-05-25 — Initial-Version, konsolidiert aus Frontmatter-Schema + Vault-Struktur + Entscheidungen N1–N3
 - 2026-06-04 — `type`-Enum auf 4 Werte (`gedanke`, E1); kanonische Slug-Ableitung (NFC + Umlaut + 60-Cap + unique, E2); Sektion 4 auf fixes Ordner-Schema (Embedding-Clustering verworfen, R9); `merged_from` immer leer (Option B); Appendix A Category-Mapping (E5)
+- 2026-06-05 — `unsortiert/` → `17_unsortiert/` als vollwertiger nummerierter Cluster (AP2): Sektion 4 (Ordner-Hierarchie, `_attic/` einziger Sonderordner), Appendix A (category `unsortiert` → `17_unsortiert/`). category-Wert bleibt `unsortiert`.

@@ -150,7 +150,7 @@ vault:
   generate_cluster_index: true      # _index.md pro Cluster automatisch
   validate_wikilinks: true          # broken links → Warning
   attic_folder: "_attic"            # für deprecated
-  unsorted_folder: "unsortiert"     # für Mikrocluster < min_cluster_size
+  unsorted_folder: "17_unsortiert"  # regulärer Cluster (Mapping-Lücke / Domäne ohne eigenen Ordner)
 
 
 # === Tag-Vokabular ============================================================

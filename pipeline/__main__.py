@@ -6,6 +6,7 @@ from typing import Any
 
 import click
 from rich.console import Console
+from rich.table import Table
 
 from pipeline.config import PipelineConfig, load_config
 from pipeline.phase_1_inventory import run_phase_1
@@ -16,12 +17,13 @@ from pipeline.phase_5_redundancy import run_phase_5
 from pipeline.phase_6_embeddings import run_phase_6
 from pipeline.phase_7_batches import run_phase_7
 from pipeline.phase_8_synthesis import run_phase_8
+from pipeline.phase_9_vault_build import run_phase_9
 from pipeline.phase_10_reports import run_phase_10
 
 console = Console()
 
 _ALL_PHASES = list(range(1, 11))
-_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6, 7, 8, 10}
+_IMPLEMENTED_PHASES = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 _DEFAULT_CONFIG = "pipeline/pipeline.config.yaml"
 
 
@@ -221,6 +223,38 @@ def _dispatch_phase_8(cfg: PipelineConfig, force: bool, filter_files: tuple[str,
     )
 
 
+def _dispatch_phase_9(cfg: PipelineConfig, force: bool, dry_run: bool = False) -> None:
+    summary = run_phase_9(
+        drafts_dir=cfg.paths.drafts,
+        vault_dir=cfg.paths.vault,
+        pipeline_output=cfg.paths.pipeline_output,
+        backups_dir=cfg.paths.backups,
+        force=force,
+        dry_run=dry_run,
+        pipeline_version=cfg.pipeline.version,
+    )
+    prefix = "[cyan]--dry-run:[/cyan] " if dry_run else ""
+    if summary.get("skipped"):
+        console.print("[yellow]Phase 9: übersprungen (Input-Hash unverändert).[/yellow]")
+    console.print(
+        f"{prefix}[green]✓ Phase 9:[/green] {summary['articles']} Artikel in "
+        f"{summary['folders_used']} Ordnern, {summary['dropped_links']} Links gedroppt "
+        f"({summary['dropped_links_drafts']} Drafts), {summary['collisions']} Slug-Kollisionen, "
+        f"{summary['errors']} Errors"
+    )
+    if summary.get("unknown_categories"):
+        console.print(
+            f"[yellow]  unbekannte Kategorien → unsortiert:[/yellow] "
+            f"{summary['unknown_categories']}"
+        )
+    table = Table(title="Ordner-Verteilung")
+    table.add_column("Ordner")
+    table.add_column("Artikel", justify="right")
+    for folder, n in summary["folder_counts"].items():
+        table.add_row(folder, str(n))
+    console.print(table)
+
+
 def _dispatch_phase_10(cfg: PipelineConfig, force: bool) -> None:
     out = cfg.paths.pipeline_output
     summary = run_phase_10(
@@ -251,6 +285,7 @@ _PHASE_DISPATCH: dict[int, Any] = {
     6: _dispatch_phase_6,
     7: _dispatch_phase_7,
     8: _dispatch_phase_8,
+    9: _dispatch_phase_9,
     10: _dispatch_phase_10,
 }
 
@@ -356,6 +391,21 @@ def reports(force: bool, config: str) -> None:
     """Kontroll-Berichte generieren (corpus, duplicate, cluster)."""
     cfg = load_config(Path(config))
     _dispatch_phase_10(cfg, force)
+
+
+@cli.command(name="build-vault")
+@click.option("--force", is_flag=True, help="Input-Hash-Cache ignorieren, neu bauen")
+@click.option("--dry-run", "dry_run", is_flag=True, help="Plan zeigen, nichts schreiben")
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def build_vault(force: bool, dry_run: bool, config: str) -> None:
+    """Phase 9: Vault aus Drafts aufbauen (data/04_vault/<NN_Cluster>/<slug>.md)."""
+    cfg = load_config(Path(config))
+    _dispatch_phase_9(cfg, force, dry_run)
 
 
 if __name__ == "__main__":

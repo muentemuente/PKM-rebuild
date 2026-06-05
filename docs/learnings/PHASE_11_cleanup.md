@@ -91,12 +91,12 @@ OHNE (archiviert) : ORPHAN -> RERUN_LM
 
 Archivieren würde **alle 180 Drafts** von READY auf RERUN_LM kippen. Das ist
 exakt der AP5-Checkpoint „Triage hängt von Intermediates ab → STOP, nicht
-archivieren". → **Nicht archiviert.** Entscheidung für muente:
+archivieren". → **Nicht archiviert.**
 
-- (a) `pkm_triage` robust gegen fehlende Intermediates machen (embedded YAML aus
-  `.md` als Fallback statt separater `.frontmatter.json`), **dann** AP5 sicher
-  ausführen; oder
-- (b) Intermediates als bewusste Provenance behalten (Triage bleibt voll nutzbar).
+**Entscheidung muente (2026-06-05): (b)** — Intermediates (`.body.md`,
+`.frontmatter.json`, `.meta.json`) bleiben als bewusste Provenance in
+`03_drafts/`. `pkm_triage` bleibt voll nutzbar. AP5 ist damit abgeschlossen
+(bewusst kein Archiv); keine weitere Aktion nötig.
 
 ---
 
@@ -146,8 +146,8 @@ Nicht relevant — kein Qwen-/Embedding-Lauf.
 
 ## 8. Folgende TODOs / offene Fragen
 
-- [ ] AP5-Entscheidung (Triage robust machen → archivieren, oder Intermediates behalten).
-- [ ] main-Merge nach wörtlichem `FREIGABE`.
+- [x] AP5-Entscheidung: **(b)** Intermediates behalten (Provenance) — kein Archiv.
+- [x] main-Merge nach wörtlichem `FREIGABE` (2026-06-05).
 - [ ] Manuelle DoD-Reste: Backup 2. Medium + Recovery-Drill, Qualitätsstufe-2-Review,
   `unsortiert/`-Finalzuordnung (Input: `unsortiert_diagnose.md`), Projekt-Retro.
 

@@ -502,6 +502,31 @@ def _segment_document(
     return merged
 
 
+def _segment_whole_doc(doc_id: str, body: str, source_path: str) -> list[SegmentRecord]:
+    """Token-Cap-Fallback: gibt das Dokument als EIN Segment zurück (kein Heading-Split).
+
+    Genutzt im go-forward-Flow (`pipeline/run_flow.py`), wenn ein Doc unter dem
+    Token-Cap liegt — dann wird es nicht segmentiert, sondern 1:1 an Phase 8 gereicht.
+    """
+    text = body.strip()
+    if not text:
+        return []
+    return [
+        SegmentRecord(
+            segment_id=f"{doc_id}-S0000",
+            doc_id=doc_id,
+            source_path=source_path,
+            heading_path=[],
+            segment_index=0,
+            text=text,
+            word_count=len(text.split()),
+            char_count=len(text),
+            contains_code=_has_code_block(text),
+            contains_table=_has_table(text),
+        )
+    ]
+
+
 def _sha256_file(path: Path) -> str:
     """SHA-256 einer Datei (binär, in Chunks)."""
     h = hashlib.sha256()
@@ -606,6 +631,7 @@ def run_phase_4(
     max_words: int = 1500,
     book_max_words: int = 5000,
     structured_path: Path | None = None,
+    token_cap_words: int | None = None,
     pipeline_version: str = "0.1.0",
 ) -> list[SegmentRecord]:
     """Phase 4 ausführen: Dokumente in Segmente aufteilen.
@@ -620,6 +646,10 @@ def run_phase_4(
         book_max_words: Maximale Wortanzahl pro Segment im Book-Pfad.
         structured_path: Pfad zu documents_structured.jsonl (Phase 3 Output).
                          Wenn angegeben, wird doc_type_guess.label für Book-Erkennung genutzt.
+        token_cap_words: go-forward-Modus (Option B). Wenn gesetzt, wird ein Doc NUR
+                         segmentiert, wenn seine Wortzahl diesen Cap überschreitet —
+                         sonst als EIN Segment 1:1 durchgereicht. None = klassischer
+                         Heading-Split (Korpus-Erstlauf-Verhalten, unverändert).
         pipeline_version: Version für Meta-File.
 
     Returns:
@@ -665,15 +695,20 @@ def run_phase_4(
     for rec in cleaned_records:
         source_path = path_lookup.get(rec.doc_id, "")
         is_book = doc_types.get(rec.doc_id) == "book"
-        segments = _segment_document(
-            doc_id=rec.doc_id,
-            body=rec.body,
-            source_path=source_path,
-            min_words=min_words,
-            max_words=max_words,
-            is_book=is_book,
-            book_max_words=book_max_words,
-        )
+        # go-forward Token-Cap-Modus: kleine Docs als 1 Segment durchreichen,
+        # nur bei Cap-Überschreitung den klassischen Heading-Split nutzen.
+        if token_cap_words is not None and not is_book and len(rec.body.split()) <= token_cap_words:
+            segments = _segment_whole_doc(rec.doc_id, rec.body, source_path)
+        else:
+            segments = _segment_document(
+                doc_id=rec.doc_id,
+                body=rec.body,
+                source_path=source_path,
+                min_words=min_words,
+                max_words=max_words,
+                is_book=is_book,
+                book_max_words=book_max_words,
+            )
         all_segments.extend(segments)
 
     _write_jsonl(output_path, all_segments)
@@ -686,7 +721,12 @@ def run_phase_4(
         output_hash,
         duration,
         pipeline_version,
-        {"min_words": min_words, "max_words": max_words, "book_max_words": book_max_words},
+        {
+            "min_words": min_words,
+            "max_words": max_words,
+            "book_max_words": book_max_words,
+            "token_cap_words": token_cap_words,
+        },
     )
 
     log.info(

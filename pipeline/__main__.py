@@ -375,8 +375,7 @@ def status(config: str) -> None:
     console.print()
     console.print("[bold]Kommandos:[/bold] run · status · reports · build-vault · ingest")
     console.print(
-        "  [dim]ingest[/dim]: inkrementell — neue .md aus data/00_inbox/ "
-        "durch Phasen 1-4 + 8 (Option B)"
+        "  [dim]ingest[/dim]: inkrementell — neue .md aus input/ durch Phasen 1-4 + 8 (Option B)"
     )
 
     console.print()
@@ -412,7 +411,7 @@ def reports(force: bool, config: str) -> None:
     help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
 )
 def build_vault(force: bool, dry_run: bool, config: str) -> None:
-    """Phase 9: Vault aus Drafts aufbauen (data/04_vault/<NN_Cluster>/<slug>.md)."""
+    """Phase 9: Vault aus Drafts aufbauen (output/<NN_Cluster>/<slug>.md)."""
     cfg = load_config(Path(config))
     _dispatch_phase_9(cfg, force, dry_run)
 
@@ -427,12 +426,12 @@ def build_vault(force: bool, dry_run: bool, config: str) -> None:
     help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
 )
 def ingest(force: bool, dry_run: bool, config: str) -> None:
-    """Inkrementell: neue .md aus data/00_inbox/ durch Phasen 1-4 + 8 (Option B)."""
+    """Inkrementell: neue .md aus input/ durch Phasen 1-4 + 8 (Option B)."""
     cfg = load_config(Path(config))
     summary = run_ingest(cfg, force=force, dry_run=dry_run)
 
     if summary["inbox_files"] == 0:
-        console.print("[yellow]ingest:[/yellow] Inbox leer (data/00_inbox/) — nichts zu tun.")
+        console.print("[yellow]ingest:[/yellow] Inbox leer (input/) — nichts zu tun.")
         return
 
     if dry_run:

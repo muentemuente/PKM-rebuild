@@ -1,9 +1,9 @@
 """Phase 4 — Segmentierung: Dokumente in Segmente aufteilen.
 
-Input:  data/02_pipeline_output/cleaned_documents.jsonl  (Phase 2 Output)
-        data/02_pipeline_output/files_manifest.jsonl     (Phase 1 Output, source_path)
-Output: data/02_pipeline_output/segments.jsonl
-        data/02_pipeline_output/segments.jsonl.meta.json
+Input:  work/cleaned_documents.jsonl  (Phase 2 Output)
+        work/files_manifest.jsonl     (Phase 1 Output, source_path)
+Output: work/segments.jsonl
+        work/segments.jsonl.meta.json
 
 Akzeptanzkriterien (docs/02_pipeline_spec.md, Phase 4):
   - Jedes Segment zwischen min_words und max_words (best effort)

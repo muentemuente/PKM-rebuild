@@ -10,17 +10,29 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict
 
+from pipeline import _paths
+
 _VAR_RE = re.compile(r"\$\{(\w+)\}")
 
 
 class PathsConfig(BaseModel):
+    # Pfade werden zentral aus pipeline._paths injiziert (nicht mehr aus der YAML).
+    # Neues Layout (input/work/drafts/review/output/archive)
     data_root: Path
-    inbox: Path
-    corpus_input: Path
-    pipeline_output: Path
+    input: Path
+    work: Path
     drafts: Path
-    vault: Path
+    review: Path
+    output: Path
+    archive: Path
+    config: Path
     backups: Path
+    # Legacy-Aliasse (auf neues Layout gemappt) — bestehende Phasen-Dispatcher
+    # nutzen diese Namen weiter; WP3 migriert sie auf die neuen Felder.
+    inbox: Path  # → input
+    corpus_input: Path  # → input
+    pipeline_output: Path  # → work
+    vault: Path  # → output
 
 
 class PipelineVersionConfig(BaseModel):
@@ -206,17 +218,28 @@ def _substitute_vars(text: str, context: dict[str, str]) -> str:
     return _VAR_RE.sub(replacer, text)
 
 
-def _resolve_paths(raw: dict[str, Any]) -> dict[str, str]:
-    """Löst ${variable}-Referenzen in der paths-Sektion auf.
+def _paths_context() -> dict[str, str]:
+    """Baut den Pfad-Kontext zentral aus ``pipeline._paths`` (Single Source of Truth).
 
-    Verarbeitet data_root zuerst, damit nachfolgende Pfade darauf verweisen können.
+    Enthält neue Layout-Namen + Legacy-Aliasse (gemappt), damit sowohl
+    ``${work}`` als auch ``${pipeline_output}`` in der YAML auflösbar bleiben.
     """
-    context: dict[str, str] = {}
-    ordered_keys = ["data_root"] + [k for k in raw if k != "data_root"]
-    for key in ordered_keys:
-        val = _substitute_vars(str(raw[key]), context)
-        context[key] = str(Path(val).expanduser())
-    return context
+    return {
+        "data_root": str(_paths.PIPELINE_ROOT),
+        "input": str(_paths.INPUT),
+        "work": str(_paths.WORK),
+        "drafts": str(_paths.DRAFTS),
+        "review": str(_paths.REVIEW),
+        "output": str(_paths.OUTPUT),
+        "archive": str(_paths.ARCHIVE),
+        "config": str(_paths.CONFIG),
+        "backups": str(_paths.BACKUPS),
+        # Legacy-Aliasse
+        "inbox": str(_paths.INPUT),
+        "corpus_input": str(_paths.INPUT),
+        "pipeline_output": str(_paths.WORK),
+        "vault": str(_paths.OUTPUT),
+    }
 
 
 def _substitute_str_values(raw: dict[str, Any], context: dict[str, str]) -> dict[str, Any]:
@@ -238,7 +261,9 @@ def load_config(config_path: Path) -> PipelineConfig:
         pydantic.ValidationError: Bei ungültiger Konfiguration.
     """
     raw: dict[str, Any] = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    paths_context = _resolve_paths(raw["paths"])
+    # Pfade kommen zentral aus pipeline._paths (nicht aus der YAML — diese hat keinen
+    # paths-Block mehr). Das gilt auch für die ${var}-Substitution in tags/logging.
+    paths_context = _paths_context()
     raw["paths"] = paths_context
     # ${var}-Substitution für Sektionen mit Pfad-Referenzen
     for section in ("tags", "logging"):

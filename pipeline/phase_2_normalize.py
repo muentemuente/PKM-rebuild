@@ -1,9 +1,9 @@
 """Phase 2 — Normalisierung: Text bereinigen, Frontmatter extrahieren.
 
-Input:  data/02_pipeline_output/files_manifest.jsonl  (Phase 1 Output)
-        data/01_corpus_input/**/*.md                   (read-only)
-Output: data/02_pipeline_output/cleaned_documents.jsonl
-        data/02_pipeline_output/cleaned_documents.jsonl.meta.json
+Input:  work/files_manifest.jsonl  (Phase 1 Output)
+        input/**/*.md                   (read-only)
+Output: work/cleaned_documents.jsonl
+        work/cleaned_documents.jsonl.meta.json
 
 Akzeptanzkriterien (docs/02_pipeline_spec.md, Phase 2):
   - Alle docs aus manifest verarbeitet

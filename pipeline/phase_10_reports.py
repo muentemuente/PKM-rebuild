@@ -5,7 +5,7 @@ Generiert drei Markdown-Reports aus bestehenden Pipeline-Outputs:
   duplicate_report.md  — Duplikate und Kanten
   cluster_report.md    — Cluster-Verteilung (Gate-1-Input)
 
-Inputs (alle aus data/02_pipeline_output/):
+Inputs (alle aus work/):
   files_manifest.jsonl, documents_structured.jsonl, segments.jsonl,
   exact_duplicates.json, near_duplicate_edges.jsonl, cluster_proposals.json,
   batches/batch_*.md
@@ -249,7 +249,7 @@ def _load_vault_fm(path: Path) -> dict[str, Any] | None:
 
 
 def _count_excluded(corpus_input: Path) -> int:
-    """Anzahl excluded Korpus-Dateien in `01_corpus_input/_excluded/`."""
+    """Anzahl excluded Korpus-Dateien in `input/_excluded/`."""
     excluded_dir = corpus_input / "_excluded"
     if not excluded_dir.exists():
         return 0
@@ -397,7 +397,7 @@ pipeline_version: {pipeline_version}
 |---|---:|---|
 | `ready` (im Vault) | {n_ready} | Draft sauber → als Vault-Artikel gebaut |
 | `hold` (pending) | {n_hold} | Korpus-Doc ohne gebauten Artikel, nicht excluded |
-| `excluded` | {n_excluded} | bewusst ausgeschlossen (`01_corpus_input/_excluded/`) |
+| `excluded` | {n_excluded} | bewusst ausgeschlossen (`input/_excluded/`) |
 | **Summe** | **{n_ready + n_hold + n_excluded}** | == Files gesamt ({len(docs)}) |
 
 ## Doc-Typ-Verteilung (heuristisch)
@@ -560,7 +560,7 @@ def generate_cluster_report(
 
     Embedding-/HDBSCAN-Clustering ist verworfen (R9). Die 16 Ordner sind ein
     kuratiertes Schema; dieser Report beschreibt die reale Artikel-Verteilung
-    im gebauten `04_vault/`, nicht berechnete Cluster.
+    im gebauten `output/`, nicht berechnete Cluster.
     """
     input_paths = sorted(drafts_dir.glob("*.md")) + sorted(vault_dir.rglob("*.md"))
     input_hash = _combined_hash(input_paths)
@@ -634,7 +634,7 @@ pipeline_version: {pipeline_version}
 
 # Cluster-Bericht — Vault-Verteilung
 
-> Quelle: gebauter `04_vault/` (Ground Truth). Embedding-Clustering ist verworfen (R9);
+> Quelle: gebauter `output/` (Ground Truth). Embedding-Clustering ist verworfen (R9);
 > die Ordner sind ein kuratiertes Schema, keine berechneten Cluster.
 
 ## Übersicht
@@ -709,9 +709,9 @@ def run_phase_10(
         segments_path: segments.jsonl (Phase 4)
         exact_path: exact_duplicates.json (Phase 5)
         edges_path: near_duplicate_edges.jsonl (Phase 5)
-        drafts_dir: 03_drafts (Ground-Truth-Basis für Build-Plan)
-        vault_dir: 04_vault (gebauter Vault, Ground Truth für cluster_report)
-        corpus_input: 01_corpus_input (für `_excluded/`-Zählung)
+        drafts_dir: drafts (Ground-Truth-Basis für Build-Plan)
+        vault_dir: output (gebauter Vault, Ground Truth für cluster_report)
+        corpus_input: input (für `_excluded/`-Zählung)
         output_dir: Zielverzeichnis für Reports
         cleaned_path: cleaned_documents.jsonl (optional, für Sprach-Heuristik)
         force: Cache ignorieren

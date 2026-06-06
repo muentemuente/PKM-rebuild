@@ -12,13 +12,15 @@ import pytest
 import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from pipeline import _paths
 from scripts.clustering_analysis import (
     pairwise_sim_histogram,
     simulate_threshold,
     tfidf_top_terms,
 )
 
-_DATA_DIR = Path.home() / "projects/aktiv/PKM_rebuild/data/02_pipeline_output"
+# Alt-Build-Artefakte (Clustering verworfen, R9) liegen archiviert.
+_DATA_DIR = _paths.ARCHIVE / "02_pipeline_output"
 _EMBEDDINGS_PATH = _DATA_DIR / "embeddings.parquet"
 _OUTPUT_PATH = _DATA_DIR / "clustering_analysis.md"
 

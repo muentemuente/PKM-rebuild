@@ -18,7 +18,7 @@ Aufrufe:
   python3 scripts/phase8_runner.py --source rerun --dry-run    # nur parsen + listen
 
 Output:
-  data/02_pipeline_output/phase8_logs/
+  work/phase8_logs/
     state_batch_NNN.json     pro Batch: done/failed-Listen
     batch_NNN/<slug>.log     pro Slug: kompletter Pipeline-Stdout/Stderr
 
@@ -44,13 +44,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-# === Pfade ===
-PROJECT_ROOT = Path.home() / "projects" / "aktiv" / "PKM-rebuild"
-DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
-DRAFTS_DIR = DATA_ROOT / "03_drafts"
-TRIAGE_DIR = DATA_ROOT / "02_pipeline_output" / "triage"
-LOG_BASE = DATA_ROOT / "02_pipeline_output" / "phase8_logs"
-BACKUP_BASE = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "backups"
+# === Pfade (zentral aus pipeline._paths) ===
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
+
+PROJECT_ROOT = _paths.REPO_ROOT
+DRAFTS_DIR = _paths.DRAFTS
+TRIAGE_DIR = _paths.WORK / "triage"
+LOG_BASE = _paths.WORK / "phase8_logs"
+BACKUP_BASE = _paths.BACKUPS
 
 # === Pipeline-Aufruf ===
 PIPELINE_CMD = [sys.executable, "-m", "pipeline", "run", "--phase", "8"]

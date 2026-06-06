@@ -1,8 +1,8 @@
 """Phase 1 — Inventar: Einsammeln aller Markdown-Dateien aus corpus_input.
 
-Input:  data/01_corpus_input/**/*.md  (read-only, niemals schreiben)
-Output: data/02_pipeline_output/files_manifest.jsonl
-        data/02_pipeline_output/files_manifest.jsonl.meta.json
+Input:  input/**/*.md  (read-only, niemals schreiben)
+Output: work/files_manifest.jsonl
+        work/files_manifest.jsonl.meta.json
 
 Akzeptanzkriterien (docs/02_pipeline_spec.md, Phase 1):
   - Alle .md aus corpus_input erfasst (Count-Check im Log)
@@ -180,7 +180,7 @@ def run_phase_1(
     """Phase 1 ausführen: Korpus inventarisieren.
 
     Args:
-        corpus_input: Pfad zu data/01_corpus_input/ (read-only, niemals schreiben).
+        corpus_input: Pfad zu input/ (read-only, niemals schreiben).
         output_path: Ziel-Pfad für files_manifest.jsonl.
         force: Wenn True, Cache ignorieren und neu berechnen.
         sample: Wenn gesetzt, nur die ersten N Dateien verarbeiten (sortiert).

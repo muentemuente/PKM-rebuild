@@ -1,10 +1,10 @@
 """Phase 5 — Redundanz-Erkennung: exakte und nahe Duplikate finden.
 
-Input:  data/02_pipeline_output/cleaned_documents.jsonl  (Phase 2 Output)
-        data/02_pipeline_output/segments.jsonl            (Phase 4 Output)
-Output: data/02_pipeline_output/exact_duplicates.json
-        data/02_pipeline_output/near_duplicate_edges.jsonl
-        data/02_pipeline_output/near_duplicate_edges.jsonl.meta.json
+Input:  work/cleaned_documents.jsonl  (Phase 2 Output)
+        work/segments.jsonl            (Phase 4 Output)
+Output: work/exact_duplicates.json
+        work/near_duplicate_edges.jsonl
+        work/near_duplicate_edges.jsonl.meta.json
 
 Akzeptanzkriterien (docs/02_pipeline_spec.md, Phase 5):
   - Performance: TF-IDF < 5 min auf 200 Docs / 3000 Segmenten

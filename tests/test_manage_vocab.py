@@ -56,7 +56,7 @@ updated: 2026-01-01
 ## 4. Cluster-Struktur
 
 ```
-data/04_vault/
+output/
 ├── 00_Meta/
 ├── 01_Grundlagen/
 ├── 17_unsortiert/
@@ -111,8 +111,12 @@ def test_add_category_consistent_three_places(env: dict[str, Path]) -> None:
 
 
 def test_add_category_idempotent(env: dict[str, Path]) -> None:
-    mv.add_category("business", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"])
-    res2 = mv.add_category("business", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"])
+    mv.add_category(
+        "business", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"]
+    )
+    res2 = mv.add_category(
+        "business", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"]
+    )
     assert res2["already"] is True
     # nur ein Eintrag im Mapping
     src = env["p9"].read_text(encoding="utf-8")
@@ -120,28 +124,44 @@ def test_add_category_idempotent(env: dict[str, Path]) -> None:
 
 
 def test_add_category_next_number(env: dict[str, Path]) -> None:
-    r1 = mv.add_category("alpha", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"])
-    r2 = mv.add_category("beta", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"])
+    r1 = mv.add_category(
+        "alpha", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"]
+    )
+    r2 = mv.add_category(
+        "beta", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"]
+    )
     assert r1["folder"] == "18_Alpha"
     assert r2["folder"] == "19_Beta"
 
 
 def test_add_category_folder_display_keeps_small_words(env: dict[str, Path]) -> None:
     res = mv.add_category(
-        "wissen-und-praxis", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"]
+        "wissen-und-praxis",
+        phase9_path=env["p9"],
+        vault_dir=env["vault"],
+        vault_standard_path=env["vstd"],
     )
     assert res["folder"] == "18_Wissen-und-Praxis"
 
 
 def test_add_category_invalid_slug(env: dict[str, Path]) -> None:
     with pytest.raises(ValueError, match="category-Slug"):
-        mv.add_category("Ungültig Slug", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"])
+        mv.add_category(
+            "Ungültig Slug",
+            phase9_path=env["p9"],
+            vault_dir=env["vault"],
+            vault_standard_path=env["vstd"],
+        )
 
 
 def test_add_category_dry_run_writes_nothing(env: dict[str, Path]) -> None:
     before = env["p9"].read_text(encoding="utf-8")
     res = mv.add_category(
-        "business", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"], dry_run=True
+        "business",
+        phase9_path=env["p9"],
+        vault_dir=env["vault"],
+        vault_standard_path=env["vstd"],
+        dry_run=True,
     )
     assert res["dry_run"] is True
     assert env["p9"].read_text(encoding="utf-8") == before
@@ -152,7 +172,9 @@ def test_add_category_dry_run_writes_nothing(env: dict[str, Path]) -> None:
 
 
 def test_add_tag_registers_in_vocab(env: dict[str, Path]) -> None:
-    res = mv.add_tag("observability", "Monitoring- und Tracing-Thema", tag_system_path=env["tagsys"])
+    res = mv.add_tag(
+        "observability", "Monitoring- und Tracing-Thema", tag_system_path=env["tagsys"]
+    )
     assert res["already"] is False
     vocab = mv.parse_tag_vocab(env["tagsys"])
     assert "observability" in vocab

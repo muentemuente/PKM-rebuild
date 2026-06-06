@@ -1,0 +1,343 @@
+# =============================================================================
+# tag_vocabulary.yaml — Single Source des kontrollierten Tag-Vokabulars
+# =============================================================================
+# 149 kanonische Tags in 17 Themenbereichen. Quelle: docs/03_vault_standard.md §7.
+# Der Vault-Artikel 00_Meta/tag-system.md wird HIERAUS generiert (nicht umgekehrt).
+# Gate C (pkm review --apply) nimmt neue Tags hier auf (Abschnitt 'sections' +
+# ggf. 'synonyms'). Merge-Historie (Alt→Neu): config/tag_merge_map.json.
+# Aufgelöst über pipeline/_paths.py (TAG_VOCABULARY_FILE).
+# =============================================================================
+
+# Kanonische Tags, gruppiert nach Themenbereich (Reihenfolge = Doku-Reihenfolge).
+sections:
+  "Sprachen & Code":
+    - css
+    - javascript
+    - pandas
+    - programming
+    - python
+    - strings
+    - syntax
+    - variables
+  "Terminal, Shell & Scripting":
+    - bash
+    - chmod
+    - cli
+    - homebrew
+    - macos
+    - scripting
+    - shell
+    - terminal
+    - unix-philosophy
+    - zsh
+  "Git & Versionierung":
+    - git
+    - github
+    - gitignore
+    - ssh
+  "Web & APIs":
+    - api
+    - frontend
+    - graphql
+    - http
+    - networking
+    - responsive-design
+    - rest
+    - web-development
+    - web-scraping
+  "Daten & Formate":
+    - configuration
+    - csv
+    - data-analysis
+    - data-formats
+    - data-processing
+    - data-quality
+    - data-visualization
+    - json
+    - parquet
+    - toml
+    - webp
+    - yaml
+  Datenbanken:
+    - sql
+    - sqlite
+    - vector-database
+  "KI, NLP & semantische Systeme":
+    - claude
+    - computer-vision
+    - embeddings
+    - llm
+    - machine-learning
+    - ner
+    - nlp
+    - ocr
+    - ontology
+    - prompt-engineering
+    - rag
+    - semantic-search
+    - topic-modeling
+  "Dokumentenverarbeitung & Extraktion":
+    - deduplication
+    - duplicate-detection
+    - pandoc
+    - pattern-matching
+    - regex
+    - text-processing
+  "Bild & Metadaten":
+    - aspect-ratio
+    - display
+    - exif
+    - exiftool
+    - hd
+    - image-formats
+    - image-processing
+    - imagemagick
+    - iptc
+    - pixel-density
+    - printing
+    - resolution
+    - xmp
+  "Design, UX & Visuelles":
+    - accessibility
+    - cartography
+    - cognitive-load
+    - color-theory
+    - corporate-identity
+    - design
+    - design-psychology
+    - design-systems
+    - gestalt-principles
+    - graphic-design
+    - information-architecture
+    - layout
+    - perspective-drawing
+    - typography
+    - ui-ux
+    - visual-hierarchy
+  "Diagramme & Visualisierung":
+    - diagrams
+    - graphviz
+    - mermaid
+    - plantuml
+    - visualization
+  "Wissensmanagement & PKM":
+    - frontmatter
+    - knowledge-management
+    - markdown
+    - metadata
+    - obsidian
+    - pkm
+    - taxonomy
+  "Methoden, Projekte & Prozesse":
+    - automation
+    - developer-tools
+    - devops
+    - file-management
+    - folder-structure
+    - open-source
+    - pipeline
+    - project-management
+    - project-structure
+    - research
+    - software-architecture
+    - software-development
+    - standards
+    - virtual-environment
+    - vscode
+    - workflow
+  "Dokumentation & Standards":
+    - cheatsheet
+    - documentation
+    - formatting
+    - readme
+    - reference
+    - technical-writing
+    - templates
+    - vault-standard
+  "Sicherheit & System":
+    - auth
+    - debugging
+    - gui
+    - navigation
+    - security
+    - shortcuts
+    - troubleshooting
+    - usb
+  "Kunst, Kultur & Geistes":
+    - architecture
+    - art-history
+    - governance
+    - philosophy
+    - psychology
+    - renaissance
+  "Business & Produkt":
+    - crm
+    - ecommerce
+    - excel
+    - personal-branding
+    - product-data
+
+# Synonym-Map: Alias → kanonischer Tag (null = verworfen/gedroppt).
+# Abgeleitet aus tag_merge_map.json (remap + drop).
+synonyms:
+  ai-prompts: null
+  ai-workflow: null
+  aktivieren: null
+  analyse: null
+  anzeigen: null
+  api-design: api
+  apis: null
+  architektur: null
+  artikel: null
+  attributes: null
+  ausfuehren: null
+  authentication: auth
+  automatisch: null
+  backup: null
+  batch: null
+  best-practices: null
+  bilder: null
+  ci: corporate-identity
+  cinema: null
+  cleaning: null
+  cnn: null
+  code: null
+  collaboration: null
+  command-line: cli
+  commands: cli
+  composition: design
+  comprehensive: null
+  conventions: null
+  conversion: null
+  data: data-processing
+  data-cleaning: data-quality
+  data-extraction: data-processing
+  data-integration: data-processing
+  data-structures: data-formats
+  data-transfer: data-processing
+  data-types: data-formats
+  data-validation: data-quality
+  daten: null
+  datenbank: null
+  design-principles: design
+  design-system: design-systems
+  design-tokens: null
+  development-environment: developer-tools
+  development-workflow: developer-tools
+  digital-collage: null
+  dokumente: null
+  epistemology: null
+  erp-integration: null
+  erste: null
+  fazit: null
+  file: null
+  finden: null
+  folge: null
+  format: null
+  formats: null
+  frontend-development: frontend
+  functions: null
+  funktioniert: null
+  gestalt-psychology: gestalt-principles
+  gestaltgesetze: gestalt-principles
+  grpc: null
+  gut: null
+  haeufige: null
+  hierarchie: null
+  hinzufuegen: null
+  information-design: information-architecture
+  inhaltsverzeichnis: null
+  installation: null
+  installieren: null
+  integration: null
+  iterm2: null
+  keyboard-shortcuts: shortcuts
+  konfiguration: null
+  kurzdefinition: null
+  laden: null
+  language: null
+  layout-design: layout
+  links: null
+  maintenance: null
+  management: null
+  mehrere: null
+  meta: null
+  metadaten: null
+  mixed: perspective-drawing
+  mixed-perspective: perspective-drawing
+  moegliche: null
+  multiple: null
+  name: null
+  named-entity-recognition: ner
+  normalization: null
+  nutrition: null
+  on-premise-ai: null
+  optional: null
+  organization: null
+  output: null
+  personal: null
+  perspective: perspective-drawing
+  phasen: null
+  philosophie: null
+  political-economy: null
+  pro: null
+  productivity: workflow
+  project: project-management
+  project-planning: project-management
+  project-specification: project-structure
+  projekt: null
+  pruefen: null
+  quality: null
+  quick: null
+  readability: null
+  regeln: null
+  report: null
+  request: null
+  request-response: null
+  script: scripting
+  scripts: scripting
+  search: null
+  server: null
+  setzen: null
+  speichern: null
+  standard: null
+  start: null
+  starten: null
+  status: null
+  structure: null
+  suchen: null
+  system: null
+  tag: taxonomy
+  tagging: taxonomy
+  tags: null
+  techniken: null
+  template: templates
+  testen: null
+  testing: null
+  text-mining: text-processing
+  themen: null
+  tipps: null
+  titel: null
+  top: null
+  typische: null
+  ui: null
+  ui-design: ui-ux
+  use-cases: null
+  ux-design: ui-ux
+  vergleich: null
+  version-control: null
+  visual-perception: visual-hierarchy
+  vs: null
+  vs-code: vscode
+  web: web-development
+  web-design: web-development
+  webserver: null
+  websockets: null
+  weiterfuehrende: null
+  windows: null
+  workflow-automation: automation
+  workflow-optimization: workflow
+  workflows: null
+  xml: null
+  zentrale: null
+  ziel: null

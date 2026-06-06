@@ -62,7 +62,7 @@ def check_vault(vault: Path, drafts: Path) -> list[tuple[str, str, str]]:
     folders = {a.folder for a in plan.articles}
     rows.append(
         (
-            "`04_vault/` strukturierter Vault (Ordner + Files)",
+            "`output/` strukturierter Vault (Ordner + Files)",
             OK if present and folders else OPEN,
             f"{len(present)} Artikel in {len(folders)} Ordnern",
         )

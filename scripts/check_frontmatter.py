@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-check_frontmatter.py — Validierung aller Frontmatter in data/03_drafts/
+check_frontmatter.py — Validierung aller Frontmatter in drafts/
 
 Zweck:
   Diagnostiziert den Inkonsistenz-Zustand zwischen embedded YAML (.md, Mai 30)
@@ -14,7 +14,7 @@ Prüft pro Slug:
 
 Output:
   - Konsolen-Summary
-  - Markdown-Report unter data/02_pipeline_output/frontmatter_check_report.md
+  - Markdown-Report unter work/frontmatter_check_report.md
 
 Read-only. Modifiziert keine Drafts.
 
@@ -44,6 +44,7 @@ except ImportError:
     sys.exit(2)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
 from scripts._pkm_common import (
     ALLOWED_CATEGORIES,
     ALLOWED_CONFIDENCE,
@@ -55,10 +56,9 @@ from scripts._pkm_common import (
     SLUG_RE,
 )
 
-# === Konfiguration ===
-DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
-DRAFTS_DIR = DATA_ROOT / "03_drafts"
-OUTPUT_DIR = DATA_ROOT / "02_pipeline_output"
+# === Konfiguration (zentral aus pipeline._paths) ===
+DRAFTS_DIR = _paths.DRAFTS
+OUTPUT_DIR = _paths.WORK
 REPORT_FILE = OUTPUT_DIR / "frontmatter_check_report.md"
 
 # Felder, die für Inkonsistenz-Check (.md vs .json) entscheidend sind

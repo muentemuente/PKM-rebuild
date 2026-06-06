@@ -1,0 +1,29 @@
+# =============================================================================
+# categories.yaml — Single Source: category-Wert → Vault-Ordnername
+# =============================================================================
+# 17 kanonische Kategorien. Das Nummern-Präfix ist nur Ordnername, NICHT Teil des
+# category-Feldes im Frontmatter. Deterministisches Mapping (Phase Category-Mapping).
+# Quelle: docs/03_vault_standard.md Appendix A. Gespiegelt von
+# pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER (Drift-Guard: tests/test_config.py).
+# Gate B (pkm review --apply) legt neue Kategorien hier an. Auflösung: _paths.py.
+# =============================================================================
+
+categories:
+  meta: 00_Meta
+  grundlagen: 01_Grundlagen
+  webentwicklung: 02_Webentwicklung
+  betriebssysteme: 03_Betriebssysteme
+  protokolle-und-standards: 04_Protokolle-und-Standards
+  dateitypen-und-konfiguration: 05_Dateitypen-und-Konfiguration
+  methoden-und-prozesse: 06_Methoden-und-Prozesse
+  best-practices: 07_Best-Practices
+  cheatsheets: 08_Cheatsheets
+  ki-und-semantische-systeme: 09_KI-und-Semantische-Systeme
+  datenarchitektur-und-datenbanken: 10_Datenarchitektur-und-Datenbanken
+  dokumentenverarbeitung-und-extraktion: 11_Dokumentenverarbeitung-und-Extraktion
+  wissensmodellierung-und-knowledge-graphs: 12_Wissensmodellierung-und-Knowledge-Graphs
+  visualisierung-reporting-und-design-systeme: 13_Visualisierung-Reporting-und-Design-Systeme
+  automatisierung-scripting-und-pipelines: 14_Automatisierung-Scripting-und-Pipelines
+  gedanken: 15_Gedanken
+  kunst-kultur: 16_Kunst-Kultur
+  unsortiert: 17_unsortiert

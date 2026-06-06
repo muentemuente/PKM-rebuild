@@ -1,9 +1,9 @@
 """Phase 7 — LLM-Batch-Bildung: Cluster zu Qwen-Input-Batches aufbereiten.
 
-Input:  data/02_pipeline_output/segments.jsonl            (Phase 4 Output)
-        data/02_pipeline_output/cluster_proposals.json    (Phase 6 Output)
-        data/02_pipeline_output/near_duplicate_edges.jsonl (Phase 5 Output)
-Output: data/02_pipeline_output/batches/batch_NNN_<slug>.md
+Input:  work/segments.jsonl            (Phase 4 Output)
+        work/cluster_proposals.json    (Phase 6 Output)
+        work/near_duplicate_edges.jsonl (Phase 5 Output)
+Output: work/batches/batch_NNN_<slug>.md
 
 Akzeptanzkriterien (docs/02_pipeline_spec.md, Phase 7):
   - Jeder Batch ist ein valides Markdown

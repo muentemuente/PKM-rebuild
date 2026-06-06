@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# restore.sh — Recovery-Drill für PKM-rebuild Snapshots
+# restore.sh — Recovery-Drill für pkm-pipeline Snapshots
 # ----------------------------------------------------------------------------
 # Stellt einen Snapshot in ein temporäres Verzeichnis wieder her UND
 # verifiziert die Integrität gegen das SHA-256-Manifest aus snapshot.sh.
@@ -15,13 +15,13 @@ set -euo pipefail
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <snapshot_name>" >&2
   echo "Verfügbare Snapshots:" >&2
-  ls -1 "${HOME}/projects/aktiv/PKM_rebuild/backups/" 2>/dev/null | grep -E '^snapshot_' >&2 || echo "  (keine vorhanden)" >&2
+  ls -1 "${PKM_PIPELINE_ROOT:-${HOME}/projects/aktiv/pkm-pipeline}/archive/backups/" 2>/dev/null | grep -E '^snapshot_' >&2 || echo "  (keine vorhanden)" >&2
   exit 1
 fi
 
 readonly SNAPSHOT_NAME="$1"
-readonly DATA_ROOT="${HOME}/projects/aktiv/PKM_rebuild"
-readonly SNAPSHOT_DIR="${DATA_ROOT}/backups/${SNAPSHOT_NAME}"
+readonly PIPELINE_ROOT="${PKM_PIPELINE_ROOT:-${HOME}/projects/aktiv/pkm-pipeline}"
+readonly SNAPSHOT_DIR="${PIPELINE_ROOT}/archive/backups/${SNAPSHOT_NAME}"
 readonly RESTORE_TIMESTAMP=$(date +%H%M%S)
 readonly RESTORE_DIR="${HOME}/tmp/pkm-restore-test_${RESTORE_TIMESTAMP}"
 
@@ -67,7 +67,7 @@ restore_archive() {
 
   # 3. Datei-Hashes gegen Manifest prüfen
   if [[ -f "${manifest}" ]]; then
-    # Subdir-Name aus Manifest-Pfaden ableiten (z.B. "01_corpus_input")
+    # Subdir-Name aus Manifest-Pfaden ableiten (z.B. "output")
     local subdir
     subdir=$(tar -tzf "${archive}" | head -1 | cut -d/ -f1)
 
@@ -121,7 +121,7 @@ echo "────────────────────────�
 ls -la "${RESTORE_DIR}"
 echo ""
 echo "→ Vergleichs-Befehl:"
-echo "  diff -r ${DATA_ROOT}/data/01_corpus_input ${RESTORE_DIR}/01_corpus_input"
+echo "  diff -r ${PIPELINE_ROOT}/output ${RESTORE_DIR}/output"
 echo ""
 echo "→ Aufräumen nach Drill:"
 echo "  rm -rf ${RESTORE_DIR}"

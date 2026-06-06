@@ -114,10 +114,10 @@ def _write_edges(path: Path, edges: list[tuple[str, str, float]]) -> None:
 @pytest.fixture
 def env(temp_dir: Path):
     """Baut drafts + vault (via Phase 9) + Phase-1/5-Fixtures unter temp_dir."""
-    drafts = temp_dir / "03_drafts"
-    vault = temp_dir / "04_vault"
-    out = temp_dir / "02_pipeline_output"
-    corpus = temp_dir / "01_corpus_input"
+    drafts = temp_dir / "drafts"
+    vault = temp_dir / "output"
+    out = temp_dir / "work"
+    corpus = temp_dir / "input"
     backups = temp_dir / "backups"
     for d in (drafts, vault, out, corpus, backups):
         d.mkdir(parents=True)

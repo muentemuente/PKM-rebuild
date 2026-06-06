@@ -17,7 +17,9 @@ from pipeline.ingest import run_ingest
 REPO = Path(__file__).resolve().parent.parent
 CONFIG = REPO / "pipeline" / "pipeline.config.yaml"
 
-STAGE3_BODY = "# Inbox Testartikel\n\n" + ("Dies ist ausreichend Fliesstext fuer ein Segment. " * 40)
+STAGE3_BODY = "# Inbox Testartikel\n\n" + (
+    "Dies ist ausreichend Fliesstext fuer ein Segment. " * 40
+)
 
 STAGE4_FM = {
     "title": "Inbox Testartikel",
@@ -151,7 +153,7 @@ def test_ingest_produces_draft_and_report(cfg, mock_qwen, prompts_dir) -> None:
 
     assert summary["inbox_files"] == 1
     assert summary["new_drafts"] >= 1
-    # neuer Draft liegt in 03_drafts (temp)
+    # neuer Draft liegt in drafts/ (temp)
     assert any(p.name.startswith("CK_") for p in cfg.paths.drafts.glob("*.md"))
     # Report existiert + enthält neu-vs-bestehend-Flags
     report = (cfg.paths.pipeline_output / "ingest_report.md").read_text(encoding="utf-8")

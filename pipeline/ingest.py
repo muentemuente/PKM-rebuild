@@ -1,6 +1,6 @@
 """Inkrementeller Ingest-Modus (Option B).
 
-Verarbeitet **nur** neue Roh-`.md` aus `data/00_inbox/` durch die Per-Doc-Pipeline:
+Verarbeitet **nur** neue Roh-`.md` aus `input/` durch die Per-Doc-Pipeline:
 Phasen 1→4 (Inventar, Normalisierung, Struktur, Segmentierung) plus Phase 8
 (Qwen-Veredelung, Option-B-Routing passthrough/stage3/gedanken).
 
@@ -11,7 +11,7 @@ inkrementellen Modus — Option B konsumiert ihre Outputs nicht
 Der bestehende Korpus/Vault/Drafts werden nicht verändert:
 - Phasen 1→4 schreiben in ein **isoliertes** Work-Dir
   (`02_pipeline_output/ingest/`), nicht in die Korpus-weiten Outputs.
-- Phase 8 schreibt neue Drafts nach `03_drafts/`; bestehende Slugs werden per
+- Phase 8 schreibt neue Drafts nach `drafts/`; bestehende Slugs werden per
   Hash-/Slug-Skip übersprungen.
 
 Erzeugt `02_pipeline_output/ingest_report.md`: pro neuem Doc die vorgeschlagene
@@ -49,9 +49,7 @@ def _inbox_files(inbox: Path) -> list[Path]:
     if not inbox.exists():
         return []
     return sorted(
-        p
-        for p in inbox.glob("*.md")
-        if p.is_file() and not p.name.startswith((".", "_"))
+        p for p in inbox.glob("*.md") if p.is_file() and not p.name.startswith((".", "_"))
     )
 
 
@@ -171,7 +169,7 @@ def run_ingest(
     dry_run: bool = False,
     prompts_dir: Path = Path("prompts"),
 ) -> dict[str, Any]:
-    """Führt einen inkrementellen Ingest-Lauf über `data/00_inbox/` aus.
+    """Führt einen inkrementellen Ingest-Lauf über `input/` aus.
 
     Args:
         cfg: Geladene PipelineConfig.
@@ -257,7 +255,7 @@ def run_ingest(
         pipeline_version=cfg.pipeline.version,
     )
 
-    # === Phase 8 (Option B) → neue Drafts nach 03_drafts/ ===
+    # === Phase 8 (Option B) → neue Drafts nach drafts/ ===
     before = _draft_stems(cfg.paths.drafts)
     qwen = cfg.qwen
     run_phase_8(

@@ -3,11 +3,11 @@
 Option B: Stage 1 (Cluster-Analyse) und Stage 2 (Merge-Vorschlaege) entfallen.
 Jedes Dokument wird direkt veredelt: 1 Doc → Stage 3 (Body) → Stage 4 (Frontmatter).
 
-Input:  data/02_pipeline_output/segments.jsonl          (Phase 4)
-Output: data/03_drafts/CK_{slug}.body.md
-        data/03_drafts/CK_{slug}.frontmatter.json
-        data/03_drafts/CK_{slug}.md   (kombiniert)
-        data/02_pipeline_output/qwen/needs_human.jsonl
+Input:  work/segments.jsonl          (Phase 4)
+Output: drafts/CK_{slug}.body.md
+        drafts/CK_{slug}.frontmatter.json
+        drafts/CK_{slug}.md   (kombiniert)
+        work/qwen/needs_human.jsonl
 
 Akzeptanzkriterien (docs/02_pipeline_spec.md, Phase 8):
   - sources_docs belegt (source_doc referenziert); merged_from leer ([])
@@ -38,6 +38,7 @@ import structlog
 import yaml
 
 from pipeline.schemas import FrontmatterDraft, SegmentRecord, StructuredDocumentRecord
+from pipeline.vocab import load_tag_vocabulary_yaml
 
 log = structlog.get_logger()
 
@@ -180,6 +181,11 @@ def _parse_tag_system(vocab_path: Path) -> tuple[set[str], dict[str, str | None]
     Raises:
         FileNotFoundError: Wenn vocab_path nicht existiert.
     """
+    # YAML-Single-Source (config/tag_vocabulary.yaml) — kanonischer Pfad.
+    if vocab_path.suffix in (".yaml", ".yml"):
+        return load_tag_vocabulary_yaml(vocab_path)
+
+    # Bestands-Format tag-system.md (## Kern-Vokabular / ## Synonym-Map).
     content = vocab_path.read_text(encoding="utf-8")
 
     kern_start = content.find("## Kern-Vokabular")

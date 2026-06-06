@@ -15,15 +15,15 @@ Fragen:
   Q4 — RERUN_LM=19: Klassifikations-Gründe je Slug
 
 Quellen (read-only):
-  01_corpus_input/   — kanonische Korpus-Slugs
-  03_drafts/         — real existierende Draft-Dateinamen
+  input/   — kanonische Korpus-Slugs
+  drafts/         — real existierende Draft-Dateinamen
   triage/            — triage.jsonl (Klassifikationen), actions/ (Listen)
   phase8_logs/       — Per-Slug-Logs der Hangs
   scripts/phase8_runner.py, pipeline/phase_8_synthesis.py,
   scripts/pkm_triage.py, pipeline/pipeline.config.yaml — nur zur Zitat-Extraktion
 
 Output:
-  data/02_pipeline_output/r2_diagnostic_report.md
+  work/r2_diagnostic_report.md
 
 Read-only. Idempotent: mehrfacher Lauf erzeugt identischen Report (bis auf Lauf-Zeit-Kopf).
 
@@ -47,18 +47,20 @@ from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# Pfade (Path.home(), kein ~ in Assignments)
+# Pfade (zentral aus pipeline._paths)
 # ---------------------------------------------------------------------------
-DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
-CORPUS_DIR = DATA_ROOT / "01_corpus_input"
-DRAFTS_DIR = DATA_ROOT / "03_drafts"
-OUTPUT_DIR = DATA_ROOT / "02_pipeline_output"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
+
+CORPUS_DIR = _paths.INPUT
+DRAFTS_DIR = _paths.DRAFTS
+OUTPUT_DIR = _paths.WORK
 TRIAGE_DIR = OUTPUT_DIR / "triage"
 TRIAGE_JSONL = TRIAGE_DIR / "triage.jsonl"
 LOGS_DIR = OUTPUT_DIR / "phase8_logs"
 REPORT_PATH = OUTPUT_DIR / "r2_diagnostic_report.md"
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = _paths.REPO_ROOT
 RUNNER_SRC = REPO_ROOT / "scripts" / "phase8_runner.py"
 SYNTH_SRC = REPO_ROOT / "pipeline" / "phase_8_synthesis.py"
 TRIAGE_SRC = REPO_ROOT / "scripts" / "pkm_triage.py"
@@ -391,7 +393,7 @@ def build_report(
         f"Triage-Records={len(triage)}  "
     )
     L.append(
-        "**Quellen:** `01_corpus_input/`, `03_drafts/`, `triage/triage.jsonl`, `phase8_logs/`  "
+        "**Quellen:** `input/`, `drafts/`, `triage/triage.jsonl`, `phase8_logs/`  "
     )
     L.append(
         "**Modus:** strikt read-only — keine Renames, keine Fixes, kein LLM-Lauf, keine Triage-Regeneration."

@@ -18,9 +18,9 @@ Sicherheit:
   - Idempotent: zweiter Lauf erzeugt keine weiteren Änderungen.
 
 Aufruf:
-  python3 scripts/apply_tag_map.py                 # dry-run auf 04_vault
+  python3 scripts/apply_tag_map.py                 # dry-run auf output/
   python3 scripts/apply_tag_map.py --apply         # schreibt + Backup
-  python3 scripts/apply_tag_map.py --target 03_drafts
+  python3 scripts/apply_tag_map.py --target drafts
 
 Exit:
   0 = nichts zu tun ODER apply erfolgreich
@@ -45,9 +45,16 @@ except ImportError:
     print("FEHLER: pyyaml fehlt. pip install pyyaml", file=sys.stderr)
     sys.exit(2)
 
-DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
-REPO_ROOT = Path.home() / "projects" / "aktiv" / "PKM-rebuild"
-BACKUP_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "backups"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
+
+REPO_ROOT = _paths.REPO_ROOT
+BACKUP_ROOT = _paths.BACKUPS
+# Target → konkretes Verzeichnis (neues Layout)
+_TARGET_DIRS = {
+    "output": _paths.OUTPUT,
+    "drafts": _paths.DRAFTS,
+}
 
 FM_RE = re.compile(r"^---\s*\n(.*?\n)---\s*\n", re.DOTALL)
 # tags-Block: ab 'tags:' bis zur nächsten Top-Level-Key-Zeile oder FM-Ende
@@ -168,15 +175,15 @@ def make_backup(target_dir: Path) -> Path:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--target", default="04_vault",
-                    help="Unterordner in data/ (default 04_vault)")
-    ap.add_argument("--map", default=str(REPO_ROOT / "scripts" / "tag_merge_map.json"))
+    ap.add_argument("--target", default="output",
+                    help="Ziel: output | drafts (default output)")
+    ap.add_argument("--map", default=str(_paths.TAG_MERGE_MAP_FILE))
     ap.add_argument("--vocab", default=None,
                     help="tag-system.md (default: <target>/00_Meta/tag-system.md)")
     ap.add_argument("--apply", action="store_true", help="schreibt + Backup (sonst dry-run)")
     args = ap.parse_args()
 
-    target_dir = DATA_ROOT / args.target
+    target_dir = _TARGET_DIRS.get(args.target, _paths.PIPELINE_ROOT / args.target)
     if not target_dir.exists():
         print(f"FEHLER: {target_dir} fehlt.", file=sys.stderr)
         return 2

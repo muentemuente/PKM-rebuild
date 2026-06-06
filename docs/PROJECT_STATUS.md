@@ -442,3 +442,6 @@ Option B (Pro-Doc-Veredelung) — Stand 2026-06-04:
 - 2026-05-30 — Block-0.M abgeschlossen (`fa9669c`): §7.6 als behoben markiert; Block-0.N ergänzt (Autonomie-Setup, Permissions, Hooks); Tests 275→282; §8 Nächste Schritte auf Option-B-Roadmap aktualisiert
 - 2026-06-04 — Phase 8 abgeschlossen (180 Drafts); §0 Aktueller Stand mit Counts (180/19/3); Clustering verworfen (§7.5 aufgelöst, R9); Phase-8-CLI §7.4 behoben; Tests 282→359; Phasen-Tabelle + §8 auf Ist-Stand; Pre-Phase-9-Hardening E1–E5
 - 2026-06-05 — Phase 12 (Finalisierung): §0 auf Projekt-Abschluss; `17_unsortiert` als regulärer Cluster (AP2); inkrementeller Modus (`ingest` + `manage_vocab`, AP3); Phasen-Tabelle 11/12; Tests 377→399; status → stable; Tag-Vokabular-Befund (`strict_vocabulary: false`)
+
+## 2026-06-06 — ABGESCHLOSSEN
+Vault gebaut + tag-bereinigt (149er Vokabular), Doku final, Repo aufgeraeumt, Re-Run-Runbook vorhanden. DoD erfuellt.

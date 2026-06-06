@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""rebuild_indices.py — _index.md pro Cluster-Ordner neu schreiben (nach Tag-Apply)."""
+import re, sys, unicodedata
+from collections import Counter
+from datetime import date
+from pathlib import Path
+import yaml
+VAULT = Path.home()/"projects"/"aktiv"/"PKM_rebuild"/"data"/"04_vault"
+FM = re.compile(r"^---\s*\n(.*?\n)---\s*\n", re.DOTALL)
+def fm(p):
+    m = FM.match(p.read_text(encoding="utf-8"))
+    if not m: return {}
+    try: return yaml.safe_load(m.group(1)) or {}
+    except yaml.YAMLError: return {}
+n=0
+for d in sorted(VAULT.iterdir()):
+    if not d.is_dir() or d.name=="00_Meta": continue
+    arts=[p for p in sorted(d.glob("*.md")) if p.name!="_index.md"]
+    if not arts: continue
+    tagc=Counter(); rows=[]
+    for p in arts:
+        f=fm(p)
+        rows.append((f.get("title",p.stem), f.get("slug",p.stem), f.get("status","draft")))
+        for t in (f.get("tags") or []): tagc[t]+=1
+    L=[f"# {d.name}","",f"Cluster-Index. Automatisch generiert {date.today().isoformat()}.","",
+       f"**Artikel:** {len(arts)}","","## Artikel","","| Titel | Slug | Status |","|---|---|---|"]
+    for ti,sl,st in sorted(rows): L.append(f"| {ti} | `{sl}` | {st} |")
+    L+=["","## Tag-Häufigkeiten",""]
+    if tagc:
+        L+=["| Tag | Anzahl |","|---|--:|"]
+        for t,c in tagc.most_common(): L.append(f"| `{t}` | {c} |")
+    else: L.append("_keine_")
+    L.append("")
+    (d/"_index.md").write_text("\n".join(L),encoding="utf-8"); n+=1
+print(f"_index.md regeneriert: {n}")

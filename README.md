@@ -4,7 +4,7 @@ Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung
 
 ## Status
 
-- **Phase:** **Erstlauf abgeschlossen** (Phasen 1–10) + **inkrementell nutzbar** (`pipeline ingest`)
+- **Phase:** abgeschlossen (2026-06-06)
 - **Stand:** 2026-06-05
 - **Vault:** 180 Artikel in 15 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups), inkl. `17_unsortiert` (8)
 - **Deferred:** 19 `_hold` (Gedanken) · 3 `_excluded` (denkschulen + 2 Hangs) — über Inbox nachziehbar

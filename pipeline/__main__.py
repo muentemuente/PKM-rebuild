@@ -20,6 +20,7 @@ from pipeline.phase_7_batches import run_phase_7
 from pipeline.phase_8_synthesis import run_phase_8
 from pipeline.phase_9_vault_build import run_phase_9
 from pipeline.phase_10_reports import run_phase_10
+from pipeline.review import apply_review, render_review
 
 console = Console()
 
@@ -457,6 +458,50 @@ def ingest(force: bool, dry_run: bool, config: str) -> None:
             "[yellow]  ⏸ Review:[/yellow] neue category/tag — siehe Report, dann "
             "scripts/manage_vocab.py add-* oder bestehende zuordnen."
         )
+
+
+@cli.command()
+@click.option("--apply", "do_apply", is_flag=True, help="Ausgefüllte decisions.md anwenden")
+@click.option(
+    "--no-rebuild",
+    "no_rebuild",
+    is_flag=True,
+    help="decisions.jsonl NICHT neu aus Drafts scannen (bestehende nutzen)",
+)
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def review(do_apply: bool, no_rebuild: bool, config: str) -> None:
+    """Review-Gates: ohne --apply erzeugt es review/decisions.md, mit --apply wendet es an."""
+    cfg = load_config(Path(config))
+    if do_apply:
+        summary = apply_review(cfg)
+        console.print(
+            f"[green]✓ review --apply:[/green] {len(summary['applied'])} angewandt, "
+            f"{summary['remaining']} offen, {len(summary['errors'])} Fehler"
+        )
+        for note in summary["applied"]:
+            console.print(f"  [green]✓[/green] {note}")
+        for err in summary["errors"]:
+            console.print(f"  [red]✗[/red] {err}")
+        return
+
+    summary = render_review(cfg, rebuild=not no_rebuild)
+    console.print(
+        f"[green]✓ review:[/green] {summary['total']} offene Punkte → {summary['decisions_md']}"
+    )
+    table = Table(title="Offene Review-Punkte je Gate")
+    table.add_column("Gate")
+    table.add_column("Offen", justify="right")
+    for gate, n in summary["per_gate"].items():
+        table.add_row(gate, str(n))
+    console.print(table)
+    console.print(
+        "[dim]decisions.md in Zed ausfüllen (Entscheidung/Wert), dann `pkm review --apply`.[/dim]"
+    )
 
 
 if __name__ == "__main__":

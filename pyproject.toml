@@ -59,6 +59,7 @@ viz = [
 
 [project.scripts]
 pipeline = "pipeline.__main__:cli"
+pkm = "pipeline.__main__:cli"
 
 [build-system]
 requires = ["hatchling"]

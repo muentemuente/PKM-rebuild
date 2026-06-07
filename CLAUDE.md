@@ -162,12 +162,14 @@ Raten, mocken oder „so wird's schon passen"-Code sind keine Optionen.
 ## 11. Quick-Reference Befehle
 
 ```bash
-# Pipeline
-python -m pipeline run --sample 10      # Sample-Run (10 Files)
-python -m pipeline run --from-phase 5    # Ab Phase X
-python -m pipeline run --phase 8         # Nur Phase 8
-python -m pipeline run --dry-run         # Plan zeigen, nichts schreiben
-python -m pipeline run --force           # Re-Run, Cache ignorieren
+# go-forward (Option B) — produktiv: input/ → output/ (docs/RUNBOOK_new_files.md)
+python -m pipeline run                   # input/ → (Review-Gates) → output/ (resume-fähig)
+python -m pipeline review                # review/decisions.md erzeugen
+python -m pipeline review --apply        # ausgefüllte decisions.md anwenden (Gates A–D)
+make run | review | review-apply | publish-check
+
+# Legacy-Erstlauf (Archiv, Phasen 1-10, inkl. Embedding/Batch — verworfen)
+python -m pipeline corpus-run --sample 10
 python -m pipeline status                # Statusbericht
 
 # Qualität
@@ -202,3 +204,4 @@ Die Tilde außerhalb von Assignments (etwa als Command-Argument, `ls ~/foo`) ist
 - 2026-05-28 — Sektion 2: tool-routing ergänzt; Sektion 11: CLI an Realität angepasst (--confirm/validate entfernt, --phase 8/--dry-run ergänzt)
 - 2026-06-02 — Sektion 12 ergänzt: $HOME statt ~ in Bash-Assignments (Security-Wrapper)
 - 2026-06-04 — Ist-Stand: Phase 8 abgeschlossen (Option B), Phase 9 next; §1 Stand-Block; §6 type-Enum (4 Werte, gedanke); §7 Phasen + Review-Gates auf Option B + Clustering-Verwurf
+- 2026-06-07 — §11 Quick-Reference auf go-forward (`pkm run`/`review`, Gates A–D, Legacy `corpus-run`); Pipeline-Umbau zur Inkrement-Pipeline (Branch `rebuild-pipeline-*`, `_paths.py`, `config/`, `run_flow`/`review`/`orchestrator`)

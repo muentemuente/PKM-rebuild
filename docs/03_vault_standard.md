@@ -14,14 +14,18 @@ Single Source of Truth für Frontmatter, Naming, Cluster, Tags, Sprache, Qualit�
 
 ## 1. Geltungsbereich
 
+> **Layout (ab 2026-06-07):** Vault wird nach `output/` gebaut, Drafts liegen in
+> `drafts/`. Pfade zentral in `pipeline/_paths.py` (`~/projects/aktiv/pkm-pipeline/`).
+> Alte Bezeichner `data/04_vault` ≙ `output/`, `data/03_drafts` ≙ `drafts/`.
+
 Gilt für:
-- alle Files in `data/04_vault/`
-- alle Drafts in `data/03_drafts/`
+- alle Files im gebauten Vault (`output/`)
+- alle Drafts (`drafts/`)
 - alle Pipeline-Outputs, die als Vault-Vorstufe dienen
 
 Gilt **nicht** für:
 - Projekt-Doku in `docs/` (eigenes Frontmatter-Schema)
-- Pipeline-Outputs in `data/02_pipeline_output/` (technisch, JSONL)
+- Zwischen-Outputs in `work/` (technisch, JSONL)
 
 ---
 
@@ -454,7 +458,7 @@ Bei Schema-Änderung: Schema-Version im Body-Footer notieren, Migration für bes
 Embedding-Clustering ist verworfen (siehe Sektion 4). `category` entsteht in **zwei Schritten**:
 
 1. **Qwen Stage 4** schlägt eine freie `category` vor (88 distinkte Ist-Werte über 180 Drafts).
-2. **Deterministisches Mapping** (`scripts/apply_category_mapping.py`, Single Source of Truth: `data/02_pipeline_output/r3_category_mapping_proposal.md`) bildet diese auf die kanonischen Vault-Kategorien ab. Idempotent, regelbasiert, kein LLM.
+2. **Deterministisches Mapping** auf die kanonischen Vault-Kategorien. Single Source: `config/categories.yaml` (gespiegelt von `pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER`, Drift-Guard in `tests/test_config.py`). Im go-forward weist **Gate B** (`pkm review`) unklare/neue Kategorien zu; neue Kategorien landen in `config/categories.yaml` + neuem `output/`-Ordner. (Erstlauf-Tool: `scripts/apply_category_mapping.py`.)
 
 ### Kanonische `category`-Werte (`ALLOWED_CATEGORIES`, 18)
 
@@ -485,3 +489,4 @@ Embedding-Clustering ist verworfen (siehe Sektion 4). `category` entsteht in **z
 - 2026-05-25 — Initial-Version, konsolidiert aus Frontmatter-Schema + Vault-Struktur + Entscheidungen N1–N3
 - 2026-06-04 — `type`-Enum auf 4 Werte (`gedanke`, E1); kanonische Slug-Ableitung (NFC + Umlaut + 60-Cap + unique, E2); Sektion 4 auf fixes Ordner-Schema (Embedding-Clustering verworfen, R9); `merged_from` immer leer (Option B); Appendix A Category-Mapping (E5)
 - 2026-06-05 — `unsortiert/` → `17_unsortiert/` als vollwertiger nummerierter Cluster (AP2): Sektion 4 (Ordner-Hierarchie, `_attic/` einziger Sonderordner), Appendix A (category `unsortiert` → `17_unsortiert/`). category-Wert bleibt `unsortiert`.
+- 2026-06-07 — Layout-Umbau: Vault nach `output/`, Drafts in `drafts/` (Pfade zentral `_paths.py`); Appendix A Category-Mapping auf `config/categories.yaml` + Gate B.

@@ -10,6 +10,7 @@ from rich.table import Table
 
 from pipeline.config import PipelineConfig, load_config
 from pipeline.ingest import run_ingest
+from pipeline.orchestrator import run_pipeline
 from pipeline.phase_1_inventory import run_phase_1
 from pipeline.phase_2_normalize import run_phase_2
 from pipeline.phase_3_structure import run_phase_3
@@ -300,6 +301,47 @@ def cli() -> None:
 
 
 @cli.command()
+@click.option("--force", is_flag=True, help="Phasen-Cache ignorieren, neu berechnen")
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def run(force: bool, config: str) -> None:
+    """go-forward: input/ → (Review-Gates) → output/ (resume-fähig, Option B)."""
+    cfg = load_config(Path(config))
+    summary = run_pipeline(cfg, force=force)
+
+    status = summary["status"]
+    if status == "idle":
+        console.print("[yellow]run:[/yellow] nichts zu tun (input/ leer, keine offenen Drafts).")
+        return
+    if status == "review_pending":
+        console.print(
+            f"[cyan]⏸ run:[/cyan] {summary['new_drafts']} neue Drafts, "
+            f"{summary['open']} offene Review-Punkte."
+        )
+        table = Table(title="Offene Gates")
+        table.add_column("Gate")
+        table.add_column("Offen", justify="right")
+        for gate, n in summary["per_gate"].items():
+            if n:
+                table.add_row(gate, str(n))
+        console.print(table)
+        console.print(
+            f"[yellow]→ Nächster Schritt:[/yellow] `{summary['decisions_md']}` in Zed ausfüllen, "
+            "dann `pkm review --apply`, dann erneut `pkm run`."
+        )
+        return
+    # published
+    console.print(
+        f"[green]✓ run:[/green] {summary['articles']} Artikel nach output/ gebaut "
+        f"({summary['folders_used']} Ordner), {summary['archived_inputs']} Inputs archiviert."
+    )
+
+
+@cli.command(name="corpus-run")
 @click.option("--sample", type=int, default=None, help="Sample-Modus: nur N Dateien")
 @click.option("--phase", type=int, default=None, help="Nur diese Phase ausführen")
 @click.option("--from-phase", "from_phase", type=int, default=None, help="Ab dieser Phase")
@@ -318,7 +360,7 @@ def cli() -> None:
     default=_DEFAULT_CONFIG,
     help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
 )
-def run(
+def corpus_run(
     sample: int | None,
     phase: int | None,
     from_phase: int | None,
@@ -327,7 +369,7 @@ def run(
     filter_files: tuple[str, ...],
     config: str,
 ) -> None:
-    """Pipeline-Lauf starten (Phasen 1-10)."""
+    """Legacy-Erstlauf über den Gesamtkorpus (Phasen 1-10, Archiv/Alt-Lauf)."""
     if filter_files and phase != 8:
         console.print("[yellow]Hinweis:[/yellow] --file wird nur für --phase 8 ausgewertet.")
     cfg = load_config(Path(config))

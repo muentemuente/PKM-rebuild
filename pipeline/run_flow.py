@@ -112,6 +112,7 @@ def run_synthesis_flow(
     force: bool = False,
     prompts_dir: Path = Path("prompts"),
     intra_run_dedup: bool = True,
+    max_files: int | None = None,
 ) -> dict[str, Any]:
     """Fährt den go-forward-Synthese-Flow (Steps 1-4) von ``source_dir`` bis Drafts.
 
@@ -122,6 +123,7 @@ def run_synthesis_flow(
         force: Phasen-Cache (Input-Hash) ignorieren.
         prompts_dir: Pfad zum prompts/-Verzeichnis (für Phase 8).
         intra_run_dedup: Byte-identische Inputs desselben Laufs nur einmal synthetisieren.
+        max_files: Obergrenze Inputs pro Lauf (1-10-Regel); None = alle.
 
     Returns:
         Summary-Dict: ``new_stems`` (neue Draft-Stems), ``dropped_duplicates``
@@ -141,7 +143,7 @@ def run_synthesis_flow(
         corpus_input=source,
         output_path=manifest,
         force=force,
-        sample=None,
+        sample=max_files,
         recursive=cfg.inventory.recursive,
         exclude_patterns=cfg.inventory.exclude_patterns,
         include_extensions=cfg.inventory.include_extensions,

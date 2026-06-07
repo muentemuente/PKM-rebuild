@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Collection
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -260,13 +261,20 @@ def _draft_stems(drafts_dir: Path) -> list[str]:
     )
 
 
-def build_decisions(cfg: PipelineConfig) -> list[DecisionItem]:
+def build_decisions(
+    cfg: PipelineConfig, *, skip_doc_ids: Collection[str] = frozenset()
+) -> list[DecisionItem]:
     """Scannt die aktiven Drafts und erzeugt offene DecisionItems für alle Gates.
 
     - quality: Frontmatter validiert NICHT gegen FrontmatterDraft → Gate A.
     - category: `category` ∉ bekannte Kategorien → Gate B.
     - tags: jeder Tag ∉ Vokabular → ein Gate-C-Item.
     - final: Draft ohne offene A/B/C-Punkte → Gate D (Publish-Freigabe).
+
+    Args:
+        cfg: PipelineConfig.
+        skip_doc_ids: bereits abgeschlossene Drafts (approved/published) — keine
+            neuen Items, damit publizierte Docs nicht erneut als Gate D auftauchen.
     """
     from pipeline.schemas import FrontmatterDraft  # lokal: vermeidet Import-Zyklus
 
@@ -276,16 +284,16 @@ def build_decisions(cfg: PipelineConfig) -> list[DecisionItem]:
 
     items: list[DecisionItem] = []
     for stem in _draft_stems(drafts_dir):
+        if stem in skip_doc_ids:
+            continue
         fm = read_draft_frontmatter(drafts_dir, stem)
         category = str(fm.get("category") or "")
         group = category or "unsortiert"
-        has_open = False
 
         # Gate A — Validierung
         try:
             FrontmatterDraft.model_validate(fm)
         except Exception as exc:  # ValidationError o.ä.
-            has_open = True
             items.append(
                 DecisionItem(
                     doc_id=stem,
@@ -299,7 +307,6 @@ def build_decisions(cfg: PipelineConfig) -> list[DecisionItem]:
 
         # Gate B — Kategorie
         if category and category not in allowed_cats:
-            has_open = True
             items.append(
                 DecisionItem(
                     doc_id=stem,
@@ -316,7 +323,6 @@ def build_decisions(cfg: PipelineConfig) -> list[DecisionItem]:
         if vocab:
             for tag in tags:
                 if tag not in vocab:
-                    has_open = True
                     items.append(
                         DecisionItem(
                             doc_id=stem,
@@ -328,18 +334,18 @@ def build_decisions(cfg: PipelineConfig) -> list[DecisionItem]:
                         )
                     )
 
-        # Gate D — Final (nur wenn keine offenen A/B/C-Punkte)
-        if not has_open:
-            items.append(
-                DecisionItem(
-                    doc_id=stem,
-                    gate="final",
-                    question="Bereit für Publish nach output/?",
-                    current=str(fm.get("status") or "draft"),
-                    options=list(DECISIONS["final"]),
-                    group=group,
-                )
+        # Gate D — Final: immer ein Publish-Punkt. A/B/C werden beim Apply zuerst
+        # angewandt (Gate-Reihenfolge), sodass ein Review-Zyklus genügt.
+        items.append(
+            DecisionItem(
+                doc_id=stem,
+                gate="final",
+                question="Bereit für Publish nach output/?",
+                current=str(fm.get("status") or "draft"),
+                options=list(DECISIONS["final"]),
+                group=group,
             )
+        )
     return items
 
 
@@ -563,32 +569,38 @@ def apply_decision(item: DecisionItem, cfg: PipelineConfig) -> str:
 # === Top-Level: render + apply ===============================================
 
 
-def render_review(cfg: PipelineConfig, *, rebuild: bool = True) -> dict[str, Any]:
+def render_review(
+    cfg: PipelineConfig, *, rebuild: bool = True, skip_doc_ids: Collection[str] = frozenset()
+) -> dict[str, Any]:
     """Erzeugt decisions.jsonl (optional neu aus den Drafts) + die editierbare decisions.md.
 
     Args:
         cfg: PipelineConfig.
         rebuild: Wenn True, werden offene Punkte frisch aus den Drafts gescannt
             (überschreibt decisions.jsonl). Sonst wird die bestehende jsonl genutzt.
+        skip_doc_ids: bereits abgeschlossene Drafts (approved/published) auslassen.
 
     Returns:
-        Summary mit Pfaden + Anzahl Items je Gate.
+        Summary mit Pfaden, Anzahl Items je Gate, Set der offenen doc_ids.
     """
     review_dir = cfg.paths.review
     review_dir.mkdir(parents=True, exist_ok=True)
     jsonl = review_dir / _DECISIONS_JSONL
     md = review_dir / _DECISIONS_MD
 
-    items = build_decisions(cfg) if rebuild else load_decisions(jsonl)
+    items = build_decisions(cfg, skip_doc_ids=skip_doc_ids) if rebuild else load_decisions(jsonl)
     save_decisions(jsonl, items)
     md.write_text(render_decisions_md(items), encoding="utf-8")
 
     per_gate = {g: sum(1 for it in items if it.gate == g) for g in GATES}
+    open_blocking = {it.doc_id for it in items if it.gate != "final"}
     return {
         "decisions_jsonl": str(jsonl),
         "decisions_md": str(md),
         "total": len(items),
         "per_gate": per_gate,
+        "open_doc_ids": sorted({it.doc_id for it in items}),
+        "blocking_doc_ids": sorted(open_blocking),
     }
 
 

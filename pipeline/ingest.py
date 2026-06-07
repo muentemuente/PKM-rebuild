@@ -1,6 +1,6 @@
 """Inkrementeller Ingest-Modus (Option B).
 
-Verarbeitet **nur** neue Roh-`.md` aus `data/00_inbox/` durch die Per-Doc-Pipeline:
+Verarbeitet **nur** neue Roh-`.md` aus `input/` durch die Per-Doc-Pipeline:
 Phasen 1→4 (Inventar, Normalisierung, Struktur, Segmentierung) plus Phase 8
 (Qwen-Veredelung, Option-B-Routing passthrough/stage3/gedanken).
 
@@ -11,7 +11,7 @@ inkrementellen Modus — Option B konsumiert ihre Outputs nicht
 Der bestehende Korpus/Vault/Drafts werden nicht verändert:
 - Phasen 1→4 schreiben in ein **isoliertes** Work-Dir
   (`02_pipeline_output/ingest/`), nicht in die Korpus-weiten Outputs.
-- Phase 8 schreibt neue Drafts nach `03_drafts/`; bestehende Slugs werden per
+- Phase 8 schreibt neue Drafts nach `drafts/`; bestehende Slugs werden per
   Hash-/Slug-Skip übersprungen.
 
 Erzeugt `02_pipeline_output/ingest_report.md`: pro neuem Doc die vorgeschlagene
@@ -32,12 +32,9 @@ import structlog
 import yaml
 
 from pipeline.config import PipelineConfig
-from pipeline.phase_1_inventory import run_phase_1
-from pipeline.phase_2_normalize import run_phase_2
-from pipeline.phase_3_structure import run_phase_3
-from pipeline.phase_4_segment import run_phase_4
-from pipeline.phase_8_synthesis import _load_tag_vocabulary, run_phase_8
+from pipeline.phase_8_synthesis import _load_tag_vocabulary
 from pipeline.phase_9_vault_build import CATEGORY_TO_FOLDER
+from pipeline.run_flow import run_synthesis_flow
 
 log = structlog.get_logger()
 
@@ -49,9 +46,7 @@ def _inbox_files(inbox: Path) -> list[Path]:
     if not inbox.exists():
         return []
     return sorted(
-        p
-        for p in inbox.glob("*.md")
-        if p.is_file() and not p.name.startswith((".", "_"))
+        p for p in inbox.glob("*.md") if p.is_file() and not p.name.startswith((".", "_"))
     )
 
 
@@ -171,7 +166,7 @@ def run_ingest(
     dry_run: bool = False,
     prompts_dir: Path = Path("prompts"),
 ) -> dict[str, Any]:
-    """Führt einen inkrementellen Ingest-Lauf über `data/00_inbox/` aus.
+    """Führt einen inkrementellen Ingest-Lauf über `input/` aus.
 
     Args:
         cfg: Geladene PipelineConfig.
@@ -216,74 +211,16 @@ def run_ingest(
         log.info("ingest_dry_run", files=len(files))
         return summary
 
-    # === Phasen 1→4 in isoliertem Work-Dir (Korpus-Outputs unberührt) ===
-    work.mkdir(parents=True, exist_ok=True)
-    run_phase_1(
-        corpus_input=inbox,
-        output_path=work / "files_manifest.jsonl",
+    # === go-forward-Synthese-Flow (Steps 1-4, Option B) → neue Drafts ===
+    # Isoliertes Work-Dir; Korpus-weite Outputs + bestehender Vault unberührt.
+    result = run_synthesis_flow(
+        cfg,
+        source_dir=inbox,
+        work_dir=work,
         force=force,
-        sample=None,
-        recursive=cfg.inventory.recursive,
-        exclude_patterns=cfg.inventory.exclude_patterns,
-        include_extensions=cfg.inventory.include_extensions,
-        pipeline_version=cfg.pipeline.version,
-    )
-    run_phase_2(
-        manifest_path=work / "files_manifest.jsonl",
-        output_path=work / "cleaned_documents.jsonl",
-        force=force,
-        max_blank_lines=cfg.normalization.max_blank_lines,
-        tab_replacement=cfg.normalization.tab_replacement,
-        strip_trailing_whitespace=cfg.normalization.strip_trailing_whitespace,
-        parse_frontmatter=cfg.normalization.parse_frontmatter,
-        pipeline_version=cfg.pipeline.version,
-    )
-    run_phase_3(
-        cleaned_path=work / "cleaned_documents.jsonl",
-        output_path=work / "documents_structured.jsonl",
-        force=force,
-        pipeline_version=cfg.pipeline.version,
-        book_word_threshold=cfg.structure.book_word_threshold,
-    )
-    run_phase_4(
-        cleaned_path=work / "cleaned_documents.jsonl",
-        manifest_path=work / "files_manifest.jsonl",
-        output_path=work / "segments.jsonl",
-        force=force,
-        min_words=cfg.segmentation.min_words_per_segment,
-        max_words=cfg.segmentation.max_words_per_segment,
-        book_max_words=cfg.segmentation.book_max_words_per_segment,
-        structured_path=work / "documents_structured.jsonl",
-        pipeline_version=cfg.pipeline.version,
-    )
-
-    # === Phase 8 (Option B) → neue Drafts nach 03_drafts/ ===
-    before = _draft_stems(cfg.paths.drafts)
-    qwen = cfg.qwen
-    run_phase_8(
-        segments_path=work / "segments.jsonl",
-        qwen_output_dir=work / "qwen",
-        drafts_dir=cfg.paths.drafts,
-        endpoint=qwen.endpoint,
-        model=qwen.model,
-        context_window=qwen.context_window,
-        prompt_version=qwen.prompt_version,
         prompts_dir=prompts_dir,
-        temperature_stage3=qwen.temperature.stage3_synthesis,
-        temperature_stage4=qwen.temperature.stage4_frontmatter,
-        max_retries=qwen.max_retries,
-        retry_backoff_seconds=qwen.retry_backoff_seconds,
-        timeout_seconds=qwen.timeout_seconds,
-        max_tokens_stage3=qwen.max_tokens.stage3,
-        max_tokens_stage4=qwen.max_tokens.stage4,
-        force=force,
-        pipeline_version=cfg.pipeline.version,
-        structured_docs_path=work / "documents_structured.jsonl",
-        tag_vocab_path=cfg.tags.vocabulary_file,
-        tag_strict_vocabulary=cfg.tags.strict_vocabulary,
     )
-    after = _draft_stems(cfg.paths.drafts)
-    new_stems = sorted(after - before)
+    new_stems = result["new_stems"]
 
     # === Auswertungs-Report ===
     allowed_categories = set(CATEGORY_TO_FOLDER)

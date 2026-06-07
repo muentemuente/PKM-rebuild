@@ -6,11 +6,11 @@ Hält das kontrollierte Vokabular über die verstreuten Stellen hinweg konsisten
   category:
     - kanonisch:  pipeline/phase_9_vault_build.py  → CATEGORY_TO_FOLDER
     - abgeleitet: scripts/_pkm_common.py            → ALLOWED_CATEGORIES (= set(CATEGORY_TO_FOLDER))
-    - physisch:   data/04_vault/<NN_Folder>/        (Vault-Ordner)
+    - physisch:   output/<NN_Folder>/               (Vault-Ordner, _paths.OUTPUT)
     - Doku:       docs/03_vault_standard.md §4 (Ordner-Hierarchie)
 
   tags:
-    - kanonisch:  data/04_vault/00_Meta/tag-system.md  (Abschnitt „## Kern-Vokabular")
+    - kanonisch:  config/tag_vocabulary.yaml         (Single Source, _paths.TAG_VOCABULARY_FILE)
 
 Da `ALLOWED_CATEGORIES` direkt aus `CATEGORY_TO_FOLDER` abgeleitet wird, genügt für
 neue Kategorien ein Edit am Dict-Literal + Ordner-Anlage; die Skript-Seite folgt
@@ -41,16 +41,20 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts._pkm_common import SLUG_RE, parse_yaml_text, split_md
+from pipeline import _paths  # noqa: E402
+from pipeline.vocab import load_tag_vocabulary_yaml  # noqa: E402
+from scripts._pkm_common import SLUG_RE, parse_yaml_text, split_md  # noqa: E402
 
-# === Pfade (Defaults; in Tests überschreibbar) ===
-_REPO = Path(__file__).resolve().parent.parent
+# === Pfade (Defaults; in Tests überschreibbar) — zentral aus pipeline._paths ===
+_REPO = _paths.REPO_ROOT
 PHASE9_PATH = _REPO / "pipeline" / "phase_9_vault_build.py"
 VAULT_STD_PATH = _REPO / "docs" / "03_vault_standard.md"
-DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
-VAULT_DIR = DATA_ROOT / "04_vault"
-DRAFTS_DIR = DATA_ROOT / "03_drafts"
-TAG_SYSTEM_PATH = VAULT_DIR / "00_Meta" / "tag-system.md"
+VAULT_DIR = _paths.OUTPUT
+DRAFTS_DIR = _paths.DRAFTS
+# Tag-Vokabular: YAML-Single-Source (config/tag_vocabulary.yaml). Der Parameter
+# heißt aus Bestands-Gründen weiter `tag_system_path`; md-Format bleibt als Input
+# unterstützt (Bestands-Fixtures).
+TAG_SYSTEM_PATH = _paths.TAG_VOCABULARY_FILE
 
 # Kleine Wörter, die im Ordner-Anzeigenamen kleingeschrieben bleiben (Stil der Bestands-Ordner)
 _LOWER_TOKENS = {"und", "oder", "der", "die", "das", "von", "zu", "mit", "für", "im", "am"}
@@ -153,7 +157,10 @@ _EXT_TABLE = "| Tag | Begründung | Datum |\n|---|---|---|\n"
 
 
 def parse_tag_vocab(tag_system_path: Path = TAG_SYSTEM_PATH) -> set[str]:
-    """Alle kanonischen Tags aus dem Bereich ## Kern-Vokabular … ## Synonym-Map."""
+    """Alle kanonischen Tags. YAML-Single-Source oder (Fallback) md-Bereich Kern-Vokabular."""
+    if tag_system_path.suffix in (".yaml", ".yml"):
+        vocab, _ = load_tag_vocabulary_yaml(tag_system_path)
+        return vocab
     content = tag_system_path.read_text(encoding="utf-8")
     kern = content.find(_KERN)
     if kern == -1:
@@ -177,6 +184,16 @@ def add_tag(
         raise ValueError("Begründung darf kein '`' oder '|' enthalten")
     if not reason.strip():
         raise ValueError("Begründung (--reason) ist Pflicht")
+
+    # YAML-Single-Source: das Schreiben neuer Tags ins config/tag_vocabulary.yaml
+    # läuft über Gate C (pkm review --apply, WP4). add_tag bleibt auf das md-Format
+    # beschränkt (Bestands-Tool); für YAML klar verweisen statt das kuratierte File
+    # zu überschreiben.
+    if tag_system_path.suffix in (".yaml", ".yml"):
+        raise ValueError(
+            "Tag-Aufnahme ins YAML-Vokabular läuft über `pkm review` (Gate C). "
+            "manage_vocab add-tag unterstützt nur das md-Format."
+        )
 
     vocab = parse_tag_vocab(tag_system_path)
     if tag in vocab:

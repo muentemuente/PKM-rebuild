@@ -10,6 +10,14 @@ updated: 2026-06-05
 
 Technische Referenz: Architektur, Phasen, Schemas, Konfiguration, CLI, Tests.
 
+> **go-forward (Option B, ab 2026-06-07):** Der produktive Flow ist `pkm run`
+> (`pipeline/orchestrator.py` + `pipeline/run_flow.py`): `input/` → Inventar →
+> Normalisierung → Struktur+Routing → [Segmentierung nur bei Token-Cap] → Qwen
+> (stage3/passthrough)+stage4 → Drafts → **Review-Gates A–D** → Build nach
+> `output/`. **Phasen 5 (Redundanz), 6 (Embeddings), 7 (Batches) sind NICHT im
+> go-forward** (Alt/verworfen, nur noch `corpus-run`). Layout + Pfade: `pipeline/_paths.py`.
+> Ablauf: `docs/RUNBOOK_new_files.md`. Umbau-Doku: `docs/learnings/REBUILD_pipeline_2026-06-07.md`.
+
 ---
 
 ## 1. Architektur-Überblick
@@ -71,18 +79,24 @@ Technische Referenz: Architektur, Phasen, Schemas, Konfiguration, CLI, Tests.
 
 ## 2. Daten-Layout
 
-| Ort | Inhalt | Git? |
-|---|---|---|
-| `pipeline/` | Python-Modul | ✅ public |
-| `prompts/v1/` | Qwen-Prompt-Files | ✅ public |
-| `docs/` | Projekt-Doku | ✅ public (Persona gitignored) |
-| `~/projects/aktiv/PKM_rebuild/data/01_corpus_input/` | Original `.md` (read-only) | ❌ lokal |
-| `~/projects/aktiv/PKM_rebuild/data/02_pipeline_output/` | JSONL, Embeddings, Triage, Batches | ❌ lokal |
-| `~/projects/aktiv/PKM_rebuild/data/03_drafts/` | Qwen-Outputs (`CK_*.{md,body.md,frontmatter.json}`), `_hold/` | ❌ lokal |
-| `~/projects/aktiv/PKM_rebuild/data/04_vault/` | finaler Obsidian-Vault | ❌ lokal |
-| `~/projects/aktiv/PKM_rebuild/backups/` | Snapshots | ❌ lokal |
+Repo (Git, public): `pipeline/`, `scripts/`, `prompts/v1/`, `config/`
+(`categories.yaml`, `tag_vocabulary.yaml`, `tag_merge_map.json`), `docs/` (Persona gitignored).
 
-Pfad-Auflösung über `pipeline.config.yaml` → Env-Variable `PKM_DATA_ROOT` (default `~/projects/aktiv/PKM_rebuild/data`).
+Daten (gitignored, außerhalb des Repos) unter `~/projects/aktiv/pkm-pipeline/`:
+
+| Ordner | Inhalt |
+|---|---|
+| `input/` | neue `.md` (Run-Quelle, 1–10 pro Lauf) |
+| `work/` | Zwischen-JSONL + `state.json` + logs |
+| `drafts/` | Qwen-Outputs (`CK_*.{md,body.md,frontmatter.json}`) |
+| `review/` | Gate-Queues + `decisions.{jsonl,md}` |
+| `output/` | gebauter Staging-Vault (Mensch zieht ihn raus) |
+| `archive/` | verarbeitete Inputs, Alt-Korpus (`corpus_legacy/`), alte Runs, Backups |
+
+Pfad-Auflösung **zentral** über `pipeline/_paths.py`. Env-Override:
+`PKM_PIPELINE_ROOT` (Daten, default `~/projects/aktiv/pkm-pipeline`), `PKM_REPO_ROOT` (Repo).
+Die `pipeline.config.yaml` hat **keinen** `paths:`-Block mehr; Legacy-Feldnamen
+(`pipeline_output`→`work`, `vault`→`output`, `corpus_input`/`inbox`→`input`) sind gemappt.
 
 ---
 
@@ -159,40 +173,32 @@ logging:
 
 ## 4. CLI-Interface
 
+### go-forward (Option B) — produktiv
+
 ```bash
-# Vollständiger Lauf
-python -m pipeline run
+python -m pipeline run            # input/ → (Review-Gates) → output/ (resume-fähig)
+python -m pipeline review         # review/decisions.md aus den Drafts erzeugen
+python -m pipeline review --apply # ausgefüllte decisions.md anwenden (Gates A–D)
+python -m pipeline ingest         # nur input/ → Drafts (+ ingest_report.md), kein Build
+```
+`pkm` = `python -m pipeline` (Console-Script nach `pip install -e .`).
+Make-Targets: `make run|review|review-apply|ingest|publish-check`.
 
-# Sample-Modus (10 Files)
-python -m pipeline run --sample 10
+### Legacy-Erstlauf (Archiv, Phasen 1–10)
 
-# Spezifische Phase
-python -m pipeline run --phase 5
+```bash
+# Vollständiger Korpus-Erstlauf (inkl. Embedding/Batch — verworfen, nur Archiv)
+python -m pipeline corpus-run
+python -m pipeline corpus-run --sample 10        # Sample-Modus
+python -m pipeline corpus-run --phase 5          # einzelne Phase
+python -m pipeline corpus-run --from-phase 5     # ab Phase X
+python -m pipeline corpus-run --force            # Cache ignorieren
+python -m pipeline corpus-run --file <path>      # spezifische Datei (Phase 8)
 
-# Ab Phase X bis Ende
-python -m pipeline run --from-phase 5
-
-# Force-Rebuild (ignoriert Cache)
-python -m pipeline run --force
-
-# Spezifische Datei re-processen
-python -m pipeline run --file <path>
-
-# Status-Bericht
+# Status / Reports / expliziter Vault-Aufbau
 python -m pipeline status
-
-# Validierung der Outputs
-python -m pipeline validate
-
-# Vault-Aufbau (Phase 9) explizit
 python -m pipeline build-vault
-
-# Bericht-Generierung
 python -m pipeline reports
-
-# Inkrementell: neue .md aus data/00_inbox/ (Phasen 1-4 + 8, Option B)
-python -m pipeline ingest                # braucht laufendes LM Studio
-python -m pipeline ingest --dry-run      # Plan zeigen, kein Qwen, nichts schreiben
 ```
 
 **Globale Flags:** `--config <path>`, `--verbose`, `--dry-run`
@@ -334,6 +340,9 @@ Option B konsumiert sie nicht. Bestehender Korpus/Vault/Drafts bleiben unberühr
 
 ### Phase 5: Redundanz-Erkennung
 
+> **Alt / nicht im go-forward (Option B).** Nur `corpus-run`. Der go-forward nutzt
+> stattdessen einen intra-run SHA-Dedup (`pipeline/run_flow.py`).
+
 **Input:** Phase 1 + Phase 4 Outputs
 **Output:**
 - `data/02_pipeline_output/exact_duplicates.json` (Hash-basiert auf Dokument-Ebene)
@@ -352,6 +361,8 @@ Option B konsumiert sie nicht. Bestehender Korpus/Vault/Drafts bleiben unberühr
 
 ### Phase 6: Embeddings (nur Redundanz)
 
+> **Alt / nicht im go-forward (Option B).** Nur `corpus-run`.
+>
 > **Architektur-Hinweis (2026-06-04):** Cluster-Vorbereitung **verworfen** (R9, `01_strategy.md`) — der Korpus hat keine inhärente Cluster-Struktur. Embeddings dienen nur noch der Redundanz-Erkennung (Phase 5). Die Vault-Ordner sind ein fixes 16er-Schema; `category` kommt aus Qwen-Stage-4 + deterministischem Mapping (`03_vault_standard.md` Appendix A).
 
 **Input:** Phase 4 Output
@@ -371,6 +382,9 @@ Option B konsumiert sie nicht. Bestehender Korpus/Vault/Drafts bleiben unberühr
 ---
 
 ### Phase 7: LLM-Batch-Bildung
+
+> **Alt / nicht im go-forward (Option B).** Nur `corpus-run`. Der go-forward
+> verarbeitet pro Doc ohne Batch-Bildung (1–10 Files/Run, Token-Cap-Segmentierung).
 
 **Input:** Phase 5 + 6 Outputs
 **Output:** `data/02_pipeline_output/batches/batch_NNN_<topic-slug>.md`
@@ -611,14 +625,27 @@ Globaler State-File: `data/02_pipeline_output/pipeline_state.json` mit aktueller
 
 ## 10. Review-Gates
 
+### go-forward (Option B) — Gates A–D (`pipeline/review.py`)
+
+File-basiert: Producer → `review/decisions.jsonl`; `pkm review` → editierbare
+`review/decisions.md`; `pkm review --apply` wendet je Gate an. A/B/C werden vor D
+angewandt (ein Review-Zyklus genügt).
+
+| Gate | Auslöser | Entscheidungen (Wirkung) |
+|---|---|---|
+| **A quality** | Frontmatter-Validierungsfehler | `freigeben` · `nachbessern` (→ `review/needs_human`) · `quarantaene` (→ `review/quarantine`) |
+| **B category** | `category` ∉ Set | `zuweisen` · `neu` (→ `config/categories.yaml` + output-Ordner) · `unsortiert` |
+| **C tags** | Tag ∉ Vokabular | `aufnehmen` (→ `config/tag_vocabulary.yaml`) · `mappen` (+ `tag_merge_map.json`) · `droppen` |
+| **D final** | Publish-Freigabe | `publish` / `hold` (→ `work/state.json`) |
+
+Review-UI: `review/decisions.md` in Zed ausfüllen, speichern, `pkm review --apply`.
+
+### Alt (verworfen, nur `corpus-run`)
+
 | Gate | Nach Phase | Mensch entscheidet |
 |---|---|---|
-| 1 | Phase 7 (Batch-/Triage-Karte) | Batch-Verteilung okay? Schwellwerte/Actions anpassen? (kein Cluster-Merge — verworfen) |
-| 3 | Phase 8 Stage 4 (Frontmatter) | Drafts pro Doc prüfen (Veredelung + Frontmatter-Korrektheit), freigeben für Phase 9 |
-
-*(Gate 2 — Merge-Genehmigung — entfällt in Option B)*
-
-Review-UI: Markdown-Files in Zed öffnen + `git diff` für Vergleich.
+| 1 | Phase 7 (Batch-/Triage-Karte) | Batch-Verteilung okay? (kein Cluster-Merge — verworfen) |
+| 3 | Phase 8 Stage 4 | Drafts pro Doc prüfen, freigeben für Phase 9 |
 
 ---
 
@@ -662,3 +689,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-05-30 — Block 8.A.1: Phase-8-Routing 1:1-Passthrough (code/table/headings); confidence-Hinweis zu Akzeptanzkriterien
 - 2026-06-04 — Clustering-Verwurf (R9): Phase 6 auf Embeddings-nur-Redundanz, Phase 7b verworfen, ClusterProposal/Cluster-Config als ungenutzt markiert; Phase-7-Batches als Token-Budget-Splits; Phase-8-Routing-Tabelle (passthrough/stage3/gedanken) + Triage/Runner-Mechanik; Architektur-Diagramm + Gate-1-Label + Performance-Tabelle auf Ist-Stand
 - 2026-06-05 — Phase 12: CLI um `ingest` + `manage_vocab` erweitert; Abschnitt „Inkrementeller Modus" (Inbox → Phasen 1-4 + 8, Option B); `17_unsortiert/` im cluster_report
+- 2026-06-07 — Pipeline-Umbau go-forward: Banner + neues Layout (`pkm-pipeline/`, `_paths.py`); CLI `run`=Orchestrator / `review` / Legacy `corpus-run`; Phasen 5/6/7 als „Alt/nicht im go-forward" markiert; Review-Gates A–D (`review.py`)

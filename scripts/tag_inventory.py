@@ -9,7 +9,7 @@ Scannt alle Markdown-Files in corpus_input und extrahiert:
 Normalisierung: lowercase, Umlaute → ASCII, Bindestriche
 Mindestfrequenz: ≥ 2 Files (Stop-Wörter + Einzel-Belege gefiltert)
 
-Ausgabe: data/02_pipeline_output/tag_inventory.md
+Ausgabe: work/tag_inventory.md
 
 Verwendung:
   python scripts/tag_inventory.py
@@ -25,11 +25,14 @@ from pathlib import Path
 
 import yaml
 
-# === Konfiguration ==============================================================
+# === Konfiguration (zentral aus pipeline._paths) ================================
 
-_REPO_ROOT = Path(__file__).parent.parent
-_DEFAULT_CORPUS = Path.home() / "projects/aktiv/PKM_rebuild/data/01_corpus_input"
-_DEFAULT_OUTPUT = Path.home() / "projects/aktiv/PKM_rebuild/data/02_pipeline_output/tag_inventory.md"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
+
+_REPO_ROOT = _paths.REPO_ROOT
+_DEFAULT_CORPUS = _paths.INPUT
+_DEFAULT_OUTPUT = _paths.WORK / "tag_inventory.md"
 
 # Stopwörter DE + EN (Häufigste, kein Themen-Informationsgehalt)
 _STOP_WORDS: frozenset[str] = frozenset(

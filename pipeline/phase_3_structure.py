@@ -1,8 +1,8 @@
 """Phase 3 — Strukturextraktion: Headings, Code-Blöcke, Tabellen, Links, Typ-Guess.
 
-Input:  data/02_pipeline_output/cleaned_documents.jsonl  (Phase 2 Output)
-Output: data/02_pipeline_output/documents_structured.jsonl
-        data/02_pipeline_output/documents_structured.jsonl.meta.json
+Input:  work/cleaned_documents.jsonl  (Phase 2 Output)
+Output: work/documents_structured.jsonl
+        work/documents_structured.jsonl.meta.json
 
 Akzeptanzkriterien (docs/02_pipeline_spec.md, Phase 3):
   - H1 für jedes Dokument (Fallback: Dateiname aus doc_id)

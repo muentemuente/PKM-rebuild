@@ -4,7 +4,7 @@ draft_inventory.py — Umfassendes Inventar + Klassifikation aller Drafts
 
 Zweck:
   Vollständige qualitative Einordnung aller Files unter
-  ~/projects/aktiv/PKM_rebuild/data/03_drafts/.
+  ~/projects/aktiv/pkm-pipeline/drafts/.
 
   Liefert die Entscheidungsgrundlage:
    - welche Drafts sind vault-ready
@@ -27,7 +27,7 @@ Pro Stem erfasst:
      | STUB | BROKEN | ORPHAN | INCOMPLETE_ASSEMBLY | NEEDS_REVIEW
 
 Outputs:
-  data/02_pipeline_output/
+  work/
     draft_inventory.jsonl              — alle Metriken, eine Zeile pro Stem
     draft_inventory_report.md          — menschen-lesbarer Übersichts-Report
     classification/
@@ -71,6 +71,7 @@ except ImportError:
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
 from scripts._pkm_common import (
     ALLOWED_CATEGORIES,
     ALLOWED_CONFIDENCE,
@@ -94,10 +95,9 @@ from scripts._pkm_common import (
     split_md,
 )
 
-# === Pfad-Konfiguration ===
-DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
-DRAFTS_DIR = DATA_ROOT / "03_drafts"
-OUTPUT_DIR = DATA_ROOT / "02_pipeline_output"
+# === Pfad-Konfiguration (zentral aus pipeline._paths) ===
+DRAFTS_DIR = _paths.DRAFTS
+OUTPUT_DIR = _paths.WORK
 INVENTORY_JSONL = OUTPUT_DIR / "draft_inventory.jsonl"
 INVENTORY_REPORT = OUTPUT_DIR / "draft_inventory_report.md"
 CLASSIFICATION_DIR = OUTPUT_DIR / "classification"

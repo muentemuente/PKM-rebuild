@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""unsortiert_diagnose.py — Diagnose der Artikel in 04_vault/unsortiert/.
+"""unsortiert_diagnose.py — Diagnose der Artikel in output/unsortiert/.
 
 Read-only. Verschiebt NICHTS — die finale Zuordnung ist eine menschliche
 Kuratierungs-Entscheidung (⏸ Review). Erzeugt
-`data/02_pipeline_output/unsortiert_diagnose.md` mit einer Tabelle:
+`work/unsortiert_diagnose.md` mit einer Tabelle:
 slug · category · Grund · Empfehlung.
 
 Hintergrund: `category` dieser Artikel ist `unsortiert`, weil ihre Ist-Kategorie
@@ -23,11 +23,11 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
 from scripts._pkm_common import parse_yaml_text, split_md  # noqa: E402
 
-DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
-UNSORTED_DIR = DATA_ROOT / "04_vault" / "unsortiert"
-OUTPUT = DATA_ROOT / "02_pipeline_output" / "unsortiert_diagnose.md"
+UNSORTED_DIR = _paths.OUTPUT / "unsortiert"
+OUTPUT = _paths.WORK / "unsortiert_diagnose.md"
 
 # Tag-Keyword → Domäne (heuristisch; nur für Diagnose/Empfehlung, nicht autoritativ)
 _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
@@ -95,7 +95,7 @@ def main() -> int:
         "status: stable",
         "---",
         "",
-        "# Diagnose — `04_vault/unsortiert/`",
+        "# Diagnose — `output/unsortiert/`",
         "",
         f"**{len(arts)} Artikel** ohne eindeutige 16-Ordner-Zuordnung "
         "(`category: unsortiert`). Verschoben wird **nichts** — finale Zuordnung "

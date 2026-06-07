@@ -3,7 +3,9 @@
 import re, sys, unicodedata
 from pathlib import Path
 import yaml
-VAULT = Path.home()/"projects"/"aktiv"/"PKM_rebuild"/"data"/"04_vault"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
+VAULT = _paths.OUTPUT
 FM = re.compile(r"^---\s*\n(.*?\n)---\s*\n", re.DOTALL)
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 CATS={"meta","grundlagen","webentwicklung","betriebssysteme","protokolle-und-standards",

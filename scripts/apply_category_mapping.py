@@ -27,9 +27,11 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-DATA = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
-DRAFTS = DATA / "03_drafts"
-PROPOSAL = DATA / "02_pipeline_output" / "r3_category_mapping_proposal.md"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
+
+DRAFTS = _paths.DRAFTS
+PROPOSAL = _paths.WORK / "r3_category_mapping_proposal.md"
 
 EMPTY_KEY = "<leer>"
 

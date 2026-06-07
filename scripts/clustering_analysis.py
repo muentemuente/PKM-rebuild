@@ -7,7 +7,7 @@ Liefert:
   3. Top-10 TF-IDF-Begriffe pro Cluster (speziell C_cluster-0000)
   4. HDBSCAN-Trial (falls Library verfügbar)
 
-Ausgabe: data/02_pipeline_output/clustering_analysis.md
+Ausgabe: work/clustering_analysis.md
 
 Wichtig: Dieses Skript trifft KEINE Strategie-Entscheidung.
 Nur Daten. Entscheidung gehört in die App.

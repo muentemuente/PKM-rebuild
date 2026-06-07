@@ -1,9 +1,9 @@
 """Phase 6 — Embeddings + Cluster-Vorbereitung.
 
-Input:  data/02_pipeline_output/segments.jsonl            (Phase 4 Output)
-Output: data/02_pipeline_output/embeddings.parquet
-        data/02_pipeline_output/cluster_proposals.json
-        data/02_pipeline_output/cluster_proposals.json.meta.json
+Input:  work/segments.jsonl            (Phase 4 Output)
+Output: work/embeddings.parquet
+        work/cluster_proposals.json
+        work/cluster_proposals.json.meta.json
 
 Akzeptanzkriterien (docs/02_pipeline_spec.md, Phase 6):
   - Embeddings als Parquet (kompakt, schnell lesbar)

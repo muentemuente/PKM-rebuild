@@ -69,9 +69,9 @@ def _make_draft(
 @pytest.fixture
 def vault_env(temp_dir: Path) -> tuple[Path, Path, Path, Path]:
     """Legt drafts/vault/pipeline_output/backups unter temp_dir an."""
-    drafts = temp_dir / "03_drafts"
-    vault = temp_dir / "04_vault"
-    out = temp_dir / "02_pipeline_output"
+    drafts = temp_dir / "drafts"
+    vault = temp_dir / "output"
+    out = temp_dir / "work"
     backups = temp_dir / "backups"
     for d in (drafts, vault, out, backups):
         d.mkdir(parents=True)

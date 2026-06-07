@@ -5,7 +5,9 @@ from collections import Counter
 from datetime import date
 from pathlib import Path
 import yaml
-VAULT = Path.home()/"projects"/"aktiv"/"PKM_rebuild"/"data"/"04_vault"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
+VAULT = _paths.OUTPUT
 FM = re.compile(r"^---\s*\n(.*?\n)---\s*\n", re.DOTALL)
 def fm(p):
     m = FM.match(p.read_text(encoding="utf-8"))

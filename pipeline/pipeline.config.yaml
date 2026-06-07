@@ -10,16 +10,11 @@
 
 
 # === Pfade ====================================================================
-# Daten liegen außerhalb des Git-Repos. Default: ~/projects/aktiv/PKM_rebuild/data
-# Override per Env-Variable: PKM_DATA_ROOT
-paths:
-  data_root: "~/projects/aktiv/PKM_rebuild/data"
-  inbox: "${data_root}/00_inbox"                 # inkrementeller Modus: neue Roh-.md (pipeline ingest)
-  corpus_input: "${data_root}/01_corpus_input"
-  pipeline_output: "${data_root}/02_pipeline_output"
-  drafts: "${data_root}/03_drafts"
-  vault: "${data_root}/04_vault"
-  backups: "~/projects/aktiv/PKM_rebuild/backups"
+# Pfade leben NICHT mehr hier, sondern zentral in pipeline/_paths.py (Single Source).
+# Layout: ~/projects/aktiv/pkm-pipeline/{input,work,drafts,review,output,archive}
+# Override per Env-Variable: PKM_PIPELINE_ROOT (Daten), PKM_REPO_ROOT (Repo).
+# In dieser YAML auflösbare ${var}: data_root input work drafts review output
+# archive config backups + Legacy-Aliasse inbox/corpus_input/pipeline_output/vault.
 
 
 # === Pipeline-Versionierung ===================================================
@@ -156,8 +151,8 @@ vault:
 
 # === Tag-Vokabular ============================================================
 tags:
-  vocabulary_file: "${vault}/00_Meta/tag-system.md"
-  strict_vocabulary: false      # initial false (Vokabular wird aus Phase 9 gebaut)
+  vocabulary_file: "${config}/tag_vocabulary.yaml"   # Single Source (YAML); _paths.TAG_VOCABULARY_FILE
+  strict_vocabulary: false      # initial false (Vokabular-Pflege über Gate C / manage_vocab)
   max_tags_per_article: 10
   min_tags_per_article: 2
 
@@ -167,7 +162,7 @@ logging:
   level: "INFO"                 # DEBUG | INFO | WARNING | ERROR | CRITICAL
   console_rich: true            # rich-Formatierung in der Konsole
   file_json: true               # strukturierte JSON-Logs
-  file_path: "${pipeline_output}/pipeline.log"
+  file_path: "${work}/pipeline.log"
   log_meta_files: true          # *.meta.json pro Output (Idempotenz-Tracking)
 
 

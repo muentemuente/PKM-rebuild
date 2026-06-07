@@ -99,7 +99,7 @@ Synchrone und asynchrone HTTP-Calls laufen über `httpx`. `requests` wird nicht 
 
 Diese Regeln schützen Datenintegrität, Idempotenz und Reproduzierbarkeit. Sie gelten ausnahmslos.
 
-- **Originaldateien in `data/01_corpus_input/` werden niemals beschrieben, modifiziert oder gelöscht.** Lesen ja, schreiben nein.
+- **Originaldateien in `input/` werden niemals beschrieben, modifiziert oder gelöscht.** Lesen ja, schreiben nein.
 - **Pipeline-Outputs werden nur mit `--force`-Flag überschrieben.** Ohne Flag wird bei existierenden Outputs mit gleichem Input-Hash übersprungen (Idempotenz-Regel).
 - **Phase-Logik wird so geschrieben, dass jede einzelne Phase isoliert wiederholt werden kann.** Verschachtelte Abhängigkeiten, die das verhindern, sind nicht zulässig.
 - **Pydantic-Schemas werden nicht ohne gleichzeitige Aktualisierung von `docs/02_pipeline_spec.md` Sektion 7 geändert.** Schema-Drift zwischen Code und Doku führt zu falschen Validierungen in der Pipeline.
@@ -139,7 +139,7 @@ Jede Phase folgt diesem Muster:
 ### 6.1 Format
 
 - Konsole: `rich` mit Farben + Progress-Bars (für interaktive Sessions)
-- File: `structlog` JSON Lines → `data/02_pipeline_output/pipeline.log`
+- File: `structlog` JSON Lines → `work/pipeline.log`
 
 ### 6.2 Event-Struktur
 
@@ -275,7 +275,7 @@ Aus `docs/02_pipeline_spec.md` Sektion 9:
 | Memory-Pressure detected (psutil) | User-Prompt: „RAM knapp, weiter?" |
 | Critical Config-Fehler | Pipeline-Abort vor Lauf, klare Fehlermeldung |
 
-Globaler State: `data/02_pipeline_output/pipeline_state.json` mit aktueller Phase + Position für Resume.
+Globaler State: `work/pipeline_state.json` mit aktueller Phase + Position für Resume.
 
 ---
 

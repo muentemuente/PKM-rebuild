@@ -46,12 +46,48 @@ def test_config_loads_memory_watch_section() -> None:
     assert cfg.memory_watch.check_interval_seconds == 30
 
 
-def test_config_substitutes_data_root_in_tag_vocabulary_path() -> None:
-    """${vault}-Platzhalter in tags.vocabulary_file wird aufgelöst."""
+def test_config_substitutes_config_in_tag_vocabulary_path() -> None:
+    """${config}-Platzhalter in tags.vocabulary_file wird aus _paths aufgelöst."""
     cfg = load_config(CONFIG_PATH)
-    # vocabulary_file muss absoluten Pfad enthalten, nicht den ${vault}-Platzhalter
     vocab_str = str(cfg.tags.vocabulary_file)
-    assert "${vault}" not in vocab_str
-    assert "tag-system.md" in vocab_str
-    # Pfad muss unter dem vault-Verzeichnis liegen
-    assert str(cfg.paths.vault) in vocab_str
+    assert "${config}" not in vocab_str
+    # YAML-Single-Source unter config/
+    assert vocab_str.endswith("config/tag_vocabulary.yaml")
+    assert str(cfg.paths.config) in vocab_str
+
+
+def test_config_paths_come_from_paths_module() -> None:
+    """Pfade werden zentral aus pipeline._paths injiziert (neues Layout)."""
+    from pipeline import _paths
+
+    cfg = load_config(CONFIG_PATH)
+    assert cfg.paths.input == _paths.INPUT
+    assert cfg.paths.work == _paths.WORK
+    assert cfg.paths.output == _paths.OUTPUT
+    assert cfg.paths.archive == _paths.ARCHIVE
+    # Legacy-Aliasse gemappt
+    assert cfg.paths.pipeline_output == _paths.WORK
+    assert cfg.paths.vault == _paths.OUTPUT
+
+
+def test_categories_yaml_mirrors_code() -> None:
+    """config/categories.yaml ist deckungsgleich mit CATEGORY_TO_FOLDER (Drift-Guard)."""
+    import yaml
+    from pipeline import _paths
+    from pipeline.phase_9_vault_build import CATEGORY_TO_FOLDER
+
+    data = yaml.safe_load(_paths.CATEGORIES_FILE.read_text(encoding="utf-8"))
+    assert data["categories"] == CATEGORY_TO_FOLDER
+
+
+def test_tag_vocabulary_yaml_loads_149() -> None:
+    """config/tag_vocabulary.yaml ist die Single Source (149 Tags, Synonym-Map)."""
+    from pipeline import _paths
+    from pipeline.vocab import load_tag_vocabulary_yaml
+
+    vocab, synonyms = load_tag_vocabulary_yaml(_paths.TAG_VOCABULARY_FILE)
+    assert len(vocab) == 149
+    # Synonym-Map: Alias → kanonisch (oder None = verworfen)
+    assert synonyms.get("api-design") == "api"
+    assert "ai-prompts" in synonyms
+    assert synonyms["ai-prompts"] is None

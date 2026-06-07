@@ -10,6 +10,7 @@ from rich.table import Table
 
 from pipeline.config import PipelineConfig, load_config
 from pipeline.ingest import run_ingest
+from pipeline.orchestrator import run_pipeline
 from pipeline.phase_1_inventory import run_phase_1
 from pipeline.phase_2_normalize import run_phase_2
 from pipeline.phase_3_structure import run_phase_3
@@ -20,6 +21,7 @@ from pipeline.phase_7_batches import run_phase_7
 from pipeline.phase_8_synthesis import run_phase_8
 from pipeline.phase_9_vault_build import run_phase_9
 from pipeline.phase_10_reports import run_phase_10
+from pipeline.review import apply_review, render_review
 
 console = Console()
 
@@ -299,6 +301,47 @@ def cli() -> None:
 
 
 @cli.command()
+@click.option("--force", is_flag=True, help="Phasen-Cache ignorieren, neu berechnen")
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def run(force: bool, config: str) -> None:
+    """go-forward: input/ → (Review-Gates) → output/ (resume-fähig, Option B)."""
+    cfg = load_config(Path(config))
+    summary = run_pipeline(cfg, force=force)
+
+    status = summary["status"]
+    if status == "idle":
+        console.print("[yellow]run:[/yellow] nichts zu tun (input/ leer, keine offenen Drafts).")
+        return
+    if status == "review_pending":
+        console.print(
+            f"[cyan]⏸ run:[/cyan] {summary['new_drafts']} neue Drafts, "
+            f"{summary['open']} offene Review-Punkte."
+        )
+        table = Table(title="Offene Gates")
+        table.add_column("Gate")
+        table.add_column("Offen", justify="right")
+        for gate, n in summary["per_gate"].items():
+            if n:
+                table.add_row(gate, str(n))
+        console.print(table)
+        console.print(
+            f"[yellow]→ Nächster Schritt:[/yellow] `{summary['decisions_md']}` in Zed ausfüllen, "
+            "dann `pkm review --apply`, dann erneut `pkm run`."
+        )
+        return
+    # published
+    console.print(
+        f"[green]✓ run:[/green] {summary['articles']} Artikel nach output/ gebaut "
+        f"({summary['folders_used']} Ordner), {summary['archived_inputs']} Inputs archiviert."
+    )
+
+
+@cli.command(name="corpus-run")
 @click.option("--sample", type=int, default=None, help="Sample-Modus: nur N Dateien")
 @click.option("--phase", type=int, default=None, help="Nur diese Phase ausführen")
 @click.option("--from-phase", "from_phase", type=int, default=None, help="Ab dieser Phase")
@@ -317,7 +360,7 @@ def cli() -> None:
     default=_DEFAULT_CONFIG,
     help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
 )
-def run(
+def corpus_run(
     sample: int | None,
     phase: int | None,
     from_phase: int | None,
@@ -326,7 +369,7 @@ def run(
     filter_files: tuple[str, ...],
     config: str,
 ) -> None:
-    """Pipeline-Lauf starten (Phasen 1-10)."""
+    """Legacy-Erstlauf über den Gesamtkorpus (Phasen 1-10, Archiv/Alt-Lauf)."""
     if filter_files and phase != 8:
         console.print("[yellow]Hinweis:[/yellow] --file wird nur für --phase 8 ausgewertet.")
     cfg = load_config(Path(config))
@@ -375,8 +418,7 @@ def status(config: str) -> None:
     console.print()
     console.print("[bold]Kommandos:[/bold] run · status · reports · build-vault · ingest")
     console.print(
-        "  [dim]ingest[/dim]: inkrementell — neue .md aus data/00_inbox/ "
-        "durch Phasen 1-4 + 8 (Option B)"
+        "  [dim]ingest[/dim]: inkrementell — neue .md aus input/ durch Phasen 1-4 + 8 (Option B)"
     )
 
     console.print()
@@ -412,7 +454,7 @@ def reports(force: bool, config: str) -> None:
     help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
 )
 def build_vault(force: bool, dry_run: bool, config: str) -> None:
-    """Phase 9: Vault aus Drafts aufbauen (data/04_vault/<NN_Cluster>/<slug>.md)."""
+    """Phase 9: Vault aus Drafts aufbauen (output/<NN_Cluster>/<slug>.md)."""
     cfg = load_config(Path(config))
     _dispatch_phase_9(cfg, force, dry_run)
 
@@ -427,12 +469,12 @@ def build_vault(force: bool, dry_run: bool, config: str) -> None:
     help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
 )
 def ingest(force: bool, dry_run: bool, config: str) -> None:
-    """Inkrementell: neue .md aus data/00_inbox/ durch Phasen 1-4 + 8 (Option B)."""
+    """Inkrementell: neue .md aus input/ durch Phasen 1-4 + 8 (Option B)."""
     cfg = load_config(Path(config))
     summary = run_ingest(cfg, force=force, dry_run=dry_run)
 
     if summary["inbox_files"] == 0:
-        console.print("[yellow]ingest:[/yellow] Inbox leer (data/00_inbox/) — nichts zu tun.")
+        console.print("[yellow]ingest:[/yellow] Inbox leer (input/) — nichts zu tun.")
         return
 
     if dry_run:
@@ -458,6 +500,50 @@ def ingest(force: bool, dry_run: bool, config: str) -> None:
             "[yellow]  ⏸ Review:[/yellow] neue category/tag — siehe Report, dann "
             "scripts/manage_vocab.py add-* oder bestehende zuordnen."
         )
+
+
+@cli.command()
+@click.option("--apply", "do_apply", is_flag=True, help="Ausgefüllte decisions.md anwenden")
+@click.option(
+    "--no-rebuild",
+    "no_rebuild",
+    is_flag=True,
+    help="decisions.jsonl NICHT neu aus Drafts scannen (bestehende nutzen)",
+)
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def review(do_apply: bool, no_rebuild: bool, config: str) -> None:
+    """Review-Gates: ohne --apply erzeugt es review/decisions.md, mit --apply wendet es an."""
+    cfg = load_config(Path(config))
+    if do_apply:
+        summary = apply_review(cfg)
+        console.print(
+            f"[green]✓ review --apply:[/green] {len(summary['applied'])} angewandt, "
+            f"{summary['remaining']} offen, {len(summary['errors'])} Fehler"
+        )
+        for note in summary["applied"]:
+            console.print(f"  [green]✓[/green] {note}")
+        for err in summary["errors"]:
+            console.print(f"  [red]✗[/red] {err}")
+        return
+
+    summary = render_review(cfg, rebuild=not no_rebuild)
+    console.print(
+        f"[green]✓ review:[/green] {summary['total']} offene Punkte → {summary['decisions_md']}"
+    )
+    table = Table(title="Offene Review-Punkte je Gate")
+    table.add_column("Gate")
+    table.add_column("Offen", justify="right")
+    for gate, n in summary["per_gate"].items():
+        table.add_row(gate, str(n))
+    console.print(table)
+    console.print(
+        "[dim]decisions.md in Zed ausfüllen (Entscheidung/Wert), dann `pkm review --apply`.[/dim]"
+    )
 
 
 if __name__ == "__main__":

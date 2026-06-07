@@ -1,7 +1,7 @@
 """Phase 9: Vault-Aufbau.
 
-Baut aus den aktiven Drafts (`03_drafts/*.md`, ohne `_hold/`, ohne `*.body.md`)
-den finalen Obsidian-Vault unter `data/04_vault/<NN_Cluster>/<slug>.md`.
+Baut aus den aktiven Drafts (`drafts/*.md`, ohne `_hold/`, ohne `*.body.md`)
+den finalen Obsidian-Vault unter `output/<NN_Cluster>/<slug>.md`.
 
 Pro Draft:
   1. YAML-Frontmatter parsen → Pydantic `FrontmatterDraft` validieren.
@@ -333,8 +333,8 @@ def run_phase_9(
     """Baut den Vault aus den aktiven Drafts.
 
     Args:
-        drafts_dir: `data/03_drafts`.
-        vault_dir: `data/04_vault`.
+        drafts_dir: `drafts`.
+        vault_dir: `output`.
         pipeline_output: Ziel für Error-/Drop-Logs + Meta.
         backups_dir: Wurzel für archive-before-delete.
         force: Cache (Input-Hash) ignorieren und neu bauen.

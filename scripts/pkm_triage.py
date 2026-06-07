@@ -3,9 +3,9 @@
 pkm_triage.py — End-to-End-Triage über Korpus, Drafts, Vault.
 
 Vergleicht in einem einzigen Lauf:
-  - 01_corpus_input/       Original-Markdown (Source-of-Truth)
-  - 03_drafts/             LLM-generierte Drafts (CK_<slug>.{md,body.md,frontmatter.json})
-  - 04_vault/              finaler Obsidian-Vault
+  - input/       Original-Markdown (Source-of-Truth)
+  - drafts/             LLM-generierte Drafts (CK_<slug>.{md,body.md,frontmatter.json})
+  - output/              finaler Obsidian-Vault
 
 Liefert pro Korpus-Slug eine eindeutige Action:
 
@@ -19,7 +19,7 @@ Plus separate Aufstellung:
   ORPHAN_DRAFT      — Draft existiert, aber kein Korpus-File dazu (Korpus wurde umbenannt?)
   EXCLUDED          — Korpus-File in _excluded/
 
-Outputs (alle in data/02_pipeline_output/triage/):
+Outputs (alle in work/triage/):
   triage_report.md            Master-Übersicht
   triage.jsonl                machine-readable, eine Zeile pro Korpus-Slug
   actions/
@@ -65,6 +65,7 @@ except ImportError:
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline import _paths  # noqa: E402
 from scripts._pkm_common import (
     ALLOWED_CATEGORIES,
     ALLOWED_CONFIDENCE,
@@ -86,12 +87,11 @@ from scripts._pkm_common import (
     split_md,
 )
 
-# === Pfade ===
-DATA_ROOT = Path.home() / "projects" / "aktiv" / "PKM_rebuild" / "data"
-CORPUS_DIR = DATA_ROOT / "01_corpus_input"
-DRAFTS_DIR = DATA_ROOT / "03_drafts"
-VAULT_DIR = DATA_ROOT / "04_vault"
-OUTPUT_DIR = DATA_ROOT / "02_pipeline_output" / "triage"
+# === Pfade (zentral aus pipeline._paths) ===
+CORPUS_DIR = _paths.INPUT
+DRAFTS_DIR = _paths.DRAFTS
+VAULT_DIR = _paths.OUTPUT
+OUTPUT_DIR = _paths.WORK / "triage"
 
 # Batch-Größe für Re-Run-Listen
 BATCH_SIZE = 10
@@ -609,9 +609,9 @@ def write_report(
     L.append("")
     L.append("| Bereich | Anzahl |")
     L.append("|---|---:|")
-    L.append(f"| Korpus-Files (`01_corpus_input`, ohne `_excluded/`) | {len(records)} |")
+    L.append(f"| Korpus-Files (`input`, ohne `_excluded/`) | {len(records)} |")
     L.append(f"| Davon excluded | {len(excluded)} |")
-    L.append(f"| Vault-Slugs (`04_vault`) | {sum(1 for r in records if r.in_vault)} |")
+    L.append(f"| Vault-Slugs (`output`) | {sum(1 for r in records if r.in_vault)} |")
     matched_drafts = sum(1 for r in records if r.draft_stem is not None)
     L.append(f"| Drafts mit Korpus-Match | {matched_drafts} |")
     L.append(f"| Orphan-Drafts (kein Korpus-Pendant) | {len(orphan_drafts)} |")

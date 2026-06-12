@@ -61,6 +61,9 @@ outputs/
 pipeline_state.json
 *.meta.json
 
+# CC-Task-Briefings (lokaler Arbeitsvorrat für Claude Code, nicht versioniert)
+cc-tasks/
+
 # Test-Coverage-Outputs
 htmlcov/
 .coverage

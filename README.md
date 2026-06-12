@@ -14,6 +14,20 @@ Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung
 
 ---
 
+## Die drei Orte
+
+Das Projekt verteilt sich auf drei physisch getrennte Orte. Sie nicht zu verwechseln ist wichtig — nur #1 ist versioniert, nur #1 wird von Claude Code beschrieben.
+
+| # | Pfad | Rolle |
+|---|---|---|
+| 1 | `~/projects/aktiv/PKM-rebuild/` | Code + Doku (Git, public) — **hier wird gearbeitet** |
+| 2 | `~/projects/aktiv/pkm-pipeline/` | Daten-Durchlauf (lokal, außerhalb Git) |
+| 3 | `/Users/muente/Zentrale/09_Brain-Vault/` | produktiver Obsidian-Vault |
+
+Orientierung pro Ort: `WAYFINDING.md` (im jeweiligen Root). Schreibzugriff von Claude Code nur auf #1; Schritte für #3 stehen in [`MANUAL_STEPS.md`](MANUAL_STEPS.md).
+
+---
+
 ## Was macht dieses Projekt?
 
 | Stufe | Inhalt |
@@ -127,6 +141,17 @@ PKM-rebuild/
 ```
 
 Begründung der Trennung: Pipeline ist public (Lernprojekt-Wert), Korpus-Inhalt bleibt lokal. Backup-Strategie für den Vault: siehe [`docs/07_backup_strategy.md`](docs/07_backup_strategy.md).
+
+---
+
+## Assets & Diagramme
+
+Konventionen für eingebettete Dateien und Diagramme im Vault (#3):
+
+- **Assets** (Bilder, PDFs) → globaler flacher Pool `09_Brain-Vault/_assets/`, benannt `<note-slug>__<original-name>.ext`, eingebettet pfad-frei per `![[name]]`. Vollständig: [`docs/03_vault_standard.md`](docs/03_vault_standard.md) §15.
+- **Diagramme** → ausschließlich Mermaid als ` ```mermaid `-Codeblock im Note-Body (diff-bar, kein Plugin-Lock-in). Excalidraw nicht eingeführt. Vollständig: [`docs/03_vault_standard.md`](docs/03_vault_standard.md) §16.
+
+Eigenständige Schritt-für-Schritt-Anleitungen (Master für `00_Meta/`): [`docs/vault_meta/asset-management.md`](docs/vault_meta/asset-management.md) · [`docs/vault_meta/diagramm-standard.md`](docs/vault_meta/diagramm-standard.md).
 
 ---
 

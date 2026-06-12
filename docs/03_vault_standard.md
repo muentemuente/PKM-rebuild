@@ -453,6 +453,114 @@ Bei Schema-Änderung: Schema-Version im Body-Footer notieren, Migration für bes
 
 ---
 
+## 15. Asset-Management
+
+Bilder, PDFs und sonstige eingebettete Dateien (Assets) leben in einem **globalen, flachen Pool**, nicht verstreut in Cluster-Ordnern. Das hält Notes und Assets unabhängig verschiebbar.
+
+### 15.1 Pool-Ort
+
+```
+09_Brain-Vault/
+└── _assets/        ← ALLE Assets, flach, kein Cluster-Subordner
+```
+
+- Ein einziger Ordner `_assets/` im Vault-Root (#3, `/Users/muente/Zentrale/09_Brain-Vault/_assets/`).
+- **Unterstrich-Präfix**, kein Nummern-Präfix: signalisiert „nicht-inhaltlich", hebt sich von den nummerierten Wissens-Clustern ab.
+- **Flach** — keine Unterordner pro Cluster oder Thema. Die Eindeutigkeit kommt aus dem Namensschema (§15.2), nicht aus dem Pfad.
+
+### 15.2 Namensschema (global eindeutig)
+
+```
+<note-slug>__<original-name>.ext
+```
+
+- **Doppel-Unterstrich** (`__`) trennt den Slug der besitzenden Note vom Originalnamen.
+- `<note-slug>` = Slug der Note, in die das Asset eingebettet wird (Naming-Regeln siehe §5).
+- `<original-name>` = ursprünglicher Dateiname (ohne Pfad), Endung erhalten.
+
+| Note | Original | Asset-Name im Pool |
+|---|---|---|
+| `http-https.md` | `handshake.png` | `http-https__handshake.png` |
+| `static-site-generation.md` | `Build Flow.excalidraw.png` | `static-site-generation__build-flow.excalidraw.png` |
+
+**Warum zwingend eindeutig:** Embeds sind pfad-frei (§15.3) — Obsidian löst `![[name]]` über den Dateinamen auf. Zwei gleich benannte Assets ergäben einen mehrdeutigen Embed. Das Schema macht jeden Asset-Namen vault-weit eindeutig.
+
+### 15.3 Embed-Regel (pfad-frei)
+
+```markdown
+![[http-https__handshake.png]]
+```
+
+- **Immer** Wikilink-Embed `![[name]]`, **nie** Pfad-Embed `![](pfad/zur/datei.png)`.
+- **Begründung:** Der pfad-freie Embed bindet nur den (eindeutigen) Dateinamen, nicht den Speicherort. Dadurch sind **Note UND Asset frei verschiebbar** — ein Pipeline-Move oder manuelles Umsortieren eines Clusters bricht keinen Embed. Obsidian aktualisiert nichts, weil nichts auf einen Pfad zeigt.
+
+### 15.4 Do / Don't
+
+| ✅ Do | ❌ Don't |
+|---|---|
+| `![[http-https__handshake.png]]` | `![](_assets/handshake.png)` |
+| Asset nach `_assets/` legen | Asset neben die Note in den Cluster-Ordner |
+| `<note-slug>__<original>.ext` benennen | Originalnamen (`screenshot.png`) unverändert lassen |
+| Einen flachen Pool nutzen | Unterordner `_assets/webentwicklung/…` anlegen |
+
+### 15.5 Obsidian-Settings (#3)
+
+Damit Obsidian neue Anhänge automatisch regelkonform ablegt und Embeds pfad-frei hält:
+
+| Setting | Wert |
+|---|---|
+| Use `[[Wikilinks]]` | **on** |
+| Automatically update internal links | **on** |
+| Default location for new attachments | `_assets` |
+| New link format | **Shortest path when possible** |
+
+> Diese Settings gelten für den Produktiv-Vault #3 und werden manuell gesetzt (siehe `MANUAL_STEPS.md`). Die Schritt-für-Schritt-Anleitung liegt als eigenständige Master-Doku in `docs/vault_meta/asset-management.md` (Ziel: `09_Brain-Vault/00_Meta/asset-management.md`).
+
+### 15.6 Settings-Backup
+
+`.obsidian/` wird **nicht** in Git versioniert. Damit die Vault-Settings reproduzierbar sind, wird mindestens `.obsidian/app.json` nach `09_Brain-Vault/00_Meta/obsidian-settings-backup.json` kopiert (manueller Schritt).
+
+→ Diagramme statt eingebetteter Bild-Assets: siehe §16.
+
+---
+
+## 16. Diagramme
+
+### 16.1 Regel: nur Mermaid
+
+Strukturierte Diagramme werden **ausschließlich als Mermaid** im Note-Body geschrieben, als Codeblock mit Sprach-Tag ` ```mermaid `:
+
+````markdown
+```mermaid
+flowchart LR
+  A[Korpus] --> B[Pipeline] --> C[Vault]
+```
+````
+
+### 16.2 Begründung
+
+- **Diff-bar:** Mermaid ist Text — Änderungen sind in Git als Zeilen-Diff sichtbar, nicht als opaker Binär-Blob.
+- **Versionierbar:** lebt im Note-Body, wird mit der Note mitversioniert; kein separater Asset im Pool nötig.
+- **Kein Plugin-Lock-in:** Mermaid rendert nativ in Obsidian und GitHub, ohne Zusatz-Plugin.
+
+### 16.3 Excalidraw
+
+Excalidraw wird **nicht eingeführt**. Freihand-/Skizzen-Diagramme als `.excalidraw` erzeugen Binär-Assets, sind nicht diff-bar und brauchen ein Plugin. Wo ein strukturiertes Diagramm passt, gilt §16.1.
+
+### 16.4 Typen-Mapping
+
+| Bedarf | Mermaid-Typ |
+|---|---|
+| Ablauf / Fluss | `flowchart` (`graph`) |
+| zeitlicher Nachrichtenaustausch | `sequenceDiagram` |
+| Datenmodell / Entitäten | `erDiagram` |
+| Klassen / Strukturen | `classDiagram` |
+| Zustände | `stateDiagram-v2` |
+
+> Copy-paste-Snippets je Typ: `docs/vault_meta/diagramm-standard.md` (Ziel: `09_Brain-Vault/00_Meta/diagramm-standard.md`).
+
+---
+
 ## Appendix A — Category-Mapping (E5)
 
 Embedding-Clustering ist verworfen (siehe Sektion 4). `category` entsteht in **zwei Schritten**:
@@ -490,3 +598,4 @@ Embedding-Clustering ist verworfen (siehe Sektion 4). `category` entsteht in **z
 - 2026-06-04 — `type`-Enum auf 4 Werte (`gedanke`, E1); kanonische Slug-Ableitung (NFC + Umlaut + 60-Cap + unique, E2); Sektion 4 auf fixes Ordner-Schema (Embedding-Clustering verworfen, R9); `merged_from` immer leer (Option B); Appendix A Category-Mapping (E5)
 - 2026-06-05 — `unsortiert/` → `17_unsortiert/` als vollwertiger nummerierter Cluster (AP2): Sektion 4 (Ordner-Hierarchie, `_attic/` einziger Sonderordner), Appendix A (category `unsortiert` → `17_unsortiert/`). category-Wert bleibt `unsortiert`.
 - 2026-06-07 — Layout-Umbau: Vault nach `output/`, Drafts in `drafts/` (Pfade zentral `_paths.py`); Appendix A Category-Mapping auf `config/categories.yaml` + Gate B.
+- 2026-06-13 — §15 Asset-Management (`_assets/`-Pool, Namensschema `<note-slug>__<original>.ext`, pfad-freier Embed `![[name]]`, Obsidian-Settings) + §16 Diagramme (nur Mermaid, Excalidraw nicht eingeführt) ergänzt (WP1 Asset-Konvention).

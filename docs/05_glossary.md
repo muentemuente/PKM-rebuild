@@ -176,6 +176,25 @@ Verbesserungs-Zyklus für einen Qwen-Prompt: Hypothese → Snapshot → Klein-Te
 
 ---
 
+## Asset-Begriffe
+
+### `_assets/`
+Globaler, flacher Asset-Pool im Produktiv-Vault (#3): `09_Brain-Vault/_assets/`. Alle eingebetteten Dateien (Bilder, PDFs etc.) liegen hier, ohne Cluster-Subordner. Unterstrich-Präfix = nicht-inhaltlich, hebt sich von den nummerierten Wissens-Clustern ab. Definition: `docs/03_vault_standard.md` §15.
+
+### Asset
+Eine in eine Note eingebettete Nicht-Markdown-Datei (Bild, PDF, …). Lebt im `_assets/`-Pool, nicht neben der Note. Diagramme sind **keine** Assets — sie werden als Mermaid in den Body geschrieben (siehe Mermaid-Diagramm).
+
+### Asset-Embed
+Pfad-freie Einbettung eines Assets per Wikilink: `![[<slug>__<original>.ext]]`. Nie als Pfad-Embed `![](pfad)`. Pfad-frei → Note und Asset bleiben frei verschiebbar, ohne dass ein Move den Embed bricht. Definition: `docs/03_vault_standard.md` §15.3.
+
+### Asset-Namensschema
+Global eindeutiger Asset-Dateiname `<note-slug>__<original-name>.ext` (Doppel-Unterstrich als Trenner). `<note-slug>` ist der Slug der besitzenden Note. Eindeutigkeit ist zwingend, weil Embeds pfad-frei über den Dateinamen auflösen. Definition: `docs/03_vault_standard.md` §15.2.
+
+### Mermaid-Diagramm
+Strukturiertes Diagramm als Text-Codeblock ` ```mermaid ` im Note-Body. Einziger erlaubter Diagramm-Standard im Vault (diff-bar, versionierbar, kein Plugin-Lock-in). Excalidraw ist **nicht eingeführt**. Typen: `flowchart`/`graph`, `sequenceDiagram`, `erDiagram`, `classDiagram`, `stateDiagram-v2`. Definition: `docs/03_vault_standard.md` §16.
+
+---
+
 ## Tooling-Begriffe
 
 ### Claude Code
@@ -209,3 +228,4 @@ Neue Begriffe werden ergänzt, wenn sie im Projekt zum ersten Mal verwendet werd
 - 2026-05-25 — Initial-Version
 - 2026-06-04 — Option B + Clustering-Verwurf: Stage/Review-Gate/Cluster/category/type auf Ist-Stand; neue Begriffe Routing, passthrough, canonical_ck_slug, Triage-Action, _hold, _excluded, unsortiert, Ordner-Index
 - 2026-06-05 — Phase 12: `unsortiert` → `17_unsortiert`; neue Begriffe Inbox, `ingest`, `manage_vocab.py`, UMAP/HDBSCAN (nicht verwendet)
+- 2026-06-13 — Sektion „Asset-Begriffe": `_assets/`, Asset, Asset-Embed, Asset-Namensschema, Mermaid-Diagramm (WP1 Asset-Konvention)

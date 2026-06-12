@@ -49,6 +49,9 @@ REPO_ROOT: Path = _env_path("PKM_REPO_ROOT", _DEFAULT_REPO_ROOT)
 # === Arbeits-Ordner (Daten) ===================================================
 
 INPUT: Path = PIPELINE_ROOT / "input"
+INPUT_ASSETS: Path = INPUT / "_assets"
+INGEST: Path = PIPELINE_ROOT / "_ingest"
+INGEST_QUARANTINE: Path = INGEST / "_quarantine"
 WORK: Path = PIPELINE_ROOT / "work"
 DRAFTS: Path = PIPELINE_ROOT / "drafts"
 REVIEW: Path = PIPELINE_ROOT / "review"

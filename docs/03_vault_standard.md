@@ -478,6 +478,8 @@ Bilder, PDFs und sonstige eingebettete Dateien (Assets) leben in einem **globale
 - `<note-slug>` = Slug der Note, in die das Asset eingebettet wird (Naming-Regeln siehe §5).
 - `<original-name>` = ursprünglicher Dateiname (ohne Pfad), Endung erhalten.
 
+> **Präfix = stabiler eindeutiger Slug, nicht zwingend der Note-Slug.** Manuell eingefügte Assets nutzen den Note-Slug; der Ingest (`pipeline ingest_md_download`, WP2) nutzt den **Quell-Slug** des Original-Downloads. Weil Embeds pfad-frei über den Dateinamen auflösen (§15.3), ist nur **vault-weite Eindeutigkeit** des Präfix nötig — keine Gleichheit mit dem späteren Note-Slug.
+
 | Note | Original | Asset-Name im Pool |
 |---|---|---|
 | `http-https.md` | `handshake.png` | `http-https__handshake.png` |

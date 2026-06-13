@@ -49,6 +49,8 @@ und legt `.md` → `input/`, Assets → `input/_assets/`. `_ingest/` bleibt unan
 (read-only, idempotent). Mehrdeutiger/fehlender Asset-Ordner bei vorhandenen
 Bild-Links → `_ingest/_quarantine/` (nicht geraten). Danach weiter mit Schritt 2.
 
+> **Zwei Ingests, nicht verwechseln:** `pipeline/ingest_md_download.py` ist der **Vorprozessor** (`_ingest/` → `input/`, bereitet Browser-Downloads auf), `pipeline ingest` (CLI, Schritt 2 via `make ingest`/`pkm ingest`) ist der **Pipeline-Einstieg** (`input/` → Phasen 1–4 + 8) — Reihenfolge immer: erst `ingest_md_download`, dann `ingest`.
+
 ### 1. Files ablegen
 Neue `.md` nach `input/` kopieren (max. 1–10 pro Lauf). Bei Browser-Downloads
 übernimmt das Schritt 0.

@@ -33,8 +33,27 @@ pkm-pipeline/
 
 ## Ablauf
 
+### 0. Browser-Download einspeisen (optional, WP2)
+Wenn die `.md` ein Browser-Download mit zugehörigem Asset-Ordner ist (Bilder),
+zuerst aufbereiten statt von Hand nach `input/` kopieren:
+
+```bash
+# Download (md + Asset-Ordner) in _ingest/ ablegen, dann:
+python -m pipeline.ingest_md_download --dry-run   # Plan zeigen
+python -m pipeline.ingest_md_download             # einspeisen
+```
+
+Das Tool findet den Asset-Ordner, benennt Assets `<quell-slug>__<original>.ext` um,
+schreibt lokale Bild-Links auf pfad-freie Embeds `![[…]]` um (externe URLs bleiben),
+und legt `.md` → `input/`, Assets → `input/_assets/`. `_ingest/` bleibt unangetastet
+(read-only, idempotent). Mehrdeutiger/fehlender Asset-Ordner bei vorhandenen
+Bild-Links → `_ingest/_quarantine/` (nicht geraten). Danach weiter mit Schritt 2.
+
+> **Zwei Ingests, nicht verwechseln:** `pipeline/ingest_md_download.py` ist der **Vorprozessor** (`_ingest/` → `input/`, bereitet Browser-Downloads auf), `pipeline ingest` (CLI, Schritt 2 via `make ingest`/`pkm ingest`) ist der **Pipeline-Einstieg** (`input/` → Phasen 1–4 + 8) — Reihenfolge immer: erst `ingest_md_download`, dann `ingest`.
+
 ### 1. Files ablegen
-Neue `.md` nach `input/` kopieren (max. 1–10 pro Lauf).
+Neue `.md` nach `input/` kopieren (max. 1–10 pro Lauf). Bei Browser-Downloads
+übernimmt das Schritt 0.
 
 ### 2. Lauf starten
 ```bash

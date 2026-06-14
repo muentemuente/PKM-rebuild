@@ -1,7 +1,7 @@
 # PKM-rebuild — go-forward-Targets (Option B)
 # Vollständiger Ablauf: docs/RUNBOOK_new_files.md
 # Layout/Pfade: pipeline/_paths.py (PKM_PIPELINE_ROOT, default ~/projects/aktiv/pkm-pipeline)
-.PHONY: setup run review review-apply ingest publish-check publish-assets tag-apply reindex validate test lint
+.PHONY: setup run review review-apply ingest publish-check publish-assets tag-apply reindex validate test lint backup-vault snapshot restore
 
 # === Setup ===================================================================
 
@@ -46,3 +46,14 @@ test:                      ## pytest
 
 lint:                      ## ruff check + format-check + mypy
 	@ruff check . && ruff format --check . && mypy pipeline/
+
+# === Backup ==================================================================
+
+backup-vault:              ## #3 produktiven Vault sichern (tar+SHA → archive/backups/; --target via TARGET=)
+	@bash scripts/backup_vault.sh $(if $(TARGET),--target $(TARGET),)
+
+snapshot:                  ## #2 pkm-pipeline-Daten sichern (input/work/drafts/output/review)
+	@bash scripts/snapshot.sh
+
+restore:                   ## Recovery-Drill: Snapshot entpacken + SHA-verifizieren (SNAPSHOT=snapshot_<ts>)
+	@bash scripts/restore.sh $(SNAPSHOT)

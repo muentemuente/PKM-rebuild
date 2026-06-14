@@ -4,17 +4,18 @@
 Hält das kontrollierte Vokabular über die verstreuten Stellen hinweg konsistent:
 
   category:
-    - kanonisch:  pipeline/phase_9_vault_build.py  → CATEGORY_TO_FOLDER
-    - abgeleitet: scripts/_pkm_common.py            → ALLOWED_CATEGORIES (= set(CATEGORY_TO_FOLDER))
+    - kanonisch:  config/categories.yaml             (Single Source, _paths.CATEGORIES_FILE)
+    - abgeleitet: pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER (lädt aus categories.yaml)
+                  + scripts/_pkm_common.ALLOWED_CATEGORIES (= set(CATEGORY_TO_FOLDER))
     - physisch:   output/<NN_Folder>/               (Vault-Ordner, _paths.OUTPUT)
     - Doku:       docs/03_vault_standard.md §4 (Ordner-Hierarchie)
 
   tags:
     - kanonisch:  config/tag_vocabulary.yaml         (Single Source, _paths.TAG_VOCABULARY_FILE)
 
-Da `ALLOWED_CATEGORIES` direkt aus `CATEGORY_TO_FOLDER` abgeleitet wird, genügt für
-neue Kategorien ein Edit am Dict-Literal + Ordner-Anlage; die Skript-Seite folgt
-automatisch (Drift unmöglich).
+Neue Kategorien werden ausschließlich in config/categories.yaml angelegt (+ Ordner);
+CATEGORY_TO_FOLDER und ALLOWED_CATEGORIES leiten sich daraus ab (Drift unmöglich,
+kein Code-Editieren mehr).
 
 Befehle:
   add-category <name>            neue category konsistent anlegen
@@ -40,6 +41,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline import _paths  # noqa: E402
 from pipeline.vocab import load_tag_vocabulary_yaml  # noqa: E402
@@ -47,7 +50,7 @@ from scripts._pkm_common import SLUG_RE, parse_yaml_text, split_md  # noqa: E402
 
 # === Pfade (Defaults; in Tests überschreibbar) — zentral aus pipeline._paths ===
 _REPO = _paths.REPO_ROOT
-PHASE9_PATH = _REPO / "pipeline" / "phase_9_vault_build.py"
+CATEGORIES_PATH = _paths.CATEGORIES_FILE
 VAULT_STD_PATH = _REPO / "docs" / "03_vault_standard.md"
 VAULT_DIR = _paths.OUTPUT
 DRAFTS_DIR = _paths.DRAFTS
@@ -59,20 +62,22 @@ TAG_SYSTEM_PATH = _paths.TAG_VOCABULARY_FILE
 # Kleine Wörter, die im Ordner-Anzeigenamen kleingeschrieben bleiben (Stil der Bestands-Ordner)
 _LOWER_TOKENS = {"und", "oder", "der", "die", "das", "von", "zu", "mit", "für", "im", "am"}
 
-_DICT_MARKER = "CATEGORY_TO_FOLDER: dict[str, str] = {"
-_ENTRY_RE = re.compile(r'"([a-z0-9-]+)":\s*"([^"]+)"')
-
-
 # === category ================================================================
 
 
-def parse_category_mapping(phase9_path: Path = PHASE9_PATH) -> dict[str, str]:
-    """Liest CATEGORY_TO_FOLDER direkt aus dem Quelltext (category → Ordner)."""
-    src = phase9_path.read_text(encoding="utf-8")
-    start = src.index(_DICT_MARKER)
-    end = src.index("\n}", start)
-    block = src[start:end]
-    return dict(_ENTRY_RE.findall(block))
+def parse_category_mapping(categories_path: Path = CATEGORIES_PATH) -> dict[str, str]:
+    """Liest das category→Ordner-Mapping aus config/categories.yaml (Single Source)."""
+    data = yaml.safe_load(categories_path.read_text(encoding="utf-8")) or {}
+    return dict(data.get("categories") or {})
+
+
+def _write_categories_yaml(path: Path, mapping: dict[str, str]) -> None:
+    """Schreibt categories.yaml unter Erhalt des Kommentar-Headers (nur Body neu)."""
+    text = path.read_text(encoding="utf-8")
+    header_end = text.find("categories:")
+    header = text[:header_end] if header_end != -1 else ""
+    body = "categories:\n" + "".join(f"  {k}: {v}\n" for k, v in mapping.items())
+    path.write_text(header + body, encoding="utf-8")
 
 
 def _folder_display_name(slug: str) -> str:
@@ -92,7 +97,7 @@ def _next_folder_number(mapping: dict[str, str]) -> int:
 def add_category(
     name: str,
     *,
-    phase9_path: Path = PHASE9_PATH,
+    categories_path: Path = CATEGORIES_PATH,
     vault_dir: Path = VAULT_DIR,
     vault_standard_path: Path = VAULT_STD_PATH,
     dry_run: bool = False,
@@ -104,7 +109,7 @@ def add_category(
     if not SLUG_RE.match(name):
         raise ValueError(f"ungültiger category-Slug: {name!r} (erlaubt: a-z0-9, Bindestriche)")
 
-    mapping = parse_category_mapping(phase9_path)
+    mapping = parse_category_mapping(categories_path)
     if name in mapping:
         return {"category": name, "folder": mapping[name], "already": True, "changed": []}
 
@@ -118,17 +123,19 @@ def add_category(
             "folder": folder,
             "already": False,
             "dry_run": True,
-            "changed": ["CATEGORY_TO_FOLDER", "ALLOWED_CATEGORIES (abgeleitet)", "vault-folder", "doc §4"],
+            "changed": [
+                "config/categories.yaml",
+                "ALLOWED_CATEGORIES (abgeleitet)",
+                "vault-folder",
+                "doc §4",
+            ],
         }
 
-    # 1. CATEGORY_TO_FOLDER-Literal ergänzen (ALLOWED_CATEGORIES folgt automatisch)
-    src = phase9_path.read_text(encoding="utf-8")
-    start = src.index(_DICT_MARKER)
-    close = src.index("\n}", start)  # '\n' direkt vor schließendem '}'
-    entry = f'    "{name}": "{folder}",\n'
-    src = src[: close + 1] + entry + src[close + 1 :]
-    phase9_path.write_text(src, encoding="utf-8")
-    changed.append("CATEGORY_TO_FOLDER")
+    # 1. config/categories.yaml ergänzen (Single Source; CATEGORY_TO_FOLDER +
+    #    ALLOWED_CATEGORIES leiten sich daraus ab). Reihenfolge + Header erhalten.
+    mapping[name] = folder
+    _write_categories_yaml(categories_path, mapping)
+    changed.append("config/categories.yaml")
 
     # 2. Vault-Ordner anlegen
     (vault_dir / folder).mkdir(parents=True, exist_ok=True)
@@ -225,7 +232,7 @@ def add_tag(
 
 def validate(
     *,
-    phase9_path: Path = PHASE9_PATH,
+    categories_path: Path = CATEGORIES_PATH,
     vault_dir: Path = VAULT_DIR,
     drafts_dir: Path = DRAFTS_DIR,
     tag_system_path: Path = TAG_SYSTEM_PATH,
@@ -235,7 +242,7 @@ def validate(
     cat_issues: list[str] = []
     tag_issues: list[str] = []
 
-    mapping = parse_category_mapping(phase9_path)
+    mapping = parse_category_mapping(categories_path)
     used_tags, used_categories = _collect_used_tags_and_categories(vault_dir, drafts_dir)
 
     # category: nur tatsächlich belegte Kategorien (≥1 Artikel) verlangen einen Ordner.
@@ -289,11 +296,11 @@ def _collect_used_tags_and_categories(
 
 def list_vocab(
     *,
-    phase9_path: Path = PHASE9_PATH,
+    categories_path: Path = CATEGORIES_PATH,
     tag_system_path: Path = TAG_SYSTEM_PATH,
 ) -> dict[str, Any]:
     """Aktuelles Vokabular als dict (categories: {cat: folder}, tags: sorted list)."""
-    mapping = parse_category_mapping(phase9_path)
+    mapping = parse_category_mapping(categories_path)
     vocab = parse_tag_vocab(tag_system_path) if tag_system_path.exists() else set()
     return {"categories": mapping, "tags": sorted(vocab)}
 

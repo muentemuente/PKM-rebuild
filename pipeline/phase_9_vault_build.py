@@ -45,35 +45,25 @@ import structlog
 import yaml
 from pydantic import ValidationError
 
+from pipeline._paths import CATEGORIES_FILE
 from pipeline.schemas import FrontmatterDraft
 
 log = structlog.get_logger()
 
+
 # === Category → Vault-Ordner ==================================================
-# Single Source of Truth: docs/03_vault_standard.md, Appendix A
-# ("Kanonische `category`-Werte", 18 Werte). Nummern-Präfix ist nur Ordnername,
-# nicht Teil des `category`-Feldes. NICHT hier divergieren lassen — bei Änderung
-# der kanonischen Liste hier UND in der Doku anpassen.
-CATEGORY_TO_FOLDER: dict[str, str] = {
-    "meta": "00_Meta",
-    "grundlagen": "01_Grundlagen",
-    "webentwicklung": "02_Webentwicklung",
-    "betriebssysteme": "03_Betriebssysteme",
-    "protokolle-und-standards": "04_Protokolle-und-Standards",
-    "dateitypen-und-konfiguration": "05_Dateitypen-und-Konfiguration",
-    "methoden-und-prozesse": "06_Methoden-und-Prozesse",
-    "best-practices": "07_Best-Practices",
-    "cheatsheets": "08_Cheatsheets",
-    "ki-und-semantische-systeme": "09_KI-und-Semantische-Systeme",
-    "datenarchitektur-und-datenbanken": "10_Datenarchitektur-und-Datenbanken",
-    "dokumentenverarbeitung-und-extraktion": "11_Dokumentenverarbeitung-und-Extraktion",
-    "wissensmodellierung-und-knowledge-graphs": "12_Wissensmodellierung-und-Knowledge-Graphs",
-    "visualisierung-reporting-und-design-systeme": "13_Visualisierung-Reporting-und-Design-Systeme",
-    "automatisierung-scripting-und-pipelines": "14_Automatisierung-Scripting-und-Pipelines",
-    "gedanken": "15_Gedanken",
-    "kunst-kultur": "16_Kunst-Kultur",
-    "unsortiert": "17_unsortiert",
-}
+# Single Source: config/categories.yaml (category → "NN_Ordnername"), aufgelöst
+# über pipeline._paths.CATEGORIES_FILE. Das Mapping wird beim Import geladen — kein
+# Code-Literal mehr (kein Dual-Maintenance). Gate B (pkm review --apply) und
+# scripts/manage_vocab.py ergänzen neue Kategorien dort. Nummern-Präfix ist nur
+# Ordnername, nicht Teil des `category`-Feldes. Doku: docs/03_vault_standard.md App. A.
+def _load_category_to_folder(path: Path = CATEGORIES_FILE) -> dict[str, str]:
+    """Lädt das category→Vault-Ordner-Mapping aus config/categories.yaml (Single Source)."""
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return dict(data.get("categories") or {})
+
+
+CATEGORY_TO_FOLDER: dict[str, str] = _load_category_to_folder()
 
 _PHASE = "phase_9_vault_build"
 

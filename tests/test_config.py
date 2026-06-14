@@ -70,8 +70,41 @@ def test_config_paths_come_from_paths_module() -> None:
     assert cfg.paths.vault == _paths.OUTPUT
 
 
-def test_categories_yaml_mirrors_code() -> None:
-    """config/categories.yaml ist deckungsgleich mit CATEGORY_TO_FOLDER (Drift-Guard)."""
+# Erwartetes category→Ordner-Mapping VOR dem Single-Source-Refactor (eingefrorener
+# Snapshot des früheren Code-Literals). Der Identitäts-Gate beweist: das aus
+# categories.yaml geladene Mapping ist nach dem Refactor unverändert.
+_EXPECTED_CATEGORY_TO_FOLDER = {
+    "meta": "00_Meta",
+    "grundlagen": "01_Grundlagen",
+    "webentwicklung": "02_Webentwicklung",
+    "betriebssysteme": "03_Betriebssysteme",
+    "protokolle-und-standards": "04_Protokolle-und-Standards",
+    "dateitypen-und-konfiguration": "05_Dateitypen-und-Konfiguration",
+    "methoden-und-prozesse": "06_Methoden-und-Prozesse",
+    "best-practices": "07_Best-Practices",
+    "cheatsheets": "08_Cheatsheets",
+    "ki-und-semantische-systeme": "09_KI-und-Semantische-Systeme",
+    "datenarchitektur-und-datenbanken": "10_Datenarchitektur-und-Datenbanken",
+    "dokumentenverarbeitung-und-extraktion": "11_Dokumentenverarbeitung-und-Extraktion",
+    "wissensmodellierung-und-knowledge-graphs": "12_Wissensmodellierung-und-Knowledge-Graphs",
+    "visualisierung-reporting-und-design-systeme": "13_Visualisierung-Reporting-und-Design-Systeme",
+    "automatisierung-scripting-und-pipelines": "14_Automatisierung-Scripting-und-Pipelines",
+    "gedanken": "15_Gedanken",
+    "kunst-kultur": "16_Kunst-Kultur",
+    "unsortiert": "17_unsortiert",
+}
+
+
+def test_category_mapping_identity_after_single_source_refactor() -> None:
+    """Pflicht-Gate: alle 18 Kategorien mappen vor/nach dem Refactor identisch auf denselben Ordner."""
+    from pipeline.phase_9_vault_build import CATEGORY_TO_FOLDER
+
+    assert CATEGORY_TO_FOLDER == _EXPECTED_CATEGORY_TO_FOLDER
+    assert len(CATEGORY_TO_FOLDER) == 18
+
+
+def test_categories_yaml_is_single_source() -> None:
+    """CATEGORY_TO_FOLDER wird aus config/categories.yaml geladen (keine Code-Literal-Drift mehr)."""
     import yaml
     from pipeline import _paths
     from pipeline.phase_9_vault_build import CATEGORY_TO_FOLDER

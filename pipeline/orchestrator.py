@@ -76,7 +76,12 @@ def _input_files(cfg: PipelineConfig) -> list[Path]:
 
 
 def _archive_inputs(cfg: PipelineConfig, files: list[Path]) -> int:
-    """Verschiebt verarbeitete Input-Files nach archive/processed_<ts>/."""
+    """Verschiebt verarbeitete Input-Files (+ input/_assets/) nach archive/processed_<ts>/.
+
+    Die zum Build kopierten Assets (jetzt in output/_assets/) werden zusammen mit ihren
+    Quell-`.md` mit-archiviert und input/_assets/ geleert — keine Akkumulation, konsistent
+    mit der Input-Archivierung. Gibt die Zahl archivierter `.md`-Inputs zurück.
+    """
     if not files:
         return 0
     ts = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
@@ -87,6 +92,30 @@ def _archive_inputs(cfg: PipelineConfig, files: list[Path]) -> int:
         if f.exists():
             f.rename(dest / f.name)
             n += 1
+    _archive_input_assets(cfg, dest)
+    return n
+
+
+def _archive_input_assets(cfg: PipelineConfig, dest: Path) -> int:
+    """Verschiebt input/_assets/* nach dest/_assets/ und leert input/_assets/ (idempotent).
+
+    Wird nach erfolgreichem Build aufgerufen, wenn die referenzierten Assets bereits in
+    output/_assets/ liegen. Auch nicht-referenzierte (orphan) Assets wandern mit ins
+    Archiv, sodass input/_assets/ vollständig geleert wird. Gibt die Zahl der bewegten
+    Asset-Dateien zurück.
+    """
+    assets_dir = cfg.paths.input / "_assets"
+    if not assets_dir.is_dir():
+        return 0
+    assets = [p for p in assets_dir.iterdir() if p.is_file()]
+    if not assets:
+        return 0
+    assets_dest = dest / "_assets"
+    assets_dest.mkdir(parents=True, exist_ok=True)
+    n = 0
+    for a in assets:
+        a.rename(assets_dest / a.name)
+        n += 1
     return n
 
 

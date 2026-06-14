@@ -11,15 +11,15 @@ from pathlib import Path
 import pytest
 from scripts import manage_vocab as mv
 
-PHASE9_STUB = '''"""stub phase 9."""
-CATEGORY_TO_FOLDER: dict[str, str] = {
-    "meta": "00_Meta",
-    "grundlagen": "01_Grundlagen",
-    "unsortiert": "17_unsortiert",
-}
+CATEGORIES_STUB = """# =============================================================================
+# categories.yaml — Single Source: category-Wert → Vault-Ordnername
+# =============================================================================
 
-_PHASE = "x"
-'''
+categories:
+  meta: 00_Meta
+  grundlagen: 01_Grundlagen
+  unsortiert: 17_unsortiert
+"""
 
 TAGSYS_STUB = """---
 title: Tag-System
@@ -67,8 +67,8 @@ output/
 
 @pytest.fixture
 def env(tmp_path: Path) -> dict[str, Path]:
-    p9 = tmp_path / "phase9.py"
-    p9.write_text(PHASE9_STUB, encoding="utf-8")
+    cats = tmp_path / "categories.yaml"
+    cats.write_text(CATEGORIES_STUB, encoding="utf-8")
     tagsys = tmp_path / "tag-system.md"
     tagsys.write_text(TAGSYS_STUB, encoding="utf-8")
     vstd = tmp_path / "vault_std.md"
@@ -79,28 +79,28 @@ def env(tmp_path: Path) -> dict[str, Path]:
         (vault / f).mkdir()
     drafts = tmp_path / "drafts"
     drafts.mkdir()
-    return {"p9": p9, "tagsys": tagsys, "vstd": vstd, "vault": vault, "drafts": drafts}
+    return {"cats": cats, "tagsys": tagsys, "vstd": vstd, "vault": vault, "drafts": drafts}
 
 
 # === category ================================================================
 
 
 def test_parse_category_mapping(env: dict[str, Path]) -> None:
-    m = mv.parse_category_mapping(env["p9"])
+    m = mv.parse_category_mapping(env["cats"])
     assert m == {"meta": "00_Meta", "grundlagen": "01_Grundlagen", "unsortiert": "17_unsortiert"}
 
 
 def test_add_category_consistent_three_places(env: dict[str, Path]) -> None:
     res = mv.add_category(
         "business",
-        phase9_path=env["p9"],
+        categories_path=env["cats"],
         vault_dir=env["vault"],
         vault_standard_path=env["vstd"],
     )
     assert res["already"] is False
     assert res["folder"] == "18_Business"
-    # 1. CATEGORY_TO_FOLDER (kanonisch)
-    m = mv.parse_category_mapping(env["p9"])
+    # 1. config/categories.yaml (Single Source)
+    m = mv.parse_category_mapping(env["cats"])
     assert m["business"] == "18_Business"
     # 2. ALLOWED_CATEGORIES (abgeleitet = set der Mapping-Keys)
     assert "business" in set(m)
@@ -112,23 +112,45 @@ def test_add_category_consistent_three_places(env: dict[str, Path]) -> None:
 
 def test_add_category_idempotent(env: dict[str, Path]) -> None:
     mv.add_category(
-        "business", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"]
+        "business",
+        categories_path=env["cats"],
+        vault_dir=env["vault"],
+        vault_standard_path=env["vstd"],
     )
     res2 = mv.add_category(
-        "business", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"]
+        "business",
+        categories_path=env["cats"],
+        vault_dir=env["vault"],
+        vault_standard_path=env["vstd"],
     )
     assert res2["already"] is True
-    # nur ein Eintrag im Mapping
-    src = env["p9"].read_text(encoding="utf-8")
-    assert src.count('"business":') == 1
+    # nur ein Eintrag in categories.yaml
+    src = env["cats"].read_text(encoding="utf-8")
+    assert src.count("business:") == 1
+
+
+def test_add_category_preserves_yaml_header(env: dict[str, Path]) -> None:
+    """categories.yaml behält seinen Kommentar-Header nach add-category (Single-Source intakt)."""
+    mv.add_category(
+        "business",
+        categories_path=env["cats"],
+        vault_dir=env["vault"],
+        vault_standard_path=env["vstd"],
+    )
+    text = env["cats"].read_text(encoding="utf-8")
+    assert text.startswith("# ===")
+    assert "Single Source" in text
 
 
 def test_add_category_next_number(env: dict[str, Path]) -> None:
     r1 = mv.add_category(
-        "alpha", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"]
+        "alpha",
+        categories_path=env["cats"],
+        vault_dir=env["vault"],
+        vault_standard_path=env["vstd"],
     )
     r2 = mv.add_category(
-        "beta", phase9_path=env["p9"], vault_dir=env["vault"], vault_standard_path=env["vstd"]
+        "beta", categories_path=env["cats"], vault_dir=env["vault"], vault_standard_path=env["vstd"]
     )
     assert r1["folder"] == "18_Alpha"
     assert r2["folder"] == "19_Beta"
@@ -137,7 +159,7 @@ def test_add_category_next_number(env: dict[str, Path]) -> None:
 def test_add_category_folder_display_keeps_small_words(env: dict[str, Path]) -> None:
     res = mv.add_category(
         "wissen-und-praxis",
-        phase9_path=env["p9"],
+        categories_path=env["cats"],
         vault_dir=env["vault"],
         vault_standard_path=env["vstd"],
     )
@@ -148,23 +170,23 @@ def test_add_category_invalid_slug(env: dict[str, Path]) -> None:
     with pytest.raises(ValueError, match="category-Slug"):
         mv.add_category(
             "Ungültig Slug",
-            phase9_path=env["p9"],
+            categories_path=env["cats"],
             vault_dir=env["vault"],
             vault_standard_path=env["vstd"],
         )
 
 
 def test_add_category_dry_run_writes_nothing(env: dict[str, Path]) -> None:
-    before = env["p9"].read_text(encoding="utf-8")
+    before = env["cats"].read_text(encoding="utf-8")
     res = mv.add_category(
         "business",
-        phase9_path=env["p9"],
+        categories_path=env["cats"],
         vault_dir=env["vault"],
         vault_standard_path=env["vstd"],
         dry_run=True,
     )
     assert res["dry_run"] is True
-    assert env["p9"].read_text(encoding="utf-8") == before
+    assert env["cats"].read_text(encoding="utf-8") == before
     assert not (env["vault"] / "18_Business").exists()
 
 
@@ -215,7 +237,7 @@ def _write_draft(drafts: Path, slug: str, tags: list[str], category: str | None 
 
 def test_validate_clean(env: dict[str, Path]) -> None:
     res = mv.validate(
-        phase9_path=env["p9"],
+        categories_path=env["cats"],
         vault_dir=env["vault"],
         drafts_dir=env["drafts"],
         tag_system_path=env["tagsys"],
@@ -230,7 +252,7 @@ def test_validate_detects_missing_folder_for_used_category(env: dict[str, Path])
     _write_draft(env["drafts"], "doc-g", ["api"], category="grundlagen")
     (env["vault"] / "01_Grundlagen").rmdir()
     res = mv.validate(
-        phase9_path=env["p9"],
+        categories_path=env["cats"],
         vault_dir=env["vault"],
         drafts_dir=env["drafts"],
         tag_system_path=env["tagsys"],
@@ -243,7 +265,7 @@ def test_validate_ignores_missing_folder_for_unused_category(env: dict[str, Path
     # 'unsortiert' hat keinen Artikel → fehlender Ordner ist KEIN Drift
     (env["vault"] / "17_unsortiert").rmdir()
     res = mv.validate(
-        phase9_path=env["p9"],
+        categories_path=env["cats"],
         vault_dir=env["vault"],
         drafts_dir=env["drafts"],
         tag_system_path=env["tagsys"],
@@ -255,7 +277,7 @@ def test_validate_ignores_missing_folder_for_unused_category(env: dict[str, Path
 def test_validate_detects_unknown_tag(env: dict[str, Path]) -> None:
     _write_draft(env["drafts"], "doc-x", ["api", "nicht-im-vokabular"])
     res = mv.validate(
-        phase9_path=env["p9"],
+        categories_path=env["cats"],
         vault_dir=env["vault"],
         drafts_dir=env["drafts"],
         tag_system_path=env["tagsys"],
@@ -268,6 +290,6 @@ def test_validate_detects_unknown_tag(env: dict[str, Path]) -> None:
 
 
 def test_list_vocab(env: dict[str, Path]) -> None:
-    v = mv.list_vocab(phase9_path=env["p9"], tag_system_path=env["tagsys"])
+    v = mv.list_vocab(categories_path=env["cats"], tag_system_path=env["tagsys"])
     assert v["categories"]["grundlagen"] == "01_Grundlagen"
     assert set(v["tags"]) == {"api", "http"}

@@ -48,9 +48,10 @@ ALLOWED_CONFIDENCE: set[str] = set(get_args(_FIELDS["confidence"].annotation))
 
 # `category` und `doc_role` sind im Schema freie Strings (keine Literals).
 # ALLOWED_CATEGORIES wird DIREKT aus pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER
-# abgeleitet → Single Source of Truth, Drift unmöglich. Neue Kategorien legt
-# scripts/manage_vocab.py add-category in CATEGORY_TO_FOLDER an; alles hier folgt
-# automatisch. ALLOWED_DOC_ROLE ist skript-kanonisch.
+# abgeleitet, das wiederum config/categories.yaml lädt → Single Source of Truth,
+# Drift unmöglich. Neue Kategorien legt scripts/manage_vocab.py add-category in
+# config/categories.yaml an; alles hier folgt automatisch. ALLOWED_DOC_ROLE ist
+# skript-kanonisch.
 ALLOWED_CATEGORIES: set[str] = set(CATEGORY_TO_FOLDER)
 ALLOWED_DOC_ROLE: set[str] = {
     "manual", "how-to", "best-practice", "workflow",

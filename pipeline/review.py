@@ -381,10 +381,11 @@ def _next_folder_number(mapping: dict[str, str]) -> int:
 
 
 def add_category(slug: str, cfg: PipelineConfig) -> dict[str, Any]:
-    """Legt eine neue Kategorie an: config/categories.yaml + CATEGORY_TO_FOLDER + output-Ordner.
+    """Legt eine neue Kategorie an: config/categories.yaml (Single Source) + output-Ordner.
 
     Idempotent: existiert die Kategorie bereits, wird sie unverändert zurückgegeben.
-    Hält die config/-Single-Source und die Code-Mapping (Drift-Guard) konsistent.
+    config/categories.yaml ist die alleinige Quelle; das Laufzeit-Dict CATEGORY_TO_FOLDER
+    wird mitgeführt, damit der Build im selben Prozess die neue Kategorie kennt.
     """
     if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", slug):
         raise ValueError(f"ungültiger category-Slug: {slug!r}")
@@ -403,10 +404,7 @@ def add_category(slug: str, cfg: PipelineConfig) -> dict[str, Any]:
     data["categories"] = mapping
     _write_categories_yaml(cats_file, mapping)
 
-    # 2. CATEGORY_TO_FOLDER im Code (Drift-Guard) + Laufzeit-Dict
-    _append_category_to_code(
-        cfg.paths.config.parent / "pipeline" / "phase_9_vault_build.py", slug, folder
-    )
+    # 2. Laufzeit-Dict mitführen (kein Code-Literal mehr — categories.yaml ist Quelle)
     CATEGORY_TO_FOLDER[slug] = folder
 
     # 3. output/-Ordner
@@ -423,20 +421,6 @@ def _write_categories_yaml(path: Path, mapping: dict[str, str]) -> None:
     header = text[:header_end] if header_end != -1 else ""
     body = "categories:\n" + "".join(f"  {k}: {v}\n" for k, v in mapping.items())
     path.write_text(header + body, encoding="utf-8")
-
-
-def _append_category_to_code(phase9_file: Path, slug: str, folder: str) -> None:
-    """Fügt einen Eintrag ins CATEGORY_TO_FOLDER-Literal in phase_9_vault_build.py ein."""
-    if not phase9_file.exists():
-        return
-    text = phase9_file.read_text(encoding="utf-8")
-    marker = "CATEGORY_TO_FOLDER: dict[str, str] = {"
-    idx = text.find(marker)
-    if idx == -1 or f'"{slug}":' in text:
-        return
-    close = text.find("}", idx)
-    insert = f'    "{slug}": "{folder}",\n'
-    phase9_file.write_text(text[:close] + insert + text[close:], encoding="utf-8")
 
 
 def _add_tag_to_vocab(cfg: PipelineConfig, tag: str) -> bool:

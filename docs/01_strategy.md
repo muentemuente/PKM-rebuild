@@ -10,6 +10,8 @@ updated: 2026-06-05
 
 Steuerungsdokument für Scope, Ziele, Risiken und Erfolgskriterien.
 
+> **Legacy-Hinweis:** Erfolgskriterien, Phasen-Tabelle und `data/04_vault/`-Pfade in diesem Dokument beschreiben den verworfenen Vollkorpus-Erstlauf (Option A) unter `~/projects/aktiv/PKM_rebuild/data/`. Aktueller Flow = Option B (`pkm run`, Daten unter `~/projects/aktiv/pkm-pipeline/`), siehe `docs/RUNBOOK_new_files.md`.
+
 ---
 
 ## 1. Vision

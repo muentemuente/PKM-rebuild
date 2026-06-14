@@ -75,7 +75,7 @@ python -m pipeline --version
 python -m pipeline status
 ```
 
-> **Hinweis:** `python -m pipeline run` setzt Korpus-Daten unter `~/projects/aktiv/PKM_rebuild/data/` voraus (außerhalb des Repos). Pfade in `pipeline/pipeline.config.yaml` anpassen.
+> **Hinweis:** Der go-forward-Flow (`pkm run`, Option B) liest aus `~/projects/aktiv/pkm-pipeline/input/` (außerhalb des Repos). Daten-Root überschreibbar per `PKM_PIPELINE_ROOT`; zentrale Pfad-Auflösung in `pipeline/_paths.py`. Details: [`docs/RUNBOOK_new_files.md`](docs/RUNBOOK_new_files.md).
 
 ```bash
 # Dry-Run (zeigt Phasen, schreibt nichts)
@@ -131,15 +131,17 @@ PKM-rebuild/
 **Daten (außerhalb Git):**
 
 ```
-~/projects/aktiv/PKM_rebuild/
-├── data/
-│   ├── 00_inbox/              ← Inbox für inkrementellen Lauf (pipeline ingest)
-│   ├── 01_corpus_input/       ← Original-Markdown (read-only)
-│   ├── 02_pipeline_output/    ← JSONL, Embeddings, Reports, ingest_report.md
-│   ├── 03_drafts/             ← Qwen-generierte Drafts
-│   └── 04_vault/              ← finaler Obsidian-Vault (16 Ordner + 17_unsortiert)
-└── backups/                   ← Time Machine + manuelle Snapshots
+~/projects/aktiv/pkm-pipeline/      ← Daten-Root (PKM_PIPELINE_ROOT, siehe pipeline/_paths.py)
+├── _ingest/                   ← Roh-Downloads (md + Assets), Quelle für `pkm ingest`
+├── input/                     ← neue .md (+ _assets/) pro Lauf
+├── work/                      ← Zwischen-JSONL + state.json + logs
+├── drafts/                    ← Qwen-generierte Drafts (CK_<slug>.*)
+├── review/                    ← Gate-Queues + decisions.{jsonl,md}
+├── output/                    ← gebauter Staging-Vault → Mensch zieht ihn in den produktiven Vault
+└── archive/                   ← verarbeitete Inputs + alte Runs + Backups
 ```
+
+> Der produktive Obsidian-Vault liegt separat unter `~/Zentrale/09_Brain-Vault/` (Ziel des manuellen Asset-Merge, `make publish-assets`).
 
 Begründung der Trennung: Pipeline ist public (Lernprojekt-Wert), Korpus-Inhalt bleibt lokal. Backup-Strategie für den Vault: siehe [`docs/07_backup_strategy.md`](docs/07_backup_strategy.md).
 

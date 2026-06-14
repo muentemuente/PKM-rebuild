@@ -76,10 +76,10 @@ Term Frequency – Inverse Document Frequency. Klassisches Verfahren zur lexikal
 ## Vault-Begriffe
 
 ### Vault
-Der finale strukturierte Obsidian-Ordner unter `~/projects/aktiv/PKM_rebuild/data/04_vault/`. Enthält alle Concept-Notes mit Frontmatter, organisiert in Cluster-Ordnern.
+Der gebaute, strukturierte Obsidian-Ordner. Im go-forward-Flow der Staging-Vault unter `~/projects/aktiv/pkm-pipeline/output/`; der produktive Vault liegt unter `~/Zentrale/09_Brain-Vault/`. Enthält alle Concept-Notes mit Frontmatter, organisiert in den kanonischen Ordnern (`categories.yaml`).
 
 ### Korpus / Corpus
-Die ursprüngliche Sammlung unstrukturierter Markdown-Dateien unter `~/projects/aktiv/PKM_rebuild/data/01_corpus_input/`. Read-only. Quelle für die Pipeline.
+Die Sammlung unstrukturierter Markdown-Dateien, die in die Pipeline einlaufen (`~/projects/aktiv/pkm-pipeline/input/`, Quelle in `_ingest/`). Read-only Quelle für den Lauf. (Legacy-Erstlauf: `01_corpus_input/` des Vollkorpus, siehe Änderungs-Log.)
 
 ### Concept-Note
 Ein Vault-Artikel (`.md`-Datei) mit `CK_<slug>` als Identität. Entsteht aus einem oder mehreren Korpus-Segmenten durch Qwen-Synthese.
@@ -163,7 +163,7 @@ Ablage in `data/` für **neue Roh-`.md`** im inkrementellen Modus. `pipeline ing
 CLI-Kommando (`python -m pipeline ingest`): verarbeitet neue Files aus `00_inbox/` durch Phasen 1→4 (isoliertes Work-Dir) + Phase 8 (Option-B-Routing); Phasen 5/6/7 entfallen. Erzeugt `ingest_report.md` (category/tags neu-vs-bestehend). Bestehender Vault unberührt; idempotent. Workflow: `docs/FUTURE_RUN.md`.
 
 ### Snapshot
-Manuelle oder automatische Sicherung des aktuellen Sessions-Kontexts oder Vault-Zustands. Wird vor Token-Limits, Pausen oder größeren Änderungen erstellt. Pfad: `.claude/snapshots/` (Session) oder `~/projects/aktiv/PKM_rebuild/backups/` (Vault).
+Manuelle oder automatische Sicherung des aktuellen Sessions-Kontexts oder Vault-Zustands. Wird vor Token-Limits, Pausen oder größeren Änderungen erstellt. Pfad: `.claude/snapshots/` (Session) oder `~/projects/aktiv/pkm-pipeline/archive/backups/` (Daten/Vault).
 
 ### Memory-Workflow
 Protokoll für App-Hygiene während Qwen-Läufen, da nur ~4 GB RAM für macOS frei sind. Browser, Mail, Slack zu — Zed, Ghostty, LM Studio offen. Definiert in `docs/00_persona_muente.md` Sektion 6.

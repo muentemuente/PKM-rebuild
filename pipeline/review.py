@@ -440,18 +440,66 @@ def _append_category_to_code(phase9_file: Path, slug: str, folder: str) -> None:
 
 
 def _add_tag_to_vocab(cfg: PipelineConfig, tag: str) -> bool:
-    """Nimmt einen Tag in config/tag_vocabulary.yaml auf (Abschnitt 'Erweiterungen'). True wenn neu."""
+    """Nimmt einen Tag in config/tag_vocabulary.yaml auf (Abschnitt 'Erweiterungen (review)').
+
+    Minimal-invasiver Text-Splice (analog ``_write_categories_yaml``): die Datei wird als
+    Text bearbeitet und ausschließlich um eine ``- <tag>``-Zeile ergänzt. Kommentar-Header,
+    Key-Quoting und Struktur der Single-Source bleiben unangetastet (kein
+    ``yaml.safe_load`` → ``safe_dump`` Full-Reserialize mehr). ``safe_load`` wird nur noch
+    lesend für den Existenz-Check genutzt.
+
+    Returns:
+        True, wenn der Tag neu aufgenommen wurde; False, wenn er bereits im Vokabular steht.
+    """
     path = cfg.paths.config / "tag_vocabulary.yaml"
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    text = path.read_text(encoding="utf-8")
+
+    # Existenz-Check über strukturiertes Laden (rein lesend, schreibt die Datei nicht).
+    data = yaml.safe_load(text) or {}
     sections: dict[str, list[str]] = data.get("sections") or {}
     existing = {t for tags in sections.values() for t in (tags or [])}
     if tag in existing:
         return False
+
     ext = "Erweiterungen (review)"
-    sections.setdefault(ext, [])
-    sections[ext].append(tag)
-    data["sections"] = sections
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    new_item = f"    - {tag}"
+    lines = text.split("\n")
+
+    # Section-Header (2-Space-Einrückung, quoted oder unquoted) suchen.
+    sec_idx = next(
+        (
+            i
+            for i, ln in enumerate(lines)
+            if ln.startswith("  ")
+            and ln.rstrip().endswith(":")
+            and ln.strip().rstrip(":") in (ext, f'"{ext}"')
+        ),
+        None,
+    )
+
+    if sec_idx is not None:
+        # Einfügen nach dem letzten Listenelement der Sektion.
+        insert_at = sec_idx + 1
+        for i in range(sec_idx + 1, len(lines)):
+            if lines[i].lstrip().startswith("- "):
+                insert_at = i + 1
+            elif lines[i].strip() == "":
+                continue
+            else:
+                break
+        lines.insert(insert_at, new_item)
+    else:
+        # Sektion fehlt → direkt vor 'synonyms:' anlegen (über vorausgehende
+        # Kommentar-/Leerzeilen hinweg, damit sie noch unter 'sections' landet).
+        syn_idx = next((i for i, ln in enumerate(lines) if ln.startswith("synonyms:")), len(lines))
+        anchor = syn_idx
+        while anchor > 0 and (
+            lines[anchor - 1].lstrip().startswith("#") or lines[anchor - 1].strip() == ""
+        ):
+            anchor -= 1
+        lines[anchor:anchor] = [f"  {ext}:", new_item]
+
+    path.write_text("\n".join(lines), encoding="utf-8")
     return True
 
 

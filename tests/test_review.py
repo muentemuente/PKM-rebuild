@@ -203,6 +203,87 @@ def test_gate_tags_droppen_removes_and_records(cfg) -> None:
     assert "wegwerf-tag" in merge["drop"]
 
 
+# === Vocab-Writer: kommentar-/struktur-erhaltend (Option 2) ==================
+
+
+def _comments(text: str) -> list[str]:
+    return [ln for ln in text.splitlines() if ln.lstrip().startswith("#")]
+
+
+def test_vocab_add_preserves_comment_header(cfg) -> None:
+    """Der 12-zeilige Single-Source-Kommentar-Header bleibt nach Tag-Add intakt."""
+    path = cfg.paths.config / "tag_vocabulary.yaml"
+    before = _comments(path.read_text(encoding="utf-8"))
+    assert len(before) == 12  # Beweis: es gibt einen Header zu erhalten
+    review._add_tag_to_vocab(cfg, "observability")
+    assert _comments(path.read_text(encoding="utf-8")) == before
+
+
+def test_vocab_add_preserves_section_key_quoting(cfg) -> None:
+    """Gequotete Section-Keys (Sonderzeichen) bleiben wörtlich gequotet."""
+    path = cfg.paths.config / "tag_vocabulary.yaml"
+    review._add_tag_to_vocab(cfg, "observability")
+    after = path.read_text(encoding="utf-8")
+    assert '  "Sprachen & Code":' in after
+    assert '  "Terminal, Shell & Scripting":' in after
+
+
+def test_vocab_add_is_idempotent(cfg) -> None:
+    """Gleicher Tag zweimal → nicht doppelt, zweiter Aufruf liefert False, Datei unverändert."""
+    path = cfg.paths.config / "tag_vocabulary.yaml"
+    assert review._add_tag_to_vocab(cfg, "observability") is True
+    after_first = path.read_text(encoding="utf-8")
+    assert review._add_tag_to_vocab(cfg, "observability") is False
+    assert path.read_text(encoding="utf-8") == after_first
+    assert after_first.count("- observability") == 1
+
+
+def test_vocab_add_creates_section_when_missing(cfg) -> None:
+    """Fehlt 'Erweiterungen (review)', wird die Sektion korrekt angelegt."""
+    path = cfg.paths.config / "tag_vocabulary.yaml"
+    assert "Erweiterungen (review)" not in path.read_text(encoding="utf-8")
+    review._add_tag_to_vocab(cfg, "observability")
+    after = path.read_text(encoding="utf-8")
+    assert "  Erweiterungen (review):" in after
+    assert "    - observability" in after
+    data = yaml.safe_load(after)
+    assert data["sections"]["Erweiterungen (review)"] == ["observability"]
+
+
+def test_vocab_add_inserts_before_synonyms(cfg) -> None:
+    """Der neue Tag landet im sections-Block, vor dem synonyms-Block."""
+    path = cfg.paths.config / "tag_vocabulary.yaml"
+    review._add_tag_to_vocab(cfg, "observability")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    item_idx = lines.index("    - observability")
+    syn_idx = next(i for i, ln in enumerate(lines) if ln.startswith("synonyms:"))
+    assert item_idx < syn_idx
+
+
+def test_vocab_add_second_tag_into_existing_section(cfg) -> None:
+    """Zweiter Tag wird an die bestehende Erweiterungs-Sektion angehängt (Reihenfolge erhalten)."""
+    path = cfg.paths.config / "tag_vocabulary.yaml"
+    review._add_tag_to_vocab(cfg, "observability")
+    review._add_tag_to_vocab(cfg, "tracing")
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert data["sections"]["Erweiterungen (review)"] == ["observability", "tracing"]
+
+
+def test_review_apply_aufnehmen_preserves_single_source(cfg) -> None:
+    """Regression: ein Gate-C 'aufnehmen' lässt die Single-Source strukturell unverändert (nur +Eintrag)."""
+    path = cfg.paths.config / "tag_vocabulary.yaml"
+    before = path.read_text(encoding="utf-8").splitlines()
+    _write_draft(cfg, "CK_obs", {**VALID_FM, "tags": ["api", "observability"]})
+    item = DecisionItem("CK_obs", "tags", "?", "observability", [], "grundlagen")
+    item.decision = "aufnehmen"
+    review.apply_decision(item, cfg)
+    after = path.read_text(encoding="utf-8").splitlines()
+    # Nur Sektion-Header + Tag-Zeile kommen hinzu; jede Original-Zeile bleibt wörtlich erhalten.
+    added = ["  Erweiterungen (review):", "    - observability"]
+    assert [ln for ln in after if ln not in added] == before
+    assert len(after) == len(before) + 2
+
+
 # === Gate D — final ===========================================================
 
 

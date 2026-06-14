@@ -68,6 +68,8 @@ CC arbeitet einen Block vollständig durch — liest Pflicht-Docs, implementiert
 
 Die Datei liegt lokal unter `.claude/settings.json` (gitignored) und wird nicht committed. Inhalt ist unten als Referenz-Template dokumentiert, damit sie nach einem Reset reproduzierbar ist.
 
+> **⚠️ Pfad-Drift (Stand 2026-06-14):** Die Daten-Pfad-Regeln unten (sowie die aktuelle Live-`settings.json`) verwenden noch das **Legacy-Option-A-Layout** `~/projects/aktiv/PKM_rebuild/data/{02_pipeline_output,03_drafts,04_vault,01_corpus_input}` + `…/backups`. Aktueller Daten-Root ist `~/projects/aktiv/pkm-pipeline/` (`pipeline/_paths.py`). Eindeutiges Ziel-Mapping: `data/` → `pkm-pipeline/`, `02_pipeline_output/` → `work/`, `03_drafts/` → `drafts/`, `04_vault/` → `output/`, `…/backups/` → `archive/backups/`. **Offen (nicht geraten):** das read-only-Korpus-`deny` auf `01_corpus_input/` hat im go-forward-Flow kein 1:1-Analog (Quelle ist `_ingest/`, `input/` ist per-Lauf beschreibbar). Template + Live-File sollten zusammen via `update-config` angeglichen werden — eine reine Doku-Korrektur würde das „Template spiegelt Live-File"-Versprechen brechen.
+
 **Hook-Scripts** (gitgetrackt, ausführbar):
 - `.claude/hooks/session-start.sh` — lädt Git-Kontext bei SessionStart
 - `.claude/hooks/pre-compact.sh` — schreibt Snapshot nach `.claude/snapshots/` vor Auto-Compaction

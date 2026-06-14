@@ -6,7 +6,9 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline import _paths  # noqa: E402
 VAULT = _paths.OUTPUT
+ASSETS = VAULT / "_assets"
 FM = re.compile(r"^---\s*\n(.*?\n)---\s*\n", re.DOTALL)
+EMBED = re.compile(r"!\[\[([^\]|#^]+)(?:[#^][^\]|]*)?(?:\|[^\]]+)?\]\]")
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 CATS={"meta","grundlagen","webentwicklung","betriebssysteme","protokolle-und-standards",
  "dateitypen-und-konfiguration","methoden-und-prozesse","best-practices","cheatsheets",
@@ -24,9 +26,15 @@ if ts.exists():
     vs={m for m in re.findall(r"^\s*-\s+`([a-z0-9][a-z0-9-]*)`", ts.read_text(encoding="utf-8"), re.M)}
 issues=0; files=0
 for p in VAULT.rglob("*.md"):
-    if p.name=="_index.md" or "00_Meta" in p.parts: continue
+    if p.name=="_index.md" or "00_Meta" in p.parts or "_assets" in p.parts: continue
     files+=1
-    m=FM.match(p.read_text(encoding="utf-8"))
+    txt=p.read_text(encoding="utf-8")
+    # Asset-Vollständigkeit (WP3): jedes ![[…]]-Embed muss in output/_assets/ liegen
+    for name in EMBED.findall(txt):
+        name=name.strip()
+        if name and not (ASSETS/name).exists():
+            print(f"  {p.name}: fehlendes Asset {name}"); issues+=1
+    m=FM.match(txt)
     if not m: print(f"  no_frontmatter: {p.relative_to(VAULT)}"); issues+=1; continue
     try: d=yaml.safe_load(m.group(1)) or {}
     except yaml.YAMLError as e: print(f"  yaml_error {p.name}: {e}"); issues+=1; continue

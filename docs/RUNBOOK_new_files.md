@@ -99,11 +99,24 @@ Inputs nach `archive/processed_<ts>/`.
 ✓ run: K Artikel nach output/ gebaut (J Ordner), 3 Inputs archiviert.
 ```
 
+**Assets (WP3):** `![[…]]`-Embeds in den gebauten Bodies werden geparst und die
+referenzierten Dateien aus `input/_assets/` nach `output/_assets/` kopiert (Namen
+unverändert) — **im Build, vor** der Input-Archivierung. `input/_assets/` bleibt als
+Quelle liegen (wird nicht archiviert). Embed ohne Quell-Datei → `work/phase9_missing_assets.jsonl`
+(Build bricht nicht ab); Asset ohne referenzierenden Body → `work/phase9_orphan_assets.jsonl`.
+Bild-haltige Docs nehmen automatisch den **passthrough**-Pfad (kein Stage-3-Umschreiben),
+damit die Embeds wörtlich erhalten bleiben.
+
 ### 5. Prüfen + in den produktiven Vault ziehen
 ```bash
-make publish-check  # validiert output/ (Frontmatter/Enums/Slugs)
+make publish-check  # validiert output/ (Frontmatter/Enums/Slugs + Asset-Vollständigkeit)
 ```
-Danach `output/` in den produktiven Obsidian-Vault übernehmen.
+`publish-check` prüft zusätzlich, dass jedes `![[…]]`-Embed eine Datei in
+`output/_assets/` hat. Danach `output/` in den produktiven Obsidian-Vault übernehmen.
+
+> **Asset-Merge (manuell, add-only):** `output/_assets/` nach
+> `09_Brain-Vault/_assets/` übernehmen (kein Auto-Publish, Namen sind kollisionsfrei
+> durch den `<slug>__`-Präfix aus WP2).
 
 ---
 
@@ -134,3 +147,5 @@ Archiv) liegt unter `python -m pipeline corpus-run`. Im go-forward-Flow nicht ge
 ## Änderungs-Log
 - 2026-06-06 — Initial (Bestands-Flow)
 - 2026-06-07 — Neuschrieb auf go-forward (`pkm run`/`pkm review`, Gates A–D, neues Layout)
+- 2026-06-14 — WP3: Asset-Durchschleusung (Embed→passthrough, Asset-Copy im Build,
+  missing/orphan-Logs, publish-check Asset-Vollständigkeit, manueller Asset-Merge)

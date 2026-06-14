@@ -288,3 +288,85 @@ def test_invalid_frontmatter_logged_not_aborted(vault_env) -> None:
         if ln.strip()
     ]
     assert rows[0]["stem"] == "CK_bad"
+
+
+# === Assets (WP3) =============================================================
+
+
+def _asset_dirs(temp_dir: Path) -> tuple[Path, Path]:
+    """Legt input/_assets (Quelle) + output/_assets (Ziel) unter temp_dir an."""
+    src = temp_dir / "input" / "_assets"
+    dst = temp_dir / "output" / "_assets"
+    src.mkdir(parents=True)
+    return src, dst
+
+
+def test_referenced_asset_copied_and_embed_verbatim(vault_env, temp_dir: Path) -> None:
+    drafts, vault, _, _ = vault_env
+    src, dst = _asset_dirs(temp_dir)
+    (src / "slug__bild.png").write_bytes(b"\x89PNG-fake-bytes")
+    _make_draft(drafts, "a", slug="alpha", body="# Alpha\n\n![[slug__bild.png]]\n")
+    summary = _run(vault_env, force=True, assets_src=src, assets_dst=dst)
+    # Asset kopiert, Name unverändert, Bytes identisch
+    assert (dst / "slug__bild.png").read_bytes() == b"\x89PNG-fake-bytes"
+    assert summary["assets_copied"] == 1
+    assert summary["missing_assets"] == 0
+    # Embed bleibt im gebauten Body wörtlich erhalten
+    built = (vault / "01_Grundlagen" / "alpha.md").read_text(encoding="utf-8")
+    assert "![[slug__bild.png]]" in built
+
+
+def test_missing_asset_logged_not_aborted(vault_env, temp_dir: Path) -> None:
+    drafts, vault, out, _ = vault_env
+    src, dst = _asset_dirs(temp_dir)  # leer → Asset fehlt
+    _make_draft(drafts, "a", slug="alpha", body="# Alpha\n\n![[fehlt.png]]\n")
+    summary = _run(vault_env, force=True, assets_src=src, assets_dst=dst)
+    # Build nicht abgebrochen, Artikel da, Embed bleibt (Obsidian zeigt broken)
+    assert summary["articles"] == 1
+    assert summary["missing_assets"] == 1
+    assert (vault / "01_Grundlagen" / "alpha.md").exists()
+    rows = [
+        json.loads(ln)
+        for ln in (out / "phase9_missing_assets.jsonl").read_text().splitlines()
+        if ln.strip()
+    ]
+    assert rows[0] == {"source_slug": "alpha", "asset": "fehlt.png", "reason": "asset_not_found"}
+
+
+def test_orphan_asset_logged(vault_env, temp_dir: Path) -> None:
+    drafts, _, out, _ = vault_env
+    src, dst = _asset_dirs(temp_dir)
+    (src / "genutzt.png").write_bytes(b"x")
+    (src / "waise.png").write_bytes(b"y")  # von keinem Body referenziert
+    _make_draft(drafts, "a", slug="alpha", body="# Alpha\n\n![[genutzt.png]]\n")
+    summary = _run(vault_env, force=True, assets_src=src, assets_dst=dst)
+    assert summary["orphan_assets"] == 1
+    rows = [
+        json.loads(ln)
+        for ln in (out / "phase9_orphan_assets.jsonl").read_text().splitlines()
+        if ln.strip()
+    ]
+    assert rows[0]["asset"] == "waise.png"
+
+
+def test_asset_copy_idempotent(vault_env, temp_dir: Path) -> None:
+    drafts, _, _, _ = vault_env
+    src, dst = _asset_dirs(temp_dir)
+    (src / "slug__bild.png").write_bytes(b"\x89PNG-fake-bytes")
+    _make_draft(drafts, "a", slug="alpha", body="# Alpha\n\n![[slug__bild.png]]\n")
+    _run(vault_env, force=True, assets_src=src, assets_dst=dst)
+    before = (dst / "slug__bild.png").read_bytes()
+    summary = _run(vault_env, force=True, assets_src=src, assets_dst=dst)
+    assert (dst / "slug__bild.png").read_bytes() == before
+    # zweiter Lauf: nichts neu kopiert (unchanged), kein Re-Write
+    assert summary["assets_copied"] == 0
+
+
+def test_no_assets_without_dirs(vault_env) -> None:
+    """Ohne assets_src/dst läuft der Build wie bisher (kein Asset-Handling)."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body="# Alpha\n\n![[slug__bild.png]]\n")
+    summary = _run(vault_env, force=True)
+    assert summary["assets_copied"] == 0
+    assert summary["missing_assets"] == 0
+    assert (vault / "01_Grundlagen" / "alpha.md").exists()

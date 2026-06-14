@@ -978,9 +978,14 @@ def _load_passthrough_doc_ids(structured_docs_path: Path) -> set[str]:
     - code_blocks > 0  (mind. 1 Code-Block)
     - tables_count >= 1  (mind. 1 Tabelle)
     - headings >= 3  (mind. 3 Ueberschriften)
+    - embeds > 0  (mind. 1 ![[…]]-Embed; WP3, Entscheidung A)
 
     Diese Dokumente werden in Stage 3 nicht veredelt — der Original-Body aus den
     Segmenten wird 1:1 uebernommen. Stage 4 (Frontmatter) laeuft normal.
+
+    Das Embed-Kriterium schuetzt lokale Asset-Embeds: Stage 3 (Qwen) wuerde den
+    Body neu schreiben und ![[…]] dabei nicht zuverlaessig erhalten. Passthrough
+    garantiert den woertlichen Erhalt, damit phase_9 die Assets aufloesen kann.
 
     Args:
         structured_docs_path: Pfad zu documents_structured.jsonl (Phase 3 Output).
@@ -999,7 +1004,12 @@ def _load_passthrough_doc_ids(structured_docs_path: Path) -> set[str]:
             continue
         try:
             rec = StructuredDocumentRecord.model_validate_json(line)
-            if len(rec.code_blocks) > 0 or rec.tables_count >= 1 or len(rec.headings) >= 3:
+            if (
+                len(rec.code_blocks) > 0
+                or rec.tables_count >= 1
+                or len(rec.headings) >= 3
+                or len(rec.embeds) > 0
+            ):
                 passthrough.add(rec.doc_id)
         except Exception:
             pass

@@ -147,6 +147,8 @@ def run_pipeline(
         vault_dir=cfg.paths.output,
         pipeline_output=cfg.paths.work,
         backups_dir=cfg.paths.backups,
+        assets_src=cfg.paths.input / "_assets",
+        assets_dst=cfg.paths.output / "_assets",
         force=force,
         dry_run=False,
         pipeline_version=cfg.pipeline.version,

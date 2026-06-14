@@ -29,7 +29,10 @@ _FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)", re.MULTILINE)
 _LINK_RE = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)]+)\)")
 _IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
-_WIKILINK_RE = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
+# Wikilink ohne führendes `!` — Embeds (![[…]]) sind separat (_EMBED_RE).
+_WIKILINK_RE = re.compile(r"(?<!!)\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
+# Obsidian-Embed ![[target]] bzw. ![[target|alias]] — pfad-frei nach ingest_md_download.
+_EMBED_RE = re.compile(r"!\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
 _TABLE_SEP_RE = re.compile(r"^\|[-:\s|]+\|$")
 _NUMBERED_STEP_RE = re.compile(r"\bschritt\s*\d+|\bstep\s*\d+", re.IGNORECASE)
 
@@ -139,6 +142,16 @@ def _extract_links(non_code_text: str) -> list[str]:
 def _extract_images(non_code_text: str) -> list[str]:
     """Extrahiert alle Bild-URLs aus ![alt](url)-Syntax."""
     return [m.group(2).strip() for m in _IMAGE_RE.finditer(non_code_text) if m.group(2).strip()]
+
+
+def _extract_embeds(non_code_text: str) -> list[str]:
+    """Extrahiert Obsidian-Embed-Targets aus ![[target]] (WP3: Asset-Routing).
+
+    Aliase (``|…``) werden abgeschnitten, Reihenfolge bleibt erhalten. Diese Embeds
+    zeigen i.d.R. auf lokale Assets in ``input/_assets/`` und müssen den Build
+    wörtlich überleben → eigener Routing-Pfad (passthrough), kein Stage-3-Umschreiben.
+    """
+    return [m.group(1).strip() for m in _EMBED_RE.finditer(non_code_text) if m.group(1).strip()]
 
 
 def _get_title(headings: list[dict[str, Any]], frontmatter: dict[str, Any], doc_id: str) -> str:
@@ -470,6 +483,7 @@ def run_phase_3(
         tables_count = _count_tables(non_code_text)
         links = _extract_links(non_code_text)
         images = _extract_images(non_code_text)
+        embeds = _extract_embeds(non_code_text)
         title = _get_title(headings, rec.frontmatter, rec.doc_id)
         word_count = len(rec.body.split())
 
@@ -492,6 +506,7 @@ def run_phase_3(
                 tables_count=tables_count,
                 links=links,
                 images=images,
+                embeds=embeds,
                 doc_type_guess=doc_type,
             )
         )

@@ -17,6 +17,7 @@ from pipeline.phase_2_normalize import run_phase_2
 from pipeline.phase_3_structure import (
     _count_tables,
     _detect_book,
+    _extract_embeds,
     _extract_headings,
     _extract_images,
     _extract_links,
@@ -140,6 +141,31 @@ def test_image_not_in_links() -> None:
     text = "![Alt](img.png)"
     links = _extract_links(text)
     assert "img.png" not in links
+
+
+# === _extract_embeds (WP3) ====================================================
+
+
+def test_extract_embed_target() -> None:
+    text = "Vorher ![[slug__bild.png]] nachher"
+    assert _extract_embeds(text) == ["slug__bild.png"]
+
+
+def test_extract_embed_with_alias() -> None:
+    assert _extract_embeds("![[slug__bild.png|Diagramm]]") == ["slug__bild.png"]
+
+
+def test_embed_not_counted_as_link() -> None:
+    """![[…]] ist ein Embed, kein Wikilink — darf nicht in links landen."""
+    text = "![[slug__bild.png]]"
+    assert _extract_embeds(text) == ["slug__bild.png"]
+    assert _extract_links(text) == []
+
+
+def test_plain_wikilink_not_an_embed() -> None:
+    text = "[[eine-note]]"
+    assert _extract_embeds(text) == []
+    assert "eine-note" in _extract_links(text)
 
 
 def test_extract_image() -> None:

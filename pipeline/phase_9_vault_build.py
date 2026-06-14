@@ -17,6 +17,12 @@ Pro Draft:
 
 Pro genutztem Ordner wird ein regenerierbares `_index.md` erzeugt.
 
+Assets (WP3): ![[…]]-Embeds in den finalen Bodies werden geparst und die
+referenzierten Dateien aus `input/_assets/` nach `output/_assets/` kopiert
+(Namen unverändert) — IM Build, also vor der Input-Archivierung im Orchestrator.
+Embed ohne Quell-Datei → `phase9_missing_assets.jsonl` (E4-analog, kein Abort);
+Asset ohne referenzierenden Body → `phase9_orphan_assets.jsonl` (informativ).
+
 Idempotent: gleicher Input-Hash → skip (ohne `--force`). Deterministische
 Serialisierung → 2. Lauf byte-identisch. Existierendes Ziel:
 archive-before-delete (Kopie nach `backups/phase9_vault_build_<ts>/`).
@@ -26,6 +32,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import time
 from collections import Counter, defaultdict
@@ -69,6 +76,10 @@ CATEGORY_TO_FOLDER: dict[str, str] = {
 }
 
 _PHASE = "phase_9_vault_build"
+
+# Obsidian-Embed ![[target]] / ![[target|alias]] — pfad-frei nach ingest_md_download.
+# Anker (#…, ^…) werden beim Auflösen abgeschnitten (Asset = Dateiname).
+_EMBED_RE = re.compile(r"!\[\[([^\]|#^]+)(?:[#^][^\]|]*)?(?:\|[^\]]+)?\]\]")
 
 # Ordner, die KEIN auto-generiertes `_index.md` bekommen (eigene Regeln,
 # enthalten Templates/Standards statt Concept-Notes).
@@ -237,6 +248,98 @@ def _write_if_changed(path: Path, content: str, archive_root: Path, dry_run: boo
     return "written"
 
 
+# === Assets (WP3) =============================================================
+
+
+def _extract_embed_targets(body: str) -> list[str]:
+    """Liest die ![[…]]-Embed-Targets (Asset-Dateinamen) aus einem Body, in Reihenfolge."""
+    return [m.group(1).strip() for m in _EMBED_RE.finditer(body) if m.group(1).strip()]
+
+
+def _copy_asset_if_changed(src: Path, dst: Path, archive_root: Path, dry_run: bool) -> str:
+    """Kopiert eine Asset-Datei binär nach dst. Existierendes Ziel → archive-before-delete.
+
+    Returns: 'copied' | 'overwritten' | 'unchanged'.
+    """
+    if dst.exists():
+        if dst.read_bytes() == src.read_bytes():
+            return "unchanged"
+        if not dry_run:
+            _archive_existing(dst, archive_root)
+            shutil.copy2(src, dst)
+        return "overwritten"
+    if not dry_run:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+    return "copied"
+
+
+@dataclass
+class _AssetPlan:
+    """Ergebnis der Asset-Auflösung (gleich berechnet für dry-run und realen Lauf)."""
+
+    needed: dict[str, list[str]] = field(default_factory=dict)  # asset_name → [source_slugs]
+    missing: list[dict[str, str]] = field(default_factory=list)  # Embed ohne Quell-Datei
+    orphans: list[str] = field(default_factory=list)  # Asset in src ohne referenzierenden Body
+
+
+def _build_asset_plan(articles: list[_Article], assets_src: Path | None) -> _AssetPlan:
+    """Sammelt benötigte Assets aus den finalen Bodies und gleicht gegen ``assets_src`` ab.
+
+    Args:
+        articles: gebaute Artikel (deren Bodies wörtlich in den Vault gehen).
+        assets_src: Quell-Asset-Ordner (``input/_assets/``) oder None.
+
+    Returns:
+        ``_AssetPlan`` mit needed (asset → referenzierende Slugs), missing (Embed
+        zeigt auf nicht vorhandenes Asset, E4-analog) und orphans (Asset-Datei in
+        src, die kein Body referenziert). ``assets_src=None`` → Feature aus, leerer Plan.
+    """
+    plan = _AssetPlan()
+    if assets_src is None:
+        return plan
+    for art in articles:
+        for target in _extract_embed_targets(art.body):
+            plan.needed.setdefault(target, []).append(art.final_slug)
+
+    present = (
+        {p.name for p in assets_src.iterdir() if p.is_file()}
+        if assets_src and assets_src.exists()
+        else set()
+    )
+    for name in sorted(plan.needed):
+        if name not in present:
+            for slug in plan.needed[name]:
+                plan.missing.append(
+                    {"source_slug": slug, "asset": name, "reason": "asset_not_found"}
+                )
+                log.warning("phase9_missing_asset", source=slug, asset=name)
+    plan.orphans = sorted(present - set(plan.needed))
+    return plan
+
+
+def _copy_needed_assets(
+    asset_plan: _AssetPlan,
+    assets_src: Path | None,
+    assets_dst: Path | None,
+    archive_root: Path,
+    dry_run: bool,
+) -> Counter[str]:
+    """Kopiert die in ``asset_plan.needed`` referenzierten, vorhandenen Assets nach assets_dst.
+
+    Returns: Counter mit 'copied'/'overwritten'/'unchanged'. Leerer Counter, wenn
+    Asset-Handling aus ist (assets_src/dst None).
+    """
+    stats: Counter[str] = Counter()
+    if assets_src is None or assets_dst is None:
+        return stats
+    for name in sorted(asset_plan.needed):
+        src = assets_src / name
+        if src.exists():
+            stats[_copy_asset_if_changed(src, assets_dst / name, archive_root, dry_run)] += 1
+    return stats
+
+
 # === Plan-Aufbau ==============================================================
 
 
@@ -326,6 +429,8 @@ def run_phase_9(
     pipeline_output: Path,
     backups_dir: Path,
     *,
+    assets_src: Path | None = None,
+    assets_dst: Path | None = None,
     force: bool = False,
     dry_run: bool = False,
     pipeline_version: str = "0.1.0",
@@ -337,12 +442,15 @@ def run_phase_9(
         vault_dir: `output`.
         pipeline_output: Ziel für Error-/Drop-Logs + Meta.
         backups_dir: Wurzel für archive-before-delete.
+        assets_src: Quell-Asset-Ordner (`input/_assets/`) für ![[…]]-Embeds; None → kein Copy.
+        assets_dst: Ziel-Asset-Ordner (`output/_assets/`); None → kein Copy.
         force: Cache (Input-Hash) ignorieren und neu bauen.
         dry_run: Plan berechnen, nichts schreiben.
         pipeline_version: für Meta-Datei.
 
     Returns:
-        Summary-dict mit Counts (articles, errors, dropped_links, folders, collisions, skipped).
+        Summary-dict mit Counts (articles, errors, dropped_links, folders, collisions,
+        assets_copied, missing_assets, orphan_assets, skipped).
     """
     start = time.monotonic()
     md_paths = _load_drafts(drafts_dir)
@@ -362,11 +470,13 @@ def run_phase_9(
             return cached_summary
 
     plan = _build_plan(drafts_dir)
+    asset_plan = _build_asset_plan(plan.articles, assets_src)
     now_iso = datetime.now(tz=UTC).isoformat()
     run_ts = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
     archive_root = backups_dir / f"{_PHASE}_{run_ts}"
 
     write_stats: Counter[str] = Counter()
+    asset_stats: Counter[str] = Counter()
     if not dry_run:
         for art in plan.articles:
             target = vault_dir / art.folder / f"{art.final_slug}.md"
@@ -389,9 +499,17 @@ def run_phase_9(
             idx_content = _render_index(folder, arts)
             _write_if_changed(idx_path, idx_content, archive_root, dry_run)
 
+        # Asset-Copy (vor der Input-Archivierung im Orchestrator) — Namen unverändert.
+        asset_stats = _copy_needed_assets(asset_plan, assets_src, assets_dst, archive_root, dry_run)
+
         # Logs
         _write_jsonl(pipeline_output / "phase9_errors.jsonl", plan.errors)
         _write_jsonl(pipeline_output / "phase9_dropped_links.jsonl", plan.dropped_links)
+        _write_jsonl(pipeline_output / "phase9_missing_assets.jsonl", asset_plan.missing)
+        _write_jsonl(
+            pipeline_output / "phase9_orphan_assets.jsonl",
+            [{"asset": a, "reason": "unreferenced_in_built_bodies"} for a in asset_plan.orphans],
+        )
 
     summary: dict[str, Any] = {
         "articles": len(plan.articles),
@@ -402,6 +520,10 @@ def run_phase_9(
         "collisions": len(plan.collisions),
         "unknown_categories": sorted(set(plan.unknown_categories)),
         "folder_counts": dict(sorted(plan.folder_counts.items())),
+        "assets_needed": len(asset_plan.needed),
+        "assets_copied": asset_stats["copied"] + asset_stats["overwritten"],
+        "missing_assets": len(asset_plan.missing),
+        "orphan_assets": len(asset_plan.orphans),
         "duration_seconds": round(time.monotonic() - start, 2),
         "skipped": False,
     }
@@ -414,10 +536,17 @@ def run_phase_9(
             "duration_seconds": summary["duration_seconds"],
             "pipeline_version": pipeline_version,
             "write_stats": dict(write_stats),
+            "asset_stats": dict(asset_stats),
             "summary": summary,
         }
         meta_path.parent.mkdir(parents=True, exist_ok=True)
         meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    log.info("phase9_done", **{k: summary[k] for k in ("articles", "errors", "dropped_links")})
+    log.info(
+        "phase9_done",
+        **{
+            k: summary[k]
+            for k in ("articles", "errors", "dropped_links", "assets_copied", "missing_assets")
+        },
+    )
     return summary

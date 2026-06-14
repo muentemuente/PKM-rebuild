@@ -531,6 +531,7 @@ class StructuredDocumentRecord(BaseModel):
     tables_count: int
     links: list[str]
     images: list[str]
+    embeds: list[str]                   # ![[…]]-Embed-Targets (Asset-Routing, WP3)
     doc_type_guess: DocTypeGuess
 
 # --- Phase 4 ---

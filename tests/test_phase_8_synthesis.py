@@ -1020,6 +1020,24 @@ def test_load_passthrough_doc_ids_prose_excluded(tmp_path: Path) -> None:
     assert "D_test" not in result
 
 
+def test_load_passthrough_doc_ids_embeds(tmp_path: Path) -> None:
+    """Prosa-Doc mit ![[…]]-Embed → passthrough (WP3, Entscheidung A)."""
+    rec = {
+        **_STRUCTURED_DOC_BASE,
+        "headings": [{"level": 2, "text": "A"}],  # <3 → allein kein passthrough
+        "embeds": ["data-viz__hero.png"],
+    }
+    p = _make_structured_jsonl(tmp_path, [rec])
+    assert "D_test" in _load_passthrough_doc_ids(p)
+
+
+def test_embed_survives_passthrough_body_verbatim() -> None:
+    """![[…]]-Embed bleibt im passthrough-Body wörtlich erhalten (kein Stage-3-Umschreiben)."""
+    segs = [_make_segment("D_x-S0000", text="Text\n\n![[slug__bild.png]]\n\nmehr Text.")]
+    body = _build_passthrough_body(segs)
+    assert "![[slug__bild.png]]" in body
+
+
 def test_load_passthrough_doc_ids_missing_file(tmp_path: Path) -> None:
     """Nicht-existierende Datei → leeres Set, kein Exception."""
     result = _load_passthrough_doc_ids(tmp_path / "nonexistent.jsonl")

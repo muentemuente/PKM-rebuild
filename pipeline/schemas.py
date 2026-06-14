@@ -73,6 +73,9 @@ class StructuredDocumentRecord(BaseModel):
     tables_count: int
     links: list[str]
     images: list[str]
+    # Obsidian-Embed-Targets aus ![[…]] (Asset-Routing, WP3). Default [] für
+    # Backward-Compat mit älteren documents_structured.jsonl ohne das Feld.
+    embeds: list[str] = Field(default_factory=list)
     doc_type_guess: DocTypeGuess
 
 

@@ -35,6 +35,9 @@ from pathlib import Path
 
 _DEFAULT_PIPELINE_ROOT = Path.home() / "projects" / "aktiv" / "pkm-pipeline"
 _DEFAULT_REPO_ROOT = Path(__file__).resolve().parent.parent
+# Produktiver Obsidian-Vault (#3, außerhalb der Pipeline). Ziel des manuellen
+# Asset-Merge (WP3). Überschreibbar per PKM_BRAIN_VAULT.
+_DEFAULT_BRAIN_VAULT = Path.home() / "Zentrale" / "09_Brain-Vault"
 
 
 def _env_path(var: str, default: Path) -> Path:
@@ -45,6 +48,7 @@ def _env_path(var: str, default: Path) -> Path:
 
 PIPELINE_ROOT: Path = _env_path("PKM_PIPELINE_ROOT", _DEFAULT_PIPELINE_ROOT)
 REPO_ROOT: Path = _env_path("PKM_REPO_ROOT", _DEFAULT_REPO_ROOT)
+BRAIN_VAULT: Path = _env_path("PKM_BRAIN_VAULT", _DEFAULT_BRAIN_VAULT)
 
 # === Arbeits-Ordner (Daten) ===================================================
 
@@ -56,7 +60,11 @@ WORK: Path = PIPELINE_ROOT / "work"
 DRAFTS: Path = PIPELINE_ROOT / "drafts"
 REVIEW: Path = PIPELINE_ROOT / "review"
 OUTPUT: Path = PIPELINE_ROOT / "output"
+OUTPUT_ASSETS: Path = OUTPUT / "_assets"
 ARCHIVE: Path = PIPELINE_ROOT / "archive"
+
+# Asset-Pool im produktiven Vault (Ziel des add-only Merge, WP3)
+BRAIN_VAULT_ASSETS: Path = BRAIN_VAULT / "_assets"
 
 # Review-Queues
 REVIEW_NEEDS_HUMAN: Path = REVIEW / "needs_human"

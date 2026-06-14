@@ -116,7 +116,16 @@ make publish-check  # validiert output/ (Frontmatter/Enums/Slugs + Asset-Vollst�
 
 > **Asset-Merge (manuell, add-only):** `output/_assets/` nach
 > `09_Brain-Vault/_assets/` 체bernehmen (kein Auto-Publish, Namen sind kollisionsfrei
-> durch den `<slug>__`-Pr채fix aus WP2).
+> durch den `<slug>__`-Pr채fix aus WP2):
+>
+> ```bash
+> make publish-assets                       # dry-run: zeigt, was kopiert w체rde
+> python3 scripts/publish_assets.py --apply # kopiert neue Assets (add-only)
+> ```
+>
+> Ziel 체berschreibbar per `PKM_BRAIN_VAULT` oder `--target`. Add-only: vorhandene
+> Dateien bleiben unangetastet, abweichender Inhalt wird als Konflikt gemeldet
+> (nicht 체berschrieben).
 
 ---
 

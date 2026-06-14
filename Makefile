@@ -1,7 +1,7 @@
 # PKM-rebuild — go-forward-Targets (Option B)
 # Vollständiger Ablauf: docs/RUNBOOK_new_files.md
 # Layout/Pfade: pipeline/_paths.py (PKM_PIPELINE_ROOT, default ~/projects/aktiv/pkm-pipeline)
-.PHONY: setup run review review-apply ingest publish-check tag-apply reindex validate test lint
+.PHONY: setup run review review-apply ingest publish-check publish-assets tag-apply reindex validate test lint
 
 # === Setup ===================================================================
 
@@ -24,6 +24,9 @@ ingest:                    ## inkrementell: input/ → Drafts (+ ingest_report.m
 
 publish-check:             ## gebauten output/-Vault validieren (vor dem Rausziehen)
 	@python3 scripts/validate_vault.py
+
+publish-assets:            ## output/_assets → Produktiv-Vault (add-only, dry-run; --apply zum Schreiben)
+	@python3 scripts/publish_assets.py
 
 # === Vault-Pflege (Bestand) ==================================================
 

@@ -66,8 +66,9 @@ cd PKM-rebuild
 mise install
 mise use python@3.12
 
-# Dependencies
-pip install -e .
+# Erststart: Editable-Install inkl. dev-Tools (pytest, ruff, mypy)
+make setup
+# (entspricht `pip install -e ".[dev]"`; ohne dev-Tools: `pip install -e .`)
 
 # Verifikation
 python -m pipeline --version

@@ -11,9 +11,11 @@ updated: 2026-06-07
 go-forward-Flow (Option B) für neue Markdown-Files. Ein Befehl (`pkm run`) fährt von
 `input/` bis `output/` und hält an den Review-Gates an. Idempotent, resume-fähig.
 
+> **Erststart:** `make setup` (Editable-Install inkl. dev-Tools — danach sind `pytest`/`ruff`/`mypy` und die Console-Scripts verfügbar).
+>
 > **Pfade:** zentral in `pipeline/_paths.py`. Daten-Root überschreibbar per
 > `PKM_PIPELINE_ROOT` (default `~/projects/aktiv/pkm-pipeline`). `pkm` = `python -m pipeline`
-> (Console-Script nach `pip install -e .`; sonst `python -m pipeline …`).
+> (Console-Script nach `make setup` / `pip install -e .`; sonst `python -m pipeline …`).
 
 ---
 

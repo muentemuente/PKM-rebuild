@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 from pipeline.config import load_config
-from pipeline.orchestrator import load_state, run_pipeline, save_state
+from pipeline.orchestrator import _archive_inputs, load_state, run_pipeline, save_state
 from pipeline.phase_9_vault_build import CATEGORY_TO_FOLDER
 from pipeline.review import apply_review
 
@@ -158,6 +158,50 @@ def test_state_roundtrip(cfg) -> None:
 def test_run_idle_on_empty_input(cfg) -> None:
     summary = run_pipeline(cfg, prompts_dir=Path("prompts"))
     assert summary["status"] == "idle"
+
+
+# === Input-Assets Auto-Cleanup ===============================================
+
+
+def test_archive_inputs_also_archives_and_clears_input_assets(cfg) -> None:
+    """Nach Build: input/_assets/ wird mit-archiviert und geleert; output/_assets/ unberührt."""
+    md = cfg.paths.input / "doc.md"
+    md.write_text("# Doc\n\n![[bild.png]]\n", encoding="utf-8")
+    assets = cfg.paths.input / "_assets"
+    assets.mkdir(parents=True, exist_ok=True)
+    (assets / "bild.png").write_bytes(b"PNG-bytes")
+    (assets / "orphan.png").write_bytes(
+        b"orphan"
+    )  # nicht referenziert → wandert dennoch ins Archiv
+    # output/_assets/ simuliert den abgeschlossenen Build (Phase 9 hat schon kopiert)
+    out_assets = cfg.paths.output / "_assets"
+    out_assets.mkdir(parents=True, exist_ok=True)
+    (out_assets / "bild.png").write_bytes(b"PNG-bytes")
+
+    n = _archive_inputs(cfg, [md])
+
+    assert n == 1
+    # input/ (md) + input/_assets/ vollständig geleert
+    assert not any(cfg.paths.input.glob("*.md"))
+    assert list(assets.iterdir()) == []
+    # Assets liegen im selben processed_<ts>/_assets/
+    processed = list(cfg.paths.archive.glob("processed_*"))
+    assert len(processed) == 1
+    archived_assets = {p.name for p in (processed[0] / "_assets").iterdir()}
+    assert archived_assets == {"bild.png", "orphan.png"}
+    assert (processed[0] / "doc.md").exists()
+    # output/_assets/ unangetastet
+    assert (out_assets / "bild.png").exists()
+
+
+def test_archive_inputs_idempotent_when_assets_empty(cfg) -> None:
+    """Zweiter Lauf ohne neue Inputs/Assets ist ein No-op (kein Fehler, input/_assets bleibt leer)."""
+    (cfg.paths.input / "_assets").mkdir(parents=True, exist_ok=True)
+    assert _archive_inputs(cfg, []) == 0  # keine Inputs → früher Abbruch
+    md = cfg.paths.input / "doc.md"
+    md.write_text("# Doc\n", encoding="utf-8")
+    assert _archive_inputs(cfg, [md]) == 1  # Inputs da, aber _assets leer → kein Crash
+    assert list((cfg.paths.input / "_assets").iterdir()) == []
 
 
 # === Smoke-Run (WP5-Akzeptanz) ================================================

@@ -68,17 +68,32 @@ CC arbeitet einen Block vollständig durch — liest Pflicht-Docs, implementiert
 
 Die Datei liegt lokal unter `.claude/settings.json` (gitignored) und wird nicht committed. Inhalt ist unten als Referenz-Template dokumentiert, damit sie nach einem Reset reproduzierbar ist.
 
-> **⚠️ Pfad-Drift (Stand 2026-06-14):** Die Daten-Pfad-Regeln unten (sowie die aktuelle Live-`settings.json`) verwenden noch das **Legacy-Option-A-Layout** `~/projects/aktiv/PKM_rebuild/data/{02_pipeline_output,03_drafts,04_vault,01_corpus_input}` + `…/backups`. Aktueller Daten-Root ist `~/projects/aktiv/pkm-pipeline/` (`pipeline/_paths.py`). Eindeutiges Ziel-Mapping: `data/` → `pkm-pipeline/`, `02_pipeline_output/` → `work/`, `03_drafts/` → `drafts/`, `04_vault/` → `output/`, `…/backups/` → `archive/backups/`. **Offen (nicht geraten):** das read-only-Korpus-`deny` auf `01_corpus_input/` hat im go-forward-Flow kein 1:1-Analog (Quelle ist `_ingest/`, `input/` ist per-Lauf beschreibbar). Template + Live-File sollten zusammen via `update-config` angeglichen werden — eine reine Doku-Korrektur würde das „Template spiegelt Live-File"-Versprechen brechen.
+### read-only-Konzept (3 Orte)
+
+CC darf an genau definierten Stellen schreiben; Quellen und das Endprodukt sind geschützt:
+
+| Ort | Regel |
+|---|---|
+| **#1** Repo `PKM-rebuild/` | `Read/Edit/Write(./**)` — voll |
+| **#2** `pkm-pipeline/` | **Read** komplett; **Write** nur `input/ work/ drafts/ output/ review/ archive/` |
+| **#2** `pkm-pipeline/_ingest/` | **read-only** (Quellen) — `deny` Write/Edit |
+| **#2** `pkm-pipeline/archive/corpus_legacy/` | **read-only** (historischer Korpus) — `deny` Write/Edit |
+| **#3** `09_Brain-Vault/` | **Read** ja, **Write/Edit `deny`** (generell read-only) |
+
+`_ingest/` + `archive/corpus_legacy/` sind das go-forward-Analog zum früheren `01_corpus_input`-Schutz.
+
+> **#3-Schreibausnahme (`_assets`, add-only):** Da bei Claude Code `deny` jede `allow` überstimmt, gibt es **kein** wirksames allow-unter-deny für `09_Brain-Vault/_assets/`. Der **einzige sanktionierte Vault-Write** läuft über `make publish-assets` (`scripts/publish_assets.py`, add-only via `shutil`) — ein Bash-Script, das vom Write/Edit-Tool-`deny` nicht betroffen ist. Direkte Tool-Writes in den Vault bleiben blockiert.
+
+> **Delete-Schutz:** pfad-spezifischer Lösch-Schutz läuft über die globalen `Bash(rm -rf*|rm -r *|…)`-`deny`-Regeln (keine engeren Pfad-Muster nötig).
 
 **Hook-Scripts** (gitgetrackt, ausführbar):
 - `.claude/hooks/session-start.sh` — lädt Git-Kontext bei SessionStart
 - `.claude/hooks/pre-compact.sh` — schreibt Snapshot nach `.claude/snapshots/` vor Auto-Compaction
 
-**OS-Schutz Korpus:**
+**OS-Schutz Quellen** (zusätzlich zu den `deny`-Regeln):
 ```bash
-chmod -R a-w ~/projects/aktiv/PKM_rebuild/data/01_corpus_input/
+chmod -R a-w ~/projects/aktiv/pkm-pipeline/_ingest/ ~/projects/aktiv/pkm-pipeline/archive/corpus_legacy/
 ```
-Zusätzlich zur `deny`-Regel in settings.json.
 
 ### settings.json Referenz-Template
 
@@ -87,11 +102,14 @@ Zusätzlich zur `deny`-Regel in settings.json.
   "permissions": {
     "allow": [
       "Read(./**)", "Edit(./**)", "Write(./**)",
-      "Read(~/projects/aktiv/PKM_rebuild/data/**)",
-      "Write(~/projects/aktiv/PKM_rebuild/data/02_pipeline_output/**)",
-      "Write(~/projects/aktiv/PKM_rebuild/data/03_drafts/**)",
-      "Write(~/projects/aktiv/PKM_rebuild/data/04_vault/**)",
-      "Write(~/projects/aktiv/PKM_rebuild/backups/**)",
+      "Read(~/projects/aktiv/pkm-pipeline/**)",
+      "Write(~/projects/aktiv/pkm-pipeline/input/**)",
+      "Write(~/projects/aktiv/pkm-pipeline/work/**)",
+      "Write(~/projects/aktiv/pkm-pipeline/drafts/**)",
+      "Write(~/projects/aktiv/pkm-pipeline/output/**)",
+      "Write(~/projects/aktiv/pkm-pipeline/review/**)",
+      "Write(~/projects/aktiv/pkm-pipeline/archive/**)",
+      "Read(~/Zentrale/09_Brain-Vault/**)",
       "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)",
       "Bash(git add *)", "Bash(git commit*)", "Bash(git branch*)",
       "Bash(git checkout*)", "Bash(git switch*)", "Bash(git stash*)",
@@ -122,8 +140,12 @@ Zusätzlich zur `deny`-Regel in settings.json.
       "Bash(gh pr merge*)"
     ],
     "deny": [
-      "Write(~/projects/aktiv/PKM_rebuild/data/01_corpus_input/**)",
-      "Edit(~/projects/aktiv/PKM_rebuild/data/01_corpus_input/**)",
+      "Write(~/Zentrale/09_Brain-Vault/**)",
+      "Edit(~/Zentrale/09_Brain-Vault/**)",
+      "Write(~/projects/aktiv/pkm-pipeline/_ingest/**)",
+      "Edit(~/projects/aktiv/pkm-pipeline/_ingest/**)",
+      "Write(~/projects/aktiv/pkm-pipeline/archive/corpus_legacy/**)",
+      "Edit(~/projects/aktiv/pkm-pipeline/archive/corpus_legacy/**)",
       "Bash(rm -rf*)", "Bash(rm -r *)", "Bash(rm -fr*)", "Bash(rm -Rf*)",
       "Bash(git push --force*)", "Bash(git push -f *)", "Bash(git push -f)",
       "Bash(gh repo delete*)", "Bash(gh repo archive*)"

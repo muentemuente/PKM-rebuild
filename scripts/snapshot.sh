@@ -2,8 +2,11 @@
 # ============================================================================
 # snapshot.sh — Backup-Snapshot der Daten-Ordner (pkm-pipeline)
 # ----------------------------------------------------------------------------
-# Erstellt einen Snapshot von input/ output/ drafts/ als .tar.gz plus
-# SHA-256-Manifest für Integritäts-Check beim Restore.
+# Erstellt einen Snapshot der Recovery-relevanten pkm-pipeline-Ordner
+# (input/ work/ drafts/ output/ review/) als .tar.gz plus SHA-256-Manifest
+# für Integritäts-Check beim Restore. archive/ wird ausgespart (= Backup-Ziel).
+# Zweck: Recovery/Resume der PIPELINE-Daten (#2). Der produktive Vault (#3)
+# wird separat über `make backup-vault` gesichert.
 #
 # Layout: pipeline/_paths.py (PKM_PIPELINE_ROOT, default ~/projects/aktiv/pkm-pipeline).
 # Aufruf:   bash scripts/snapshot.sh
@@ -59,10 +62,13 @@ make_archive() {
   echo "  ✓ ${label}.tar.gz (${size})"
 }
 
-# --- Run-Quelle, gebauter Vault, Drafts ---
+# --- pkm-pipeline-Layout: alle Recovery-relevanten Ordner ---
+# archive/ selbst wird NICHT gesichert (= Backup-Ziel, enthält frühere Snapshots).
 make_archive "input"  "input"
-make_archive "output" "output"
+make_archive "work"   "work"
 make_archive "drafts" "drafts"
+make_archive "output" "output"
+make_archive "review" "review"
 
 # --- Run-State falls vorhanden ---
 readonly RUN_STATE="${PIPELINE_ROOT}/work/state.json"

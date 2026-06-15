@@ -39,7 +39,9 @@ Aus ~200 unstrukturierten Markdown-Dateien einen kuratierten, deduplizierten Obs
 - Automatisierte Wiki-Veröffentlichung des Vaults
 - Bulk-Promotion `draft → stable`
 - Ausbau des Vaults mit weiterführenden und ergänzenden Themen
-- Cross-Doc-Synthese / automatisches Merging mehrerer Docs (Option A — verworfen: Korpus hat keine inhärente Cluster-Struktur)
+- Cross-Doc-Synthese / **automatisches** Merging mehrerer Docs (Option A — verworfen: Korpus hat keine inhärente Cluster-Struktur)
+
+> **Scope-Notiz (2026-06-15, pipeline-v2 / R12):** P5 ist ein **Teil-Reversal von Option B**: paarweise Redundanz- und Synthese-**ERKENNUNG + Report** (`redundancy_report.md`, `synthesis_candidates.md`) sind ab pipeline-v2 **in Scope**. **Out of Scope bleibt** das automatische Merging/Löschen — `merged_from` bleibt leer, jeder Kandidat nur als gescorter, provenance-tragender Vorschlag. Die Erkennung ≠ das verworfene Auto-Clustering (das 96,5-%-Unsortiert-Finding entkräftet die Erkennung nicht). Referenz: `docs/Projektplan_pkm-pipeline-v2` D2, Risiko R12 (Scope-Creep-Kontrolle via Strategie-Doc-Update).
 
 ---
 

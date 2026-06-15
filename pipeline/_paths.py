@@ -21,7 +21,7 @@ Layout (gitignored, außerhalb des Repos)::
 Repo (Git)::
 
     PKM_REPO_ROOT/                (default: Parent des pipeline/-Pakets)
-    └── config/                   categories.yaml, tag_vocabulary.yaml, tag_merge_map.json
+    └── config/                   categories.yaml, tag_vocabulary.yaml, enums.yaml, tag_merge_map.json
 
 Override per Env-Variable: ``PKM_PIPELINE_ROOT`` (Daten), ``PKM_REPO_ROOT`` (Repo).
 """
@@ -81,6 +81,7 @@ CONFIG: Path = REPO_ROOT / "config"
 CATEGORIES_FILE: Path = CONFIG / "categories.yaml"
 TAG_VOCABULARY_FILE: Path = CONFIG / "tag_vocabulary.yaml"
 TAG_MERGE_MAP_FILE: Path = CONFIG / "tag_merge_map.json"
+ENUMS_FILE: Path = CONFIG / "enums.yaml"
 
 # === Helfer ===================================================================
 

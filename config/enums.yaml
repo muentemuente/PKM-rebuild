@@ -1,0 +1,52 @@
+# =============================================================================
+# enums.yaml — Single Source der kontrollierten Wert-Enums (governed growth)
+# =============================================================================
+# Diese Enums waren bis pipeline-v2 als Pydantic-`Literal` in pipeline/schemas.py
+# bzw. als Python-Set in scripts/_pkm_common.py (doc_role) dupliziert. Sie leben
+# jetzt zentral hier und werden über pipeline/taxonomy.py geladen:
+#   - schemas.FrontmatterDraft validiert per Runtime-Membership-Check hiergegen,
+#   - scripts/_pkm_common spiegelt sie nur noch (kein get_args mehr),
+#   - taxonomy.py ist die einzige Import-Facade aller Konsumenten.
+#
+# Erweiterung = 1 Edit hier (kein Code-Change). Drift-Guard: tests/test_taxonomy.py.
+# Hinweis: type/status/review_status/confidence sind Lebenszyklus-Enums; eine
+# Änderung ist eine bewusste Schema-Entscheidung, kein Routine-Vokabular-Wachstum
+# (Routine = Kategorien/Tags, siehe categories.yaml / tag_vocabulary.yaml).
+# =============================================================================
+
+# Dokumenttyp im Vault (4 Werte, inkl. `gedanke` — F1: keine Enum-Drift mehr).
+type:
+  - process-document
+  - knowledge-article
+  - compact-reference
+  - gedanke
+
+# Lebenszyklus-Status.
+status:
+  - draft
+  - review
+  - stable
+  - deprecated
+
+# Review-Fortschritt.
+review_status:
+  - ai_drafted
+  - human_reviewed
+  - verified
+
+# Qwen-Confidence pro synthetisiertem Artikel.
+confidence:
+  - low
+  - medium
+  - high
+
+# doc_role: funktionale Rolle(n) eines Dokuments (Liste im Frontmatter).
+doc_role:
+  - manual
+  - how-to
+  - best-practice
+  - workflow
+  - explanation
+  - reference
+  - cheatsheet
+  - wiki

@@ -546,5 +546,88 @@ def review(do_apply: bool, no_rebuild: bool, config: str) -> None:
     )
 
 
+@cli.group()
+def taxonomy() -> None:
+    """Taxonomie-SSoT pflegen (Kategorien/Tags): anlegen + umbenennen (mit Migration)."""
+
+
+@taxonomy.command(name="add-category")
+@click.argument("name")
+@click.option("--dry-run", "dry_run", is_flag=True, help="Plan zeigen, nichts schreiben")
+def taxonomy_add_category(name: str, dry_run: bool) -> None:
+    """Neue category in der SSoT anlegen (config/categories.yaml + Vault-Ordner)."""
+    from scripts.manage_vocab import add_category
+
+    try:
+        res = add_category(name, dry_run=dry_run)
+    except ValueError as e:
+        console.print(f"[red]✗[/red] {e}")
+        raise SystemExit(2) from e
+    if res.get("already"):
+        console.print(f"[yellow]·[/yellow] category '{name}' existiert bereits → {res['folder']}")
+    elif dry_run:
+        console.print(f"[cyan][dry-run][/cyan] würde anlegen: '{name}' → {res['folder']}/")
+    else:
+        console.print(f"[green]✓[/green] category '{name}' → {res['folder']}/ angelegt")
+
+
+@taxonomy.command(name="add-tag")
+@click.argument("tag")
+@click.option("--reason", required=True, help="Begründung (Pflicht, Vault-Standard §7)")
+@click.option("--dry-run", "dry_run", is_flag=True, help="Plan zeigen, nichts schreiben")
+def taxonomy_add_tag(tag: str, reason: str, dry_run: bool) -> None:
+    """Neuen Tag ins Vokabular aufnehmen (md-Format; YAML-Aufnahme via `pkm review`, Gate C)."""
+    from scripts.manage_vocab import add_tag
+
+    try:
+        res = add_tag(tag, reason, dry_run=dry_run)
+    except ValueError as e:
+        console.print(f"[red]✗[/red] {e}")
+        raise SystemExit(2) from e
+    if res.get("already"):
+        console.print(f"[yellow]·[/yellow] Tag '{tag}' ist bereits im Vokabular")
+    elif dry_run:
+        console.print(f"[cyan][dry-run][/cyan] würde Tag '{tag}' aufnehmen")
+    else:
+        console.print(f"[green]✓[/green] Tag '{tag}' aufgenommen")
+
+
+@taxonomy.command(name="rename")
+@click.argument("kind", type=click.Choice(["category", "tag"]))
+@click.argument("old")
+@click.argument("new")
+@click.option("--dry-run", "dry_run", is_flag=True, help="Plan zeigen, nichts schreiben")
+def taxonomy_rename(kind: str, old: str, new: str, dry_run: bool) -> None:
+    """OLD → NEW umbenennen und Bestand migrieren (SSoT + Frontmatter + Ordner + Index).
+
+    Mutiert den Vault unter output/. Vor dem ersten echten Lauf Snapshot ziehen
+    (`bash scripts/snapshot.sh`).
+    """
+    from pipeline.taxonomy_migrate import rename_category, rename_tag
+
+    try:
+        if kind == "category":
+            res = rename_category(old, new, dry_run=dry_run)
+        else:
+            res = rename_tag(old, new, dry_run=dry_run)
+    except (ValueError, FileExistsError) as e:
+        console.print(f"[red]✗[/red] {e}")
+        raise SystemExit(2) from e
+
+    head = "[cyan][dry-run][/cyan]" if dry_run else "[green]✓[/green]"
+    console.print(f"{head} rename {kind}: {old} → {new}")
+    for c in res.changed:
+        console.print(f"  · {c}")
+    console.print(
+        f"  Vault-Frontmatter: {res.files_frontmatter} · Drafts: {res.drafts_frontmatter}"
+        f" · Index-Regen: {res.indexes_regenerated}"
+    )
+    if res.validation_errors:
+        console.print(f"[red]Validierungsfehler ({len(res.validation_errors)}):[/red]")
+        for verr in res.validation_errors[:20]:
+            console.print(f"  [red]✗[/red] {verr}")
+        raise SystemExit(1)
+
+
 if __name__ == "__main__":
     cli()

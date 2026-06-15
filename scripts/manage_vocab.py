@@ -45,6 +45,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline import _paths  # noqa: E402
+from pipeline.taxonomy import folder_display_name, write_category_mapping  # noqa: E402
 from pipeline.vocab import load_tag_vocabulary_yaml  # noqa: E402
 from scripts._pkm_common import SLUG_RE, parse_yaml_text, split_md  # noqa: E402
 
@@ -59,9 +60,6 @@ DRAFTS_DIR = _paths.DRAFTS
 # unterstützt (Bestands-Fixtures).
 TAG_SYSTEM_PATH = _paths.TAG_VOCABULARY_FILE
 
-# Kleine Wörter, die im Ordner-Anzeigenamen kleingeschrieben bleiben (Stil der Bestands-Ordner)
-_LOWER_TOKENS = {"und", "oder", "der", "die", "das", "von", "zu", "mit", "für", "im", "am"}
-
 # === category ================================================================
 
 
@@ -69,23 +67,6 @@ def parse_category_mapping(categories_path: Path = CATEGORIES_PATH) -> dict[str,
     """Liest das category→Ordner-Mapping aus config/categories.yaml (Single Source)."""
     data = yaml.safe_load(categories_path.read_text(encoding="utf-8")) or {}
     return dict(data.get("categories") or {})
-
-
-def _write_categories_yaml(path: Path, mapping: dict[str, str]) -> None:
-    """Schreibt categories.yaml unter Erhalt des Kommentar-Headers (nur Body neu)."""
-    text = path.read_text(encoding="utf-8")
-    header_end = text.find("categories:")
-    header = text[:header_end] if header_end != -1 else ""
-    body = "categories:\n" + "".join(f"  {k}: {v}\n" for k, v in mapping.items())
-    path.write_text(header + body, encoding="utf-8")
-
-
-def _folder_display_name(slug: str) -> str:
-    """Slug → Ordner-Anzeigename im Stil der Bestands-Ordner (Token-Caps, kleine Wörter klein)."""
-    parts = []
-    for tok in slug.split("-"):
-        parts.append(tok if tok in _LOWER_TOKENS else tok.capitalize())
-    return "-".join(parts)
 
 
 def _next_folder_number(mapping: dict[str, str]) -> int:
@@ -114,7 +95,7 @@ def add_category(
         return {"category": name, "folder": mapping[name], "already": True, "changed": []}
 
     num = _next_folder_number(mapping)
-    folder = f"{num:02d}_{_folder_display_name(name)}"
+    folder = f"{num:02d}_{folder_display_name(name)}"
     changed: list[str] = []
 
     if dry_run:
@@ -134,7 +115,7 @@ def add_category(
     # 1. config/categories.yaml ergänzen (Single Source; CATEGORY_TO_FOLDER +
     #    ALLOWED_CATEGORIES leiten sich daraus ab). Reihenfolge + Header erhalten.
     mapping[name] = folder
-    _write_categories_yaml(categories_path, mapping)
+    write_category_mapping(mapping, categories_path)
     changed.append("config/categories.yaml")
 
     # 2. Vault-Ordner anlegen

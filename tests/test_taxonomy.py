@@ -25,11 +25,11 @@ from pipeline.schemas import FrontmatterDraft
 def test_enums_match_enums_yaml() -> None:
     """Alle Wert-Enums der Facade stammen 1:1 aus config/enums.yaml."""
     raw = yaml.safe_load(_paths.ENUMS_FILE.read_text(encoding="utf-8"))
-    assert taxonomy.ALLOWED_TYPE == set(raw["type"])
-    assert taxonomy.ALLOWED_STATUS == set(raw["status"])
-    assert taxonomy.ALLOWED_REVIEW == set(raw["review_status"])
-    assert taxonomy.ALLOWED_CONFIDENCE == set(raw["confidence"])
-    assert taxonomy.ALLOWED_DOC_ROLE == set(raw["doc_role"])
+    assert set(raw["type"]) == taxonomy.ALLOWED_TYPE
+    assert set(raw["status"]) == taxonomy.ALLOWED_STATUS
+    assert set(raw["review_status"]) == taxonomy.ALLOWED_REVIEW
+    assert set(raw["confidence"]) == taxonomy.ALLOWED_CONFIDENCE
+    assert set(raw["doc_role"]) == taxonomy.ALLOWED_DOC_ROLE
 
 
 def test_gedanke_is_allowed_type() -> None:
@@ -39,15 +39,15 @@ def test_gedanke_is_allowed_type() -> None:
 
 def test_categories_match_categories_yaml() -> None:
     raw = yaml.safe_load(_paths.CATEGORIES_FILE.read_text(encoding="utf-8"))
-    assert taxonomy.CATEGORY_TO_FOLDER == raw["categories"]
-    assert taxonomy.ALLOWED_CATEGORIES == set(raw["categories"])
+    assert raw["categories"] == taxonomy.CATEGORY_TO_FOLDER
+    assert set(raw["categories"]) == taxonomy.ALLOWED_CATEGORIES
 
 
 def test_tags_match_tag_vocabulary_yaml() -> None:
     raw = yaml.safe_load(_paths.TAG_VOCABULARY_FILE.read_text(encoding="utf-8"))
     expected = {t for tags in raw["sections"].values() for t in (tags or [])}
-    assert taxonomy.ALLOWED_TAGS == expected
-    assert taxonomy.TAG_SYNONYMS == raw["synonyms"]
+    assert expected == taxonomy.ALLOWED_TAGS
+    assert raw["synonyms"] == taxonomy.TAG_SYNONYMS
 
 
 def test_folder_and_synonym_helpers() -> None:

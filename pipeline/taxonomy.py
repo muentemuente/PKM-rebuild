@@ -38,6 +38,20 @@ def load_category_to_folder(path: Path | None = None) -> dict[str, str]:
     return dict(data.get("categories") or {})
 
 
+def write_category_mapping(mapping: dict[str, str], path: Path | None = None) -> None:
+    """Schreibt ``config/categories.yaml`` (Kommentar-Header bleibt, nur Body neu).
+
+    Single Source des Schreibformats — von ``manage_vocab`` (add) und
+    ``taxonomy_migrate`` (rename) genutzt, damit der Header nicht divergiert.
+    """
+    path = path or _paths.CATEGORIES_FILE
+    text = path.read_text(encoding="utf-8")
+    header_end = text.find("categories:")
+    header = text[:header_end] if header_end != -1 else ""
+    body = "categories:\n" + "".join(f"  {k}: {v}\n" for k, v in mapping.items())
+    path.write_text(header + body, encoding="utf-8")
+
+
 def load_enums(path: Path | None = None) -> dict[str, set[str]]:
     """Lädt die Wert-Enums aus ``config/enums.yaml`` als ``{feld: {werte}}``."""
     path = path or _paths.ENUMS_FILE
@@ -51,48 +65,58 @@ def load_tags(path: Path | None = None) -> tuple[set[str], dict[str, str | None]
     return load_tag_vocabulary_yaml(path)
 
 
-# === Modul-Konstanten (beim Import geladen; via reload() aktualisierbar) =======
+# === Modul-Konstanten ==========================================================
+# Werden beim Import via reload() befüllt und bei jedem reload() **in-place**
+# aktualisiert (clear+update statt Rebind). Dadurch behält jeder Konsument, der
+# ein Set/Dict beim Import gebunden hat (scripts/_pkm_common, der Pydantic-
+# Validator über _FIELD_ENUMS), nach einer Vokabular-Mutation den Live-Stand —
+# keine stale Referenzen, Objekt-Identität bleibt über reload() hinweg stabil.
 
-CATEGORY_TO_FOLDER: dict[str, str]
-ALLOWED_CATEGORIES: set[str]
-ALLOWED_TAGS: set[str]
-TAG_SYNONYMS: dict[str, str | None]
-ALLOWED_TYPE: set[str]
-ALLOWED_STATUS: set[str]
-ALLOWED_REVIEW: set[str]
-ALLOWED_CONFIDENCE: set[str]
-ALLOWED_DOC_ROLE: set[str]
+CATEGORY_TO_FOLDER: dict[str, str] = {}
+ALLOWED_CATEGORIES: set[str] = set()
+ALLOWED_TAGS: set[str] = set()
+TAG_SYNONYMS: dict[str, str | None] = {}
+ALLOWED_TYPE: set[str] = set()
+ALLOWED_STATUS: set[str] = set()
+ALLOWED_REVIEW: set[str] = set()
+ALLOWED_CONFIDENCE: set[str] = set()
+ALLOWED_DOC_ROLE: set[str] = set()
 
-# Feldname → Live-Enum-Lookup, von schemas.FrontmatterDraft genutzt. Wird in
-# reload() neu verdrahtet, damit der Pydantic-Validator nach einer Vokabular-
-# Erweiterung den aktuellen Stand sieht.
-_FIELD_ENUMS: dict[str, set[str]]
+# Feldname → Live-Enum-Set (dieselben Objekte wie oben), von
+# schemas.FrontmatterDraft über allowed_values() genutzt.
+_FIELD_ENUMS: dict[str, set[str]] = {
+    "type": ALLOWED_TYPE,
+    "status": ALLOWED_STATUS,
+    "review_status": ALLOWED_REVIEW,
+    "confidence": ALLOWED_CONFIDENCE,
+    "category": ALLOWED_CATEGORIES,
+}
+
+
+def _refill(target: set[str], values: set[str]) -> None:
+    """Set in-place ersetzen (Identität erhalten)."""
+    target.clear()
+    target.update(values)
 
 
 def reload() -> None:
-    """Lädt alle Taxonomie-Konstanten aus den ``config/``-YAMLs neu (idempotent)."""
-    global CATEGORY_TO_FOLDER, ALLOWED_CATEGORIES, ALLOWED_TAGS, TAG_SYNONYMS
-    global ALLOWED_TYPE, ALLOWED_STATUS, ALLOWED_REVIEW, ALLOWED_CONFIDENCE
-    global ALLOWED_DOC_ROLE, _FIELD_ENUMS
+    """Lädt alle Taxonomie-Konstanten aus den ``config/``-YAMLs neu (idempotent, in-place)."""
+    mapping = load_category_to_folder()
+    CATEGORY_TO_FOLDER.clear()
+    CATEGORY_TO_FOLDER.update(mapping)
+    _refill(ALLOWED_CATEGORIES, set(mapping))
 
-    CATEGORY_TO_FOLDER = load_category_to_folder()
-    ALLOWED_CATEGORIES = set(CATEGORY_TO_FOLDER)
-    ALLOWED_TAGS, TAG_SYNONYMS = load_tags()
+    tags, synonyms = load_tags()
+    _refill(ALLOWED_TAGS, tags)
+    TAG_SYNONYMS.clear()
+    TAG_SYNONYMS.update(synonyms)
 
     enums = load_enums()
-    ALLOWED_TYPE = enums.get("type", set())
-    ALLOWED_STATUS = enums.get("status", set())
-    ALLOWED_REVIEW = enums.get("review_status", set())
-    ALLOWED_CONFIDENCE = enums.get("confidence", set())
-    ALLOWED_DOC_ROLE = enums.get("doc_role", set())
-
-    _FIELD_ENUMS = {
-        "type": ALLOWED_TYPE,
-        "status": ALLOWED_STATUS,
-        "review_status": ALLOWED_REVIEW,
-        "confidence": ALLOWED_CONFIDENCE,
-        "category": ALLOWED_CATEGORIES,
-    }
+    _refill(ALLOWED_TYPE, enums.get("type", set()))
+    _refill(ALLOWED_STATUS, enums.get("status", set()))
+    _refill(ALLOWED_REVIEW, enums.get("review_status", set()))
+    _refill(ALLOWED_CONFIDENCE, enums.get("confidence", set()))
+    _refill(ALLOWED_DOC_ROLE, enums.get("doc_role", set()))
 
 
 def allowed_values(field_name: str) -> set[str]:
@@ -103,6 +127,21 @@ def allowed_values(field_name: str) -> set[str]:
 def folder_for_category(category: str) -> str | None:
     """Vault-Ordner (``NN_Name``) zu einer ``category`` — ``None`` wenn unbekannt."""
     return CATEGORY_TO_FOLDER.get(category)
+
+
+# Kleine Wörter, die im Ordner-Anzeigenamen kleingeschrieben bleiben
+# (Stil der Bestands-Ordner, z. B. "04_Protokolle-und-Standards").
+_LOWER_TOKENS = {"und", "oder", "der", "die", "das", "von", "zu", "mit", "für", "im", "am"}
+
+
+def folder_display_name(slug: str) -> str:
+    """Category-Slug → Ordner-Anzeigename (Token-Caps, kleine Wörter klein).
+
+    Beispiel: ``protokolle-und-standards`` → ``Protokolle-und-Standards``.
+    Single Source dieser Konvention (auch von scripts/manage_vocab genutzt).
+    """
+    parts = [tok if tok in _LOWER_TOKENS else tok.capitalize() for tok in slug.split("-")]
+    return "-".join(parts)
 
 
 def resolve_tag_synonym(tag: str) -> str | None:

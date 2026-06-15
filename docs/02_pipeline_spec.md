@@ -212,6 +212,24 @@ python3 scripts/manage_vocab.py add-category <name>           # neue category ko
 python3 scripts/manage_vocab.py add-tag <tag> --reason "..."  # Tag ins Kern-Vokabular
 ```
 
+### Taxonomie-SSoT (`pkm taxonomy`, pipeline-v2 / P1)
+
+Pflegt die Taxonomie-Single-Source (`config/{categories,tag_vocabulary,enums}.yaml`,
+gebündelt über `pipeline.taxonomy`). `add-*` delegiert an `manage_vocab`; `rename`
+zieht zusätzlich den Bestand nach (Migration) und ist **vault-mutierend**.
+
+```bash
+pkm taxonomy add-category <name> [--dry-run]            # SSoT + Vault-Ordner anlegen
+pkm taxonomy add-tag <tag> --reason "..." [--dry-run]   # Tag aufnehmen (md; YAML via Gate C)
+pkm taxonomy rename category <old> <new> [--dry-run]    # SSoT + Ordner-Move + Frontmatter + _index + Validierung
+pkm taxonomy rename tag <old> <new> [--dry-run]         # SSoT (old→Synonym) + tags-Frontmatter + Validierung
+```
+
+`rename` ist ein reiner Rename (Ziel darf noch nicht existieren, kein Merge),
+mutiert `output/` + Drafts → vorher Snapshot (`bash scripts/snapshot.sh`).
+Engine: `pipeline/taxonomy_migrate.py` (pfad-parametrisiert, `--dry-run` plant
+ohne Schreiben; Validierung = Schema + Wikilink-Auflösbarkeit §10).
+
 ### Inkrementeller Modus (`ingest`)
 
 `ingest` verarbeitet **nur** Files aus `data/00_inbox/` durch die Per-Doc-Pipeline
@@ -492,7 +510,8 @@ Pro Doc durchlaufen Stage 3 und Stage 4. Failure in einer Stage → Retry oder F
 # === pipeline/schemas.py ===
 from datetime import datetime
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pipeline import taxonomy   # SSoT-Facade (pipeline-v2)
 
 # --- Phase 1 ---
 class DocumentRecord(BaseModel):
@@ -560,14 +579,19 @@ class ClusterProposal(BaseModel):       # VERWORFEN (R9) — nicht im Produktiv-
     internal_similarity_mean: float
 
 # --- Phase 8 (Qwen-Output) ---
+# pipeline-v2 (P1): type/status/review_status/confidence sind str + werden zur
+# LAUFZEIT per field_validator gegen die Taxonomie-Facade (pipeline.taxonomy,
+# Quelle config/enums.yaml) geprüft — kein Literal mehr (governed growth ohne
+# Schema-Edit). `category` bleibt bewusst ein weicher str (unbekannt → Phase-9-
+# Routing nach 17_unsortiert, nicht hart abgewiesen). Single Source: pipeline.taxonomy.
 class FrontmatterDraft(BaseModel):
     title: str
     slug: str
     aliases: list[str] = []
     summary: str
-    type: Literal["process-document", "knowledge-article", "compact-reference", "gedanke"]
+    type: str                              # Runtime-Check ∈ taxonomy.ALLOWED_TYPE (inkl. "gedanke")
     doc_role: list[str]
-    category: str
+    category: str                          # weich: kein Runtime-Reject (17_unsortiert-Fallback)
     subcategory: str | None = None
     tags: list[str]
     related: list[str] = []
@@ -577,14 +601,19 @@ class FrontmatterDraft(BaseModel):
     sources_docs: list[str]
     source_chunks: list[str]
     merged_from: list[str] = []            # immer leer in Option B (kein Cross-Doc-Merge)
-    status: Literal["draft", "review", "stable", "deprecated"] = "draft"
-    review_status: Literal["ai_drafted", "human_reviewed", "verified"] = "ai_drafted"
-    confidence: Literal["low", "medium", "high"]
+    status: str = "draft"                  # Runtime-Check ∈ taxonomy.ALLOWED_STATUS
+    review_status: str = "ai_drafted"      # Runtime-Check ∈ taxonomy.ALLOWED_REVIEW
+    confidence: str                        # Runtime-Check ∈ taxonomy.ALLOWED_CONFIDENCE
     doc_version: str = "0.1.0"
     created: str                        # YYYY-MM-DD
     updated: str
     last_synthesized: str
     prompt_version: str                 # e.g. "v1"
+
+    @field_validator("type", "status", "review_status", "confidence")
+    @classmethod
+    def _check_taxonomy_enum(cls, value, info):   # Membership-Check gegen taxonomy.allowed_values
+        ...
 ```
 
 ---
@@ -691,3 +720,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-06-04 — Clustering-Verwurf (R9): Phase 6 auf Embeddings-nur-Redundanz, Phase 7b verworfen, ClusterProposal/Cluster-Config als ungenutzt markiert; Phase-7-Batches als Token-Budget-Splits; Phase-8-Routing-Tabelle (passthrough/stage3/gedanken) + Triage/Runner-Mechanik; Architektur-Diagramm + Gate-1-Label + Performance-Tabelle auf Ist-Stand
 - 2026-06-05 — Phase 12: CLI um `ingest` + `manage_vocab` erweitert; Abschnitt „Inkrementeller Modus" (Inbox → Phasen 1-4 + 8, Option B); `17_unsortiert/` im cluster_report
 - 2026-06-07 — Pipeline-Umbau go-forward: Banner + neues Layout (`pkm-pipeline/`, `_paths.py`); CLI `run`=Orchestrator / `review` / Legacy `corpus-run`; Phasen 5/6/7 als „Alt/nicht im go-forward" markiert; Review-Gates A–D (`review.py`)
+- 2026-06-15 — pipeline-v2 P1 (Taxonomie-SSoT): §7 FrontmatterDraft `type/status/review_status/confidence` von `Literal` auf `str` + Runtime-`field_validator` gegen `pipeline.taxonomy` (Quelle `config/enums.yaml`); `category` als bewusst weicher str dokumentiert (17_unsortiert-Routing); §4 CLI `pkm taxonomy add-category|add-tag|rename` (Rename-Migration, `taxonomy_migrate.py`) ergänzt

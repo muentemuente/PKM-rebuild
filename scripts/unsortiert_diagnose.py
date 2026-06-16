@@ -32,6 +32,22 @@ from scripts._pkm_common import parse_yaml_text, split_md  # noqa: E402
 UNSORTED_DIR = _paths.OUTPUT / taxonomy.CATEGORY_TO_FOLDER["unsortiert"]
 OUTPUT = _paths.WORK / "unsortiert_diagnose.md"
 
+
+def unsorted_dir(vault_dir: Path) -> Path:
+    """Pfad des 17_unsortiert-Ordners unter einem Vault (Ordnername aus SSoT)."""
+    return vault_dir / taxonomy.CATEGORY_TO_FOLDER["unsortiert"]
+
+
+def count_unsorted(vault_dir: Path) -> int:
+    """Read-only: Anzahl Artikel-``.md`` in 17_unsortiert (ohne ``_index.md``).
+
+    Passives Surfacing für ``pkm build-vault`` (kein P4) — verschiebt/ändert nichts.
+    """
+    folder = unsorted_dir(vault_dir)
+    if not folder.is_dir():
+        return 0
+    return sum(1 for p in folder.glob("*.md") if p.name != "_index.md")
+
 # Tag-Keyword → Domäne (heuristisch; nur für Diagnose/Empfehlung, nicht autoritativ)
 _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
     "E-Commerce / Shop": ("ecommerce", "product-listing", "product-data", "shop", "onlineshop"),

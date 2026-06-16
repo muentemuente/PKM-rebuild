@@ -66,6 +66,10 @@ ARCHIVE: Path = PIPELINE_ROOT / "archive"
 # Asset-Pool im produktiven Vault (Ziel des add-only Merge, WP3)
 BRAIN_VAULT_ASSETS: Path = BRAIN_VAULT / "_assets"
 
+# Generiertes Tag-System-Doc im produktiven Vault (Spiegel von tag_vocabulary.yaml;
+# wird von `pkm taxonomy add-tag` synchron gehalten).
+TAG_SYSTEM_DOC: Path = BRAIN_VAULT / "00_Meta" / "tag-system.md"
+
 # Review-Queues
 REVIEW_NEEDS_HUMAN: Path = REVIEW / "needs_human"
 REVIEW_CATEGORY_OPEN: Path = REVIEW / "category_open"

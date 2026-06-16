@@ -147,6 +147,7 @@ vault:
   validate_wikilinks: true          # broken links → Warning
   attic_folder: "_attic"            # für deprecated
   unsorted_folder: "17_unsortiert"  # regulärer Cluster (Mapping-Lücke / Domäne ohne eigenen Ordner)
+  unsorted_warn_threshold: 10       # build-vault: Warnung, wenn 17_unsortiert mehr Artikel hat (passives Surfacing, kein P4)
 
 
 # === Tag-Vokabular ============================================================

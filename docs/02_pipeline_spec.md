@@ -219,14 +219,18 @@ gebündelt über `pipeline.taxonomy`). `add-*` delegiert an `manage_vocab`; `ren
 zieht zusätzlich den Bestand nach (Migration) und ist **vault-mutierend**.
 
 ```bash
-pkm taxonomy add-category <name> [--dry-run]            # SSoT + Vault-Ordner anlegen
-pkm taxonomy add-tag <tag> --reason "..." [--dry-run]   # Tag aufnehmen (md; YAML via Gate C)
+pkm taxonomy add-category <name> [--dry-run]            # SSoT (categories.yaml) + Vault-Ordner anlegen
+pkm taxonomy add-tag <tag> --reason "..." [--dry-run]   # Tag DIREKT ins YAML-SSoT (governed growth, E1=A) + md-Sync
 pkm taxonomy rename category <old> <new> [--dry-run]    # SSoT + Ordner-Move + Frontmatter + _index + Validierung
 pkm taxonomy rename tag <old> <new> [--dry-run]         # SSoT (old→Synonym) + tags-Frontmatter + Validierung
 ```
 
-`rename` ist ein reiner Rename (Ziel darf noch nicht existieren, kein Merge),
-mutiert `output/` + Drafts → vorher Snapshot (`bash scripts/snapshot.sh`).
+`add-tag` schreibt den Tag direkt in `config/tag_vocabulary.yaml` (Sektion
+„Erweiterungen" + `changelog`-Eintrag mit `--reason`, Pflicht) und hält das
+generierte md-Doc `00_Meta/tag-system.md` (`_paths.TAG_SYSTEM_DOC`, Brain-Vault)
+synchron. Idempotent (Re-Add = No-op, kein Dup); ein als Synonym geführter Alias
+wird abgelehnt. `rename` ist ein reiner Rename (Ziel darf noch nicht existieren,
+kein Merge), mutiert `output/` + Drafts → vorher Snapshot (`bash scripts/snapshot.sh`).
 Engine: `pipeline/taxonomy_migrate.py` (pfad-parametrisiert, `--dry-run` plant
 ohne Schreiben; Validierung = Schema + Wikilink-Auflösbarkeit §10).
 
@@ -721,3 +725,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-06-05 — Phase 12: CLI um `ingest` + `manage_vocab` erweitert; Abschnitt „Inkrementeller Modus" (Inbox → Phasen 1-4 + 8, Option B); `17_unsortiert/` im cluster_report
 - 2026-06-07 — Pipeline-Umbau go-forward: Banner + neues Layout (`pkm-pipeline/`, `_paths.py`); CLI `run`=Orchestrator / `review` / Legacy `corpus-run`; Phasen 5/6/7 als „Alt/nicht im go-forward" markiert; Review-Gates A–D (`review.py`)
 - 2026-06-15 — pipeline-v2 P1 (Taxonomie-SSoT): §7 FrontmatterDraft `type/status/review_status/confidence` von `Literal` auf `str` + Runtime-`field_validator` gegen `pipeline.taxonomy` (Quelle `config/enums.yaml`); `category` als bewusst weicher str dokumentiert (17_unsortiert-Routing); §4 CLI `pkm taxonomy add-category|add-tag|rename` (Rename-Migration, `taxonomy_migrate.py`) ergänzt
+- 2026-06-16 — REVIEW-Gate-1: E1=A — `pkm taxonomy add-tag` schreibt direkt ins YAML-SSoT (Sektion „Erweiterungen" + `changelog` mit `--reason`) + md-Sync `00_Meta/tag-system.md`, idempotent; §4 angepasst. Passives Surfacing: `build-vault` weist 17_unsortiert-Füllstand aus + warnt über `vault.unsorted_warn_threshold` (default 10, §3), read-only (kein P4)

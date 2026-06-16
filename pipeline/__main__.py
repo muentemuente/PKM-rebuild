@@ -257,6 +257,28 @@ def _dispatch_phase_9(cfg: PipelineConfig, force: bool, dry_run: bool = False) -
         table.add_row(folder, str(n))
     console.print(table)
 
+    # Passives Surfacing (kein P4): 17_unsortiert-Füllstand IMMER ausweisen, bei
+    # Überschreiten des Schwellwerts (config: vault.unsorted_warn_threshold) warnen.
+    # Read-only, verschiebt nichts; Reuse unsortiert_diagnose.count_unsorted.
+    from scripts.unsortiert_diagnose import count_unsorted
+
+    unsorted_folder = cfg.vault.unsorted_folder
+    if dry_run:
+        n_unsorted = int(summary.get("folder_counts", {}).get(unsorted_folder, 0))
+    else:
+        n_unsorted = count_unsorted(cfg.paths.vault)
+    threshold = cfg.vault.unsorted_warn_threshold
+    if n_unsorted > threshold:
+        console.print(
+            f"[yellow]  ⚠ {unsorted_folder}: {n_unsorted} Artikel — über Schwellwert "
+            f"({threshold}). `python3 scripts/unsortiert_diagnose.py` für die "
+            f"Domänen-Aufschlüsselung.[/yellow]"
+        )
+    else:
+        console.print(
+            f"[dim]  {unsorted_folder}: {n_unsorted} Artikel (Schwellwert {threshold}).[/dim]"
+        )
+
 
 def _dispatch_phase_10(cfg: PipelineConfig, force: bool) -> None:
     out = cfg.paths.pipeline_output
@@ -573,10 +595,10 @@ def taxonomy_add_category(name: str, dry_run: bool) -> None:
 
 @taxonomy.command(name="add-tag")
 @click.argument("tag")
-@click.option("--reason", required=True, help="Begründung (Pflicht, Vault-Standard §7)")
+@click.option("--reason", required=True, help="Begründung (Pflicht, persistiert im Changelog)")
 @click.option("--dry-run", "dry_run", is_flag=True, help="Plan zeigen, nichts schreiben")
 def taxonomy_add_tag(tag: str, reason: str, dry_run: bool) -> None:
-    """Neuen Tag ins Vokabular aufnehmen (md-Format; YAML-Aufnahme via `pkm review`, Gate C)."""
+    """Neuen Tag DIREKT ins YAML-SSoT aufnehmen (governed growth) + tag-system.md synchron."""
     from scripts.manage_vocab import add_tag
 
     try:
@@ -585,11 +607,14 @@ def taxonomy_add_tag(tag: str, reason: str, dry_run: bool) -> None:
         console.print(f"[red]✗[/red] {e}")
         raise SystemExit(2) from e
     if res.get("already"):
-        console.print(f"[yellow]·[/yellow] Tag '{tag}' ist bereits im Vokabular")
-    elif dry_run:
-        console.print(f"[cyan][dry-run][/cyan] würde Tag '{tag}' aufnehmen")
+        console.print(f"[yellow]·[/yellow] Tag '{tag}' ist bereits im Vokabular (No-op)")
+        return
+    md_note = "md-Sync ✓" if res.get("md_synced") else "md-Doc nicht gefunden (nur YAML)"
+    if dry_run:
+        md_note = "md-Sync geplant" if res.get("md_synced") else "md-Doc nicht gefunden"
+        console.print(f"[cyan][dry-run][/cyan] würde Tag '{tag}' ins YAML aufnehmen ({md_note})")
     else:
-        console.print(f"[green]✓[/green] Tag '{tag}' aufgenommen")
+        console.print(f"[green]✓[/green] Tag '{tag}' ins YAML-SSoT aufgenommen ({md_note})")
 
 
 @taxonomy.command(name="rename")

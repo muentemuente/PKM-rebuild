@@ -138,6 +138,19 @@ class ClusteringConfig(BaseModel):
     # initial_strategy + umap_hdbscan entfernt (Embedding-Clustering verworfen, R9)
 
 
+class RedundancyScanConfig(BaseModel):
+    """WP2: Schwellen + Toggles der Doc-Redundanz-/Synthese-Erkennung (Detection only)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    tfidf_threshold: float  # near-dup (lexikalisch)
+    embedding_dup_threshold: float  # semantische Dublette (Embedding hoch, TF-IDF niedrig)
+    embedding_thematic_low: float  # Untergrenze thematisches Mittelband
+    synthesis_min_members: int  # Synthese-Kandidat: Komponente >= N Docs
+    use_embeddings: bool  # False = nur Hash + TF-IDF (Fallback ohne mpnet)
+    qwen_evaluate: bool  # optionale Qwen-Paar-Bewertung (Default aus)
+
+
 class StructureConfig(BaseModel):
     extract_headings: bool
     extract_code_blocks: bool
@@ -200,6 +213,7 @@ class PipelineConfig(BaseModel):
     structure: StructureConfig
     segmentation: SegmentationConfig
     redundancy: RedundancyConfig
+    redundancy_scan: RedundancyScanConfig
     embeddings: EmbeddingsConfig
     clustering: ClusteringConfig
     batching: BatchingConfig

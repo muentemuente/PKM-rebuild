@@ -191,3 +191,49 @@ class FrontmatterDraft(BaseModel):
                 f"({len(allowed)} erlaubte Werte, Quelle: pipeline.taxonomy)"
             )
         return value
+
+
+# === WP2: Redundanz-/Synthese-Erkennung (Detection + Report) ==================
+# Pro-Doc-Detektion über einen bestehenden Vault (read-only). KEIN Auto-Merge,
+# KEIN merged_from-Autofill — reine Erkennung + Report (Option-B-Teil-Reversal, R12).
+
+# Klassifikations-Bänder einer Doc-Paar-Relation (siehe pipeline/redundancy_scan.py).
+RedundancyBand = Literal["exact", "near-dup", "semantic-dup", "thematic"]
+
+
+class RedundancyPair(BaseModel):
+    """Eine erkannte Redundanz-/Überschneidungs-Relation zwischen zwei Vault-Docs."""
+
+    slug_a: str
+    slug_b: str
+    band: RedundancyBand
+    exact: bool  # identischer normalisierter Body (SHA-256)
+    tfidf: float = Field(ge=0.0, le=1.0)  # lexikalische Cosine-Similarity
+    embedding: float = Field(ge=-1.0, le=1.0)  # semantische Cosine-Similarity (mpnet)
+    sources_a: list[str] = []  # sources_docs aus Frontmatter a (Provenance)
+    sources_b: list[str] = []
+    chunks_a: list[str] = []  # source_chunks aus Frontmatter a
+    chunks_b: list[str] = []
+    # Optionale Qwen-Paar-Bewertung (nur wenn aktiviert, siehe QwenPairVerdict).
+    qwen_relation: str | None = None
+    qwen_recommendation: str | None = None
+    qwen_confidence: str | None = None
+
+
+class SynthesisCandidate(BaseModel):
+    """Eine Gruppe (>= N) thematisch verwandter Docs — Synthese-Potenzial, kein Merge."""
+
+    candidate_id: str  # SC_<index:03d>
+    slugs: list[str]  # Mitglieder (>= synthesis_min_members)
+    mean_similarity: float = Field(ge=-1.0, le=1.0)  # mittlere paarweise Embedding-Sim
+    pair_count: int  # Anzahl thematischer Kanten in der Komponente
+    sources: list[str] = []  # vereinigte sources_docs der Mitglieder
+
+
+class QwenPairVerdict(BaseModel):
+    """Schema der optionalen Qwen-Bewertung eines Kandidaten-Paars (JSON, low temp)."""
+
+    relation: Literal["duplicate", "overlap", "complementary", "unrelated"]
+    recommendation: Literal["merge", "cross-link", "keep-separate"]
+    confidence: Literal["low", "medium", "high"]
+    rationale: str

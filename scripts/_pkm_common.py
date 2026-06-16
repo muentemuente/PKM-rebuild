@@ -6,11 +6,11 @@ Single Source of Truth für die Skripte (`draft_inventory.py`, `pkm_triage.py`,
 früher mehrfach duplizierten Enums/Helfer (Drift-Risiko, E1 musste 3x nachgezogen
 werden) zu zentralisieren.
 
-Die Enums werden, wo möglich, direkt aus den Pipeline-Pydantic-Schemas
-(`pipeline.schemas.FrontmatterDraft`) bzw. dem Vault-Mapping
-(`pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER`) abgeleitet — die Pipeline
-bleibt kanonisch, dieses Modul spiegelt sie nur. `tests/test_pkm_common.py`
-bewacht die Konsistenz gegen Drift.
+Die Enums werden ausschließlich aus der Taxonomie-Facade (`pipeline.taxonomy`)
+re-exportiert — die Facade lädt sie aus den `config/`-YAMLs (categories.yaml,
+tag_vocabulary.yaml, enums.yaml) und ist die einzige Single Source. Dieses Modul
+definiert kein Enum mehr selbst (0 Dup-Enum). `tests/test_pkm_common.py` und
+`tests/test_taxonomy.py` bewachen die Konsistenz gegen Drift.
 
 Bewusst NICHT zentralisiert: `check_schema`, `compare_*` und `normalize_for_*`.
 Diese divergieren zwischen den Skripten im Output-Kontrakt (Issue-String-Format,
@@ -26,7 +26,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any
 
 # Repo-Root auf den Pfad legen, damit `pipeline` importierbar ist, auch wenn ein
 # Skript als `python3 scripts/foo.py` läuft (sys.path[0] = scripts/).
@@ -35,46 +35,56 @@ if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
 import yaml  # noqa: E402
-from pipeline.phase_9_vault_build import CATEGORY_TO_FOLDER  # noqa: E402
-from pipeline.schemas import FrontmatterDraft  # noqa: E402
+from pipeline import taxonomy  # noqa: E402
 
-# === Enums (aus pipeline.schemas abgeleitet — Drift unmöglich) ================
-
-_FIELDS = FrontmatterDraft.model_fields
-ALLOWED_TYPE: set[str] = set(get_args(_FIELDS["type"].annotation))
-ALLOWED_STATUS: set[str] = set(get_args(_FIELDS["status"].annotation))
-ALLOWED_REVIEW: set[str] = set(get_args(_FIELDS["review_status"].annotation))
-ALLOWED_CONFIDENCE: set[str] = set(get_args(_FIELDS["confidence"].annotation))
-
-# `category` und `doc_role` sind im Schema freie Strings (keine Literals).
-# ALLOWED_CATEGORIES wird DIREKT aus pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER
-# abgeleitet, das wiederum config/categories.yaml lädt → Single Source of Truth,
-# Drift unmöglich. Neue Kategorien legt scripts/manage_vocab.py add-category in
-# config/categories.yaml an; alles hier folgt automatisch. ALLOWED_DOC_ROLE ist
-# skript-kanonisch.
-ALLOWED_CATEGORIES: set[str] = set(CATEGORY_TO_FOLDER)
-ALLOWED_DOC_ROLE: set[str] = {
-    "manual", "how-to", "best-practice", "workflow",
-    "explanation", "reference", "cheatsheet", "wiki",
-}
+# === Enums (re-exportiert aus pipeline.taxonomy — einzige Single Source) =======
+# Kein Enum wird hier definiert; alles spiegelt die Facade, die aus den
+# config/-YAMLs lädt (categories.yaml, tag_vocabulary.yaml, enums.yaml). Neue
+# Kategorien/Tags/Werte = 1 YAML-Edit (bzw. scripts/manage_vocab.py / Gate B-C);
+# dieses Modul folgt automatisch. Drift strukturell ausgeschlossen.
+CATEGORY_TO_FOLDER: dict[str, str] = taxonomy.CATEGORY_TO_FOLDER
+ALLOWED_CATEGORIES: set[str] = taxonomy.ALLOWED_CATEGORIES
+ALLOWED_TYPE: set[str] = taxonomy.ALLOWED_TYPE
+ALLOWED_STATUS: set[str] = taxonomy.ALLOWED_STATUS
+ALLOWED_REVIEW: set[str] = taxonomy.ALLOWED_REVIEW
+ALLOWED_CONFIDENCE: set[str] = taxonomy.ALLOWED_CONFIDENCE
+ALLOWED_DOC_ROLE: set[str] = taxonomy.ALLOWED_DOC_ROLE
 
 # === Feld-Sets ================================================================
 
 REQUIRED_FIELDS: set[str] = {
-    "title", "slug", "summary",
-    "type", "doc_role", "category",
-    "sources_docs", "source_chunks",
-    "status", "review_status", "confidence",
-    "doc_version", "created", "updated",
-    "last_synthesized", "prompt_version",
+    "title",
+    "slug",
+    "summary",
+    "type",
+    "doc_role",
+    "category",
+    "sources_docs",
+    "source_chunks",
+    "status",
+    "review_status",
+    "confidence",
+    "doc_version",
+    "created",
+    "updated",
+    "last_synthesized",
+    "prompt_version",
 }
 # Diff-Klassifikation: kritisch = semantischer Drift (Halluzinations-Verdacht)
 CRITICAL_DIFF_FIELDS: set[str] = {"title", "type", "summary", "slug"}
 # Minor = erwartbare LLM-Drift / Timestamps
 MINOR_DIFF_FIELDS: set[str] = {
-    "tags", "aliases", "category", "doc_role", "confidence",
-    "subcategory", "created", "updated", "last_synthesized",
-    "status", "review_status",
+    "tags",
+    "aliases",
+    "category",
+    "doc_role",
+    "confidence",
+    "subcategory",
+    "created",
+    "updated",
+    "last_synthesized",
+    "status",
+    "review_status",
 }
 
 # === Schwellwerte =============================================================
@@ -146,8 +156,13 @@ def compute_body_metrics(body: str) -> dict[str, int]:
     """Body-Metriken (Superset: deckt Bedarf aller Skripte; Extra-Keys werden ignoriert)."""
     if not body or not body.strip():
         return dict(
-            words=0, chars=0, headings=0, code_blocks=0,
-            tables=0, wikilinks=0, open_questions=0,
+            words=0,
+            chars=0,
+            headings=0,
+            code_blocks=0,
+            tables=0,
+            wikilinks=0,
+            open_questions=0,
         )
     return {
         "words": len(body.split()),

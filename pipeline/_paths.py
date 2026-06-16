@@ -21,7 +21,7 @@ Layout (gitignored, außerhalb des Repos)::
 Repo (Git)::
 
     PKM_REPO_ROOT/                (default: Parent des pipeline/-Pakets)
-    └── config/                   categories.yaml, tag_vocabulary.yaml, tag_merge_map.json
+    └── config/                   categories.yaml, tag_vocabulary.yaml, enums.yaml, tag_merge_map.json
 
 Override per Env-Variable: ``PKM_PIPELINE_ROOT`` (Daten), ``PKM_REPO_ROOT`` (Repo).
 """
@@ -66,6 +66,10 @@ ARCHIVE: Path = PIPELINE_ROOT / "archive"
 # Asset-Pool im produktiven Vault (Ziel des add-only Merge, WP3)
 BRAIN_VAULT_ASSETS: Path = BRAIN_VAULT / "_assets"
 
+# Generiertes Tag-System-Doc im produktiven Vault (Spiegel von tag_vocabulary.yaml;
+# wird von `pkm taxonomy add-tag` synchron gehalten).
+TAG_SYSTEM_DOC: Path = BRAIN_VAULT / "00_Meta" / "tag-system.md"
+
 # Review-Queues
 REVIEW_NEEDS_HUMAN: Path = REVIEW / "needs_human"
 REVIEW_CATEGORY_OPEN: Path = REVIEW / "category_open"
@@ -81,6 +85,7 @@ CONFIG: Path = REPO_ROOT / "config"
 CATEGORIES_FILE: Path = CONFIG / "categories.yaml"
 TAG_VOCABULARY_FILE: Path = CONFIG / "tag_vocabulary.yaml"
 TAG_MERGE_MAP_FILE: Path = CONFIG / "tag_merge_map.json"
+ENUMS_FILE: Path = CONFIG / "enums.yaml"
 
 # === Helfer ===================================================================
 

@@ -23,11 +23,30 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pipeline import _paths  # noqa: E402
+from pipeline import _paths, taxonomy  # noqa: E402
 from scripts._pkm_common import parse_yaml_text, split_md  # noqa: E402
 
-UNSORTED_DIR = _paths.OUTPUT / "unsortiert"
+# Realer Ordnername aus der Taxonomie-SSoT (config/categories.yaml: "17_unsortiert"),
+# nicht hardcodiert — vorher zeigte dies auf das nicht existente "output/unsortiert/"
+# und das Diagnose-Tool fand nie etwas (Drift behoben, pipeline-v2 P1).
+UNSORTED_DIR = _paths.OUTPUT / taxonomy.CATEGORY_TO_FOLDER["unsortiert"]
 OUTPUT = _paths.WORK / "unsortiert_diagnose.md"
+
+
+def unsorted_dir(vault_dir: Path) -> Path:
+    """Pfad des 17_unsortiert-Ordners unter einem Vault (Ordnername aus SSoT)."""
+    return vault_dir / taxonomy.CATEGORY_TO_FOLDER["unsortiert"]
+
+
+def count_unsorted(vault_dir: Path) -> int:
+    """Read-only: Anzahl Artikel-``.md`` in 17_unsortiert (ohne ``_index.md``).
+
+    Passives Surfacing für ``pkm build-vault`` (kein P4) — verschiebt/ändert nichts.
+    """
+    folder = unsorted_dir(vault_dir)
+    if not folder.is_dir():
+        return 0
+    return sum(1 for p in folder.glob("*.md") if p.name != "_index.md")
 
 # Tag-Keyword → Domäne (heuristisch; nur für Diagnose/Empfehlung, nicht autoritativ)
 _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {

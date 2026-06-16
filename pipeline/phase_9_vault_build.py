@@ -45,25 +45,24 @@ import structlog
 import yaml
 from pydantic import ValidationError
 
-from pipeline._paths import CATEGORIES_FILE
 from pipeline.schemas import FrontmatterDraft
+
+# Expliziter Re-Export (PEP 484 `as`-Muster) — erhält den eingeführten Importpfad
+# pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER für Bestands-Konsumenten
+# (phase_10_reports, review, ingest) und macht mypy den Re-Export sichtbar.
+from pipeline.taxonomy import CATEGORY_TO_FOLDER as CATEGORY_TO_FOLDER
 
 log = structlog.get_logger()
 
 
 # === Category → Vault-Ordner ==================================================
-# Single Source: config/categories.yaml (category → "NN_Ordnername"), aufgelöst
-# über pipeline._paths.CATEGORIES_FILE. Das Mapping wird beim Import geladen — kein
-# Code-Literal mehr (kein Dual-Maintenance). Gate B (pkm review --apply) und
-# scripts/manage_vocab.py ergänzen neue Kategorien dort. Nummern-Präfix ist nur
-# Ordnername, nicht Teil des `category`-Feldes. Doku: docs/03_vault_standard.md App. A.
-def _load_category_to_folder(path: Path = CATEGORIES_FILE) -> dict[str, str]:
-    """Lädt das category→Vault-Ordner-Mapping aus config/categories.yaml (Single Source)."""
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return dict(data.get("categories") or {})
-
-
-CATEGORY_TO_FOLDER: dict[str, str] = _load_category_to_folder()
+# Single Source: config/categories.yaml, geladen über die Taxonomie-Facade
+# (pipeline.taxonomy.CATEGORY_TO_FOLDER) — kein Code-Literal, kein eigener Loader
+# mehr. Re-Export hier erhält den eingeführten Importpfad
+# (pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER) für Bestands-Konsumenten.
+# Gate B (pkm review --apply) und scripts/manage_vocab.py ergänzen neue Kategorien
+# in der YAML. Nummern-Präfix ist nur Ordnername, nicht Teil des `category`-Feldes.
+# Doku: docs/03_vault_standard.md App. A.
 
 _PHASE = "phase_9_vault_build"
 

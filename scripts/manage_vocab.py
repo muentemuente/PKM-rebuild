@@ -35,6 +35,7 @@ Exit-Codes: 0 = ok, 1 = Validierungsfehler/Drift, 2 = Argument-/Setup-Fehler.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from datetime import date
@@ -45,6 +46,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline import _paths  # noqa: E402
+from pipeline.taxonomy import folder_display_name, write_category_mapping  # noqa: E402
 from pipeline.vocab import load_tag_vocabulary_yaml  # noqa: E402
 from scripts._pkm_common import SLUG_RE, parse_yaml_text, split_md  # noqa: E402
 
@@ -59,9 +61,6 @@ DRAFTS_DIR = _paths.DRAFTS
 # unterstützt (Bestands-Fixtures).
 TAG_SYSTEM_PATH = _paths.TAG_VOCABULARY_FILE
 
-# Kleine Wörter, die im Ordner-Anzeigenamen kleingeschrieben bleiben (Stil der Bestands-Ordner)
-_LOWER_TOKENS = {"und", "oder", "der", "die", "das", "von", "zu", "mit", "für", "im", "am"}
-
 # === category ================================================================
 
 
@@ -69,23 +68,6 @@ def parse_category_mapping(categories_path: Path = CATEGORIES_PATH) -> dict[str,
     """Liest das category→Ordner-Mapping aus config/categories.yaml (Single Source)."""
     data = yaml.safe_load(categories_path.read_text(encoding="utf-8")) or {}
     return dict(data.get("categories") or {})
-
-
-def _write_categories_yaml(path: Path, mapping: dict[str, str]) -> None:
-    """Schreibt categories.yaml unter Erhalt des Kommentar-Headers (nur Body neu)."""
-    text = path.read_text(encoding="utf-8")
-    header_end = text.find("categories:")
-    header = text[:header_end] if header_end != -1 else ""
-    body = "categories:\n" + "".join(f"  {k}: {v}\n" for k, v in mapping.items())
-    path.write_text(header + body, encoding="utf-8")
-
-
-def _folder_display_name(slug: str) -> str:
-    """Slug → Ordner-Anzeigename im Stil der Bestands-Ordner (Token-Caps, kleine Wörter klein)."""
-    parts = []
-    for tok in slug.split("-"):
-        parts.append(tok if tok in _LOWER_TOKENS else tok.capitalize())
-    return "-".join(parts)
 
 
 def _next_folder_number(mapping: dict[str, str]) -> int:
@@ -114,7 +96,7 @@ def add_category(
         return {"category": name, "folder": mapping[name], "already": True, "changed": []}
 
     num = _next_folder_number(mapping)
-    folder = f"{num:02d}_{_folder_display_name(name)}"
+    folder = f"{num:02d}_{folder_display_name(name)}"
     changed: list[str] = []
 
     if dry_run:
@@ -134,7 +116,7 @@ def add_category(
     # 1. config/categories.yaml ergänzen (Single Source; CATEGORY_TO_FOLDER +
     #    ALLOWED_CATEGORIES leiten sich daraus ab). Reihenfolge + Header erhalten.
     mapping[name] = folder
-    _write_categories_yaml(categories_path, mapping)
+    write_category_mapping(mapping, categories_path)
     changed.append("config/categories.yaml")
 
     # 2. Vault-Ordner anlegen
@@ -177,14 +159,28 @@ def parse_tag_vocab(tag_system_path: Path = TAG_SYSTEM_PATH) -> set[str]:
     return set(re.findall(r"`([^`]+)`", section))
 
 
+# Default-Sektion für governed growth (E1=A): neu aufgenommene Tags ohne explizite
+# Themen-Sektion landen hier (legt sich an, falls noch nicht vorhanden).
+_DEFAULT_GROWTH_SECTION = "Erweiterungen"
+
+
 def add_tag(
     tag: str,
     reason: str,
     *,
     tag_system_path: Path = TAG_SYSTEM_PATH,
+    section: str = _DEFAULT_GROWTH_SECTION,
+    md_doc_path: Path | None = None,
     dry_run: bool = False,
 ) -> dict[str, object]:
-    """Nimmt einen neuen Tag mit Begründung ins Kern-Vokabular auf (idempotent)."""
+    """Nimmt einen neuen Tag mit Begründung ins Vokabular auf (idempotent).
+
+    YAML-Pfad (config/tag_vocabulary.yaml) = governed growth (E1=A): schreibt den
+    Tag DIREKT ins SSoT (Sektion ``section`` + ``changelog``-Eintrag mit ``reason``)
+    und hält das md-Doc ``md_doc_path`` (Default ``_paths.TAG_SYSTEM_DOC``) synchron.
+    md-Pfad = Legacy-Verhalten (nur md-Tabelle). ``reason`` ist Pflicht und wird
+    persistiert. Re-Add eines vorhandenen Tags = No-op (``already=True``), kein Dup.
+    """
     if not SLUG_RE.match(tag):
         raise ValueError(f"ungültiger Tag: {tag!r} (kleingeschrieben, a-z0-9, Bindestriche)")
     if "`" in reason or "|" in reason:
@@ -192,14 +188,9 @@ def add_tag(
     if not reason.strip():
         raise ValueError("Begründung (--reason) ist Pflicht")
 
-    # YAML-Single-Source: das Schreiben neuer Tags ins config/tag_vocabulary.yaml
-    # läuft über Gate C (pkm review --apply, WP4). add_tag bleibt auf das md-Format
-    # beschränkt (Bestands-Tool); für YAML klar verweisen statt das kuratierte File
-    # zu überschreiben.
     if tag_system_path.suffix in (".yaml", ".yml"):
-        raise ValueError(
-            "Tag-Aufnahme ins YAML-Vokabular läuft über `pkm review` (Gate C). "
-            "manage_vocab add-tag unterstützt nur das md-Format."
+        return _add_tag_yaml(
+            tag, reason.strip(), tag_system_path, section, md_doc_path, dry_run
         )
 
     vocab = parse_tag_vocab(tag_system_path)
@@ -208,23 +199,119 @@ def add_tag(
     if dry_run:
         return {"tag": tag, "already": False, "dry_run": True, "changed": ["tag-system.md"]}
 
-    content = tag_system_path.read_text(encoding="utf-8")
+    tag_system_path.write_text(
+        _append_tag_to_md(tag_system_path.read_text(encoding="utf-8"), tag, reason),
+        encoding="utf-8",
+    )
+    return {"tag": tag, "already": False, "changed": ["tag-system.md"]}
+
+
+def _add_tag_yaml(
+    tag: str,
+    reason: str,
+    tag_vocab_path: Path,
+    section: str,
+    md_doc_path: Path | None,
+    dry_run: bool,
+) -> dict[str, object]:
+    """E1=A: Tag direkt ins YAML-SSoT + md-Doc-Sync (siehe add_tag)."""
+    vocab, synonyms = load_tag_vocabulary_yaml(tag_vocab_path)
+    if tag in vocab:
+        return {"tag": tag, "already": True, "changed": []}
+    if tag in synonyms:
+        raise ValueError(
+            f"{tag!r} ist als Synonym/Alias geführt (→ {synonyms[tag]!r}); "
+            "kein neuer kanonischer Tag"
+        )
+
+    md = md_doc_path or _paths.TAG_SYSTEM_DOC
+    md_will_sync = md.exists()
+    changed: list[str] = ["config/tag_vocabulary.yaml"]
+    if md_will_sync:
+        changed.append(md.name)
+
+    if dry_run:
+        return {"tag": tag, "already": False, "dry_run": True, "changed": changed,
+                "md_synced": md_will_sync}
+
+    text = tag_vocab_path.read_text(encoding="utf-8")
+    text = _yaml_insert_tag(text, section, tag)
+    text = _yaml_append_changelog(text, tag, reason, date.today().isoformat())
+    tag_vocab_path.write_text(text, encoding="utf-8")
+
+    md_synced = False
+    if md_will_sync:
+        md.write_text(_append_tag_to_md(md.read_text(encoding="utf-8"), tag, reason), encoding="utf-8")
+        md_synced = True
+    return {"tag": tag, "already": False, "changed": changed, "md_synced": md_synced}
+
+
+def _find_section_index(lines: list[str], section: str) -> int | None:
+    """Index der Sektions-Kopfzeile (2-Space-Indent), quoted oder unquoted."""
+    targets = {f"{section}:", f'"{section}":', f"'{section}':"}
+    for i, ln in enumerate(lines):
+        if ln.startswith("  ") and not ln.startswith("    ") and ln.strip() in targets:
+            return i
+    return None
+
+
+def _sections_block_end(lines: list[str]) -> int:
+    """Einfügeindex für eine neue Sektion: direkt vor dem ``synonyms``-Block (inkl. Kommentaren)."""
+    syn_idx = next(
+        (i for i, ln in enumerate(lines) if ln.startswith("synonyms:")), len(lines)
+    )
+    k = syn_idx
+    while k - 1 >= 0 and (lines[k - 1].lstrip().startswith("#") or lines[k - 1].strip() == ""):
+        k -= 1
+    return k
+
+
+def _yaml_insert_tag(text: str, section: str, tag: str) -> str:
+    """Fügt ``tag`` (sortiert, dedup) in ``section`` ein; legt die Sektion an, falls nötig."""
+    lines = text.splitlines()
+    sec_idx = _find_section_index(lines, section)
+    if sec_idx is not None:
+        j = sec_idx + 1
+        item_idxs: list[int] = []
+        while j < len(lines) and lines[j].startswith("    - "):
+            item_idxs.append(j)
+            j += 1
+        existing = [lines[k].strip()[2:].strip() for k in item_idxs]
+        merged = sorted(set(existing) | {tag})
+        rebuilt = [f"    - {t}" for t in merged]
+        lines = lines[: sec_idx + 1] + rebuilt + lines[j:]
+    else:
+        ins = _sections_block_end(lines)
+        lines = lines[:ins] + [f"  {section}:", f"    - {tag}", ""] + lines[ins:]
+    return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+
+
+def _yaml_append_changelog(text: str, tag: str, reason: str, day: str) -> str:
+    """Hängt einen ``changelog``-Eintrag (Tag/Reason/Datum) an — persistiert die Begründung."""
+    entry = (
+        f"  - tag: {tag}\n"
+        f"    reason: {json.dumps(reason, ensure_ascii=False)}\n"
+        f"    date: {day}"
+    )
+    body = text.rstrip("\n")
+    if re.search(r"^changelog:", text, re.MULTILINE):
+        return body + "\n" + entry + "\n"
+    return body + "\n\nchangelog:\n" + entry + "\n"
+
+
+def _append_tag_to_md(content: str, tag: str, reason: str) -> str:
+    """Hängt ``tag`` an die ``### Erweiterungen``-Tabelle in tag-system.md an (md-Sync)."""
     syn = content.find(_SYNONYM)
     if syn == -1:
         raise ValueError("tag-system.md ohne '## Synonym-Map' — unerwartetes Format")
-
     row = f"| `{tag}` | {reason.strip()} | {date.today().isoformat()} |\n"
     if _EXT_HEADER in content[:syn]:
-        # Tabelle existiert → Zeile vor ## Synonym-Map anhängen
         insert_at = content.rfind("\n", 0, syn)  # Leerzeile vor Synonym-Map
         block = content[:insert_at] + "\n" + row.rstrip("\n") + content[insert_at:]
     else:
         new_section = f"\n{_EXT_HEADER}\n\n{_EXT_TABLE}{row}\n---\n\n"
         block = content[:syn] + new_section + content[syn:]
-
-    block = _bump_updated(block)
-    tag_system_path.write_text(block, encoding="utf-8")
-    return {"tag": tag, "already": False, "changed": ["tag-system.md"]}
+    return _bump_updated(block)
 
 
 # === validate / list =========================================================

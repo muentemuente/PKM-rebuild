@@ -8,7 +8,9 @@ Doku-Sektion 7 aktualisieren.
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
+
+from pipeline import taxonomy
 
 # === Phase 1: Inventar =========================================================
 
@@ -139,13 +141,25 @@ class ClusterProposal(BaseModel):
 
 
 class FrontmatterDraft(BaseModel):
-    """Von Qwen generierter Frontmatter-Entwurf, validiert gegen Vault-Standard."""
+    """Von Qwen generierter Frontmatter-Entwurf, validiert gegen Vault-Standard.
+
+    ``type``/``status``/``review_status``/``confidence`` sind als ``str`` typisiert
+    und werden zur Laufzeit per ``field_validator`` gegen die Taxonomie-Facade
+    (``pipeline.taxonomy``) geprüft (Runtime-Membership-Check statt ``Literal``).
+    Dadurch ist das Vokabular per ``config/``-YAML erweiterbar, ohne dieses Schema
+    zu ändern — Single Source bleibt ``pipeline.taxonomy``.
+
+    ``category`` bleibt bewusst ein **ungeprüfter** ``str``: unbekannte Kategorien
+    sollen die Validierung NICHT hart abweisen, sondern werden von Phase 9 nach
+    ``17_unsortiert`` geroutet (Catch-all, DoD) und von ``check_frontmatter`` /
+    ``pkm_triage`` soft gegen ``taxonomy.ALLOWED_CATEGORIES`` gemeldet.
+    """
 
     title: str
     slug: str
     aliases: list[str] = []
     summary: str
-    type: Literal["process-document", "knowledge-article", "compact-reference", "gedanke"]
+    type: str
     doc_role: list[str]
     category: str
     subcategory: str | None = None
@@ -157,11 +171,23 @@ class FrontmatterDraft(BaseModel):
     sources_docs: list[str]
     source_chunks: list[str]
     merged_from: list[str] = []
-    status: Literal["draft", "review", "stable", "deprecated"] = "draft"
-    review_status: Literal["ai_drafted", "human_reviewed", "verified"] = "ai_drafted"
-    confidence: Literal["low", "medium", "high"]
+    status: str = "draft"
+    review_status: str = "ai_drafted"
+    confidence: str
     doc_version: str = "0.1.0"
     created: str  # YYYY-MM-DD
     updated: str
     last_synthesized: str
     prompt_version: str  # z.B. "v1"
+
+    @field_validator("type", "status", "review_status", "confidence")
+    @classmethod
+    def _check_taxonomy_enum(cls, value: str, info: ValidationInfo) -> str:
+        """Runtime-Membership-Check gegen die Taxonomie-Facade (Live-Stand)."""
+        allowed = taxonomy.allowed_values(info.field_name or "")
+        if value not in allowed:
+            raise ValueError(
+                f"{info.field_name}={value!r} nicht im Vokabular "
+                f"({len(allowed)} erlaubte Werte, Quelle: pipeline.taxonomy)"
+            )
+        return value

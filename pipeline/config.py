@@ -163,6 +163,7 @@ class VaultConfig(BaseModel):
     validate_wikilinks: bool
     attic_folder: str
     unsorted_folder: str
+    unsorted_warn_threshold: int = 10  # build-vault warnt, wenn 17_unsortiert > diesem Wert
 
 
 class TagsConfig(BaseModel):

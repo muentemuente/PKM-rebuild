@@ -213,6 +213,35 @@ def test_apply_qwen_sets_fields() -> None:
             rationale="ähnlich",
         )
 
-    rs._apply_qwen(pairs, cands, body, fake_eval)
-    assert all(p.qwen_relation == "overlap" for p in pairs)
-    assert all(p.qwen_recommendation == "cross-link" for p in pairs)
+    calls: list[tuple[str, str]] = []
+
+    def counting_eval(pair, ba, bb):  # type: ignore[no-untyped-def]
+        calls.append((pair.slug_a, pair.slug_b))
+        return fake_eval(pair, ba, bb)
+
+    rs._apply_qwen(pairs, cands, body, counting_eval)
+    # nur EIN repräsentatives thematisches Paar pro Kandidat (hier 1 Kandidat) bewertet
+    assert len(calls) == 1
+    assert len(cands) == 1
+    cand = cands[0]
+    assert cand.qwen_relation == "overlap"
+    assert cand.qwen_recommendation == "cross-link"
+    # genau das bewertete Paar trägt das Verdict
+    stamped = [p for p in pairs if p.qwen_relation == "overlap"]
+    assert len(stamped) == 1
+
+
+def test_apply_qwen_evaluates_dup_pairs() -> None:
+    docs = _docs("a", "b")
+    # near-dup via TF-IDF
+    tf = np.array([[1.0, 0.9], [0.9, 1.0]], dtype="float32")
+    pairs, cands = rs.scan_pairs(docs, ["1", "2"], tf, None, TH)
+    assert pairs[0].band == "near-dup"
+
+    def fake_eval(pair, ba, bb):  # type: ignore[no-untyped-def]
+        return QwenPairVerdict(
+            relation="duplicate", recommendation="merge", confidence="high", rationale="x"
+        )
+
+    rs._apply_qwen(pairs, cands, {"a": "x", "b": "y"}, fake_eval)
+    assert pairs[0].qwen_relation == "duplicate"

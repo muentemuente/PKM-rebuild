@@ -345,24 +345,52 @@ def run_redundancy_scan(
     )
 
 
+def _representative_pair(
+    candidate: SynthesisCandidate, pairs: list[RedundancyPair]
+) -> RedundancyPair | None:
+    """Stärkste (höchste Embedding-Sim) thematische Kante innerhalb eines Kandidaten."""
+    member = set(candidate.slugs)
+    internal = [
+        p for p in pairs if p.band == "thematic" and p.slug_a in member and p.slug_b in member
+    ]
+    return max(internal, key=lambda p: p.embedding) if internal else None
+
+
 def _apply_qwen(
     pairs: list[RedundancyPair],
     candidates: list[SynthesisCandidate],
     body_by_slug: dict[str, str],
     evaluator: QwenEvaluator,
 ) -> None:
-    """Bewertet Kandidaten-Paare (near/semantic/thematic) via Qwen (best-effort)."""
-    candidate_slugs = {s for c in candidates for s in c.slugs}
-    for p in pairs:
-        if p.band == "exact":
-            continue
-        if p.band == "thematic" and not ({p.slug_a, p.slug_b} & candidate_slugs):
-            continue
+    """Bewertet die Kandidatenmenge via Qwen (best-effort).
+
+    Bewertet werden alle Dublette-Paare (near/semantic) sowie **ein repräsentatives**
+    (stärkstes) thematisches Paar pro Synthese-Kandidat — eine Bewertung je Kandidat
+    statt je Kante. Verdicts werden am Paar und (für thematische) am Kandidaten
+    gestempelt. ``exact`` wird übersprungen (trivial).
+    """
+
+    def _eval_and_stamp(p: RedundancyPair) -> QwenPairVerdict | None:
         verdict = evaluator(p, body_by_slug.get(p.slug_a, ""), body_by_slug.get(p.slug_b, ""))
         if verdict is not None:
             p.qwen_relation = verdict.relation
             p.qwen_recommendation = verdict.recommendation
             p.qwen_confidence = verdict.confidence
+        return verdict
+
+    for p in pairs:
+        if p.band in ("near-dup", "semantic-dup"):
+            _eval_and_stamp(p)
+
+    for cand in candidates:
+        rep = _representative_pair(cand, pairs)
+        if rep is None:
+            continue
+        verdict = _eval_and_stamp(rep)
+        if verdict is not None:
+            cand.qwen_relation = verdict.relation
+            cand.qwen_recommendation = verdict.recommendation
+            cand.qwen_confidence = verdict.confidence
 
 
 # === Reports (deterministisch/idempotent: kein Wall-Clock im Body) =============
@@ -444,6 +472,14 @@ def render_synthesis_report(result: ScanResult) -> str:
             "",
             "**sources_docs (vereinigt):** " + (", ".join(cand.sources) or "—"),
             "",
+        ]
+        if cand.qwen_relation:
+            lines += [
+                f"**Qwen (repräsentatives Paar):** {cand.qwen_relation} / "
+                f"{cand.qwen_recommendation} / Konfidenz {cand.qwen_confidence}",
+                "",
+            ]
+        lines += [
             "**Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder "
             "Synthese), `merged_from` bleibt leer.",
             "",
@@ -502,7 +538,7 @@ def make_qwen_evaluator(
     endpoint: str,
     model: str,
     temperature: float = 0.1,
-    max_tokens: int = 2000,
+    max_tokens: int = 4000,
     timeout: int = 600,
     body_cap: int = 4000,
 ) -> QwenEvaluator:

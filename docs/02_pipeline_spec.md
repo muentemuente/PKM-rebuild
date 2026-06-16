@@ -661,6 +661,9 @@ class SynthesisCandidate(BaseModel):
     mean_similarity: float
     pair_count: int                      # thematische Kanten in der Komponente
     sources: list[str] = []
+    qwen_relation: str | None = None     # Verdict des repräsentativen Paars (optional)
+    qwen_recommendation: str | None = None
+    qwen_confidence: str | None = None
 
 class QwenPairVerdict(BaseModel):        # Schema der optionalen Qwen-Paar-Bewertung
     relation: Literal["duplicate", "overlap", "complementary", "unrelated"]

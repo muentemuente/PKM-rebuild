@@ -228,6 +228,10 @@ class SynthesisCandidate(BaseModel):
     mean_similarity: float = Field(ge=-1.0, le=1.0)  # mittlere paarweise Embedding-Sim
     pair_count: int  # Anzahl thematischer Kanten in der Komponente
     sources: list[str] = []  # vereinigte sources_docs der Mitglieder
+    # Optionale Qwen-Bewertung des repräsentativen (stärksten) Paars der Komponente.
+    qwen_relation: str | None = None
+    qwen_recommendation: str | None = None
+    qwen_confidence: str | None = None
 
 
 class QwenPairVerdict(BaseModel):

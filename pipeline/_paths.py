@@ -35,8 +35,10 @@ from pathlib import Path
 
 _DEFAULT_PIPELINE_ROOT = Path.home() / "projects" / "aktiv" / "pkm-pipeline"
 _DEFAULT_REPO_ROOT = Path(__file__).resolve().parent.parent
-# Produktiver Obsidian-Vault (#3, außerhalb der Pipeline). Ziel des manuellen
-# Asset-Merge (WP3). Überschreibbar per PKM_BRAIN_VAULT.
+# Kanonischer produktiver Obsidian-Vault (#3, außerhalb der Pipeline, ~186 Artikel).
+# Single Source des Vault-Pfads: Ziel des manuellen Asset-Merge (WP3) und Default-
+# Target von `pkm redundancy-scan` (WP2). Überschreibbar per PKM_BRAIN_VAULT.
+# (Legacy Option-A-Pfad ~/projects/aktiv/PKM_rebuild/data/04_vault ist verworfen.)
 _DEFAULT_BRAIN_VAULT = Path.home() / "Zentrale" / "09_Brain-Vault"
 
 

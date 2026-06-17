@@ -32,6 +32,7 @@ import difflib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import mdformat
 import mistune
@@ -138,7 +139,7 @@ def _code_block_contents(text: str) -> list[str]:
     """
     out: list[str] = []
 
-    def _walk(tokens: list[dict]) -> None:
+    def _walk(tokens: list[dict[str, Any]]) -> None:
         for t in tokens:
             if t.get("type") == "block_code":
                 out.append(_norm_code(str(t.get("raw", ""))))
@@ -146,7 +147,9 @@ def _code_block_contents(text: str) -> list[str]:
             if isinstance(children, list):
                 _walk(children)
 
-    _walk(_MD_AST(text))
+    parsed = _MD_AST(text)
+    if isinstance(parsed, list):
+        _walk(parsed)
     return sorted(out)
 
 

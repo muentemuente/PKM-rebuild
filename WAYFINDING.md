@@ -13,9 +13,13 @@
 
 ## Regeln
 
-- Claude Code schreibt **nur in #1**. Alles für #3 läuft über [`MANUAL_STEPS.md`](MANUAL_STEPS.md) (manuell ausgeführt).
-- Keine Schreibzugriffe auf #2 / #3 durch die Toolchain.
-- Korpus-Originale (in #2) sind read-only.
+- **Code/Config/Doku** schreibt Claude Code nur in **#1** (Git).
+- **#2** (`pkm-pipeline/`) ist das Daten-/Output-Verzeichnis: die Pipeline schreibt dorthin
+  Zwischenstände + Reports (`work/`, `output/`, `drafts/`). Korpus-Originale dort sind read-only.
+- **#3** (Live-Vault) wird **nie** autonom beschrieben: Vault-Mutation nur über das 3-State-
+  Verfahren (raw → `work/` → **geprüfter** Export) nach explizitem Review-Gate. Manuelle
+  Schritte: [`MANUAL_STEPS.md`](MANUAL_STEPS.md).
+- **Git-Repo = #1 `PKM-rebuild`** (mit `-`), nicht `pkm-pipeline` (#2, kein `.git`).
 
 ## Was liegt hier (#1)?
 

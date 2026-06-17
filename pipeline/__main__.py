@@ -568,6 +568,57 @@ def review(do_apply: bool, no_rebuild: bool, config: str) -> None:
     )
 
 
+@cli.command(name="format-vault")
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(),
+    default=None,
+    help="Zu formatierender Vault, read-only (default: Brain-Vault aus _paths)",
+)
+@click.option(
+    "--work-dir",
+    "work_dir",
+    type=click.Path(),
+    default=None,
+    help="Arbeitskopie + Report (default: work/format aus _paths)",
+)
+@click.option("--examples", type=int, default=5, help="Beispiel-Diffs je Tier im Report")
+def format_vault_cmd(vault_dir: str | None, work_dir: str | None, examples: int) -> None:
+    """WP3a: Vault deterministisch formatieren — DRY-RUN (raw read-only → work/).
+
+    Schreibt formatierte Arbeitskopien + diff_report.md nach work/; der Vault (#3)
+    bleibt unangetastet. Export nach #3 ist ein separater, Gate-3-pflichtiger Schritt
+    (hier NICHT enthalten).
+    """
+    from pipeline import _paths
+    from pipeline.format_vault import render_diff_report, scan_vault
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    work = Path(work_dir) if work_dir else (_paths.WORK / "format")
+    if not vault.is_dir():
+        console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
+        raise SystemExit(2)
+
+    console.print(f"[cyan]format-vault (dry-run):[/cyan] {vault} → {work}")
+    report = scan_vault(vault, work, write_work=True)
+    (work / "diff_report.md").write_text(
+        render_diff_report(report, examples_per_tier=examples), encoding="utf-8"
+    )
+    c = report.counts()
+    table = Table(title=f"Format-Blast-Radius ({len(report.results)} Docs)")
+    table.add_column("Tier")
+    table.add_column("Files", justify="right")
+    table.add_row("unchanged", str(c["unchanged"]))
+    table.add_row("[green]safe-auto[/green]", str(c["safe"]))
+    table.add_row("[yellow]unsafe (Patch-Vorschlag)[/yellow]", str(c["unsafe"]))
+    console.print(table)
+    console.print(f"[green]✓[/green] {work / 'diff_report.md'}")
+    console.print(
+        "[dim]Vault unangetastet. Export nach #3 ist Gate-3-pflichtig (nicht hier).[/dim]"
+    )
+
+
 @cli.command(name="redundancy-scan")
 @click.option(
     "--vault-dir",

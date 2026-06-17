@@ -234,6 +234,24 @@ kein Merge), mutiert `output/` + Drafts → vorher Snapshot (`bash scripts/snaps
 Engine: `pipeline/taxonomy_migrate.py` (pfad-parametrisiert, `--dry-run` plant
 ohne Schreiben; Validierung = Schema + Wikilink-Auflösbarkeit §10).
 
+### Redundanz-/Synthese-Erkennung (`redundancy-scan`, WP2)
+
+Prüft einen **bestehenden Vault read-only** auf Dubletten + Synthese-Potenzial
+(Detection + Report, kein Merge — Option-B-Teil-Reversal, R12). Engine:
+`pipeline/redundancy_scan.py`.
+
+```bash
+pkm redundancy-scan [--vault-dir DIR] [--output-dir DIR] [--no-embeddings] [--qwen]
+# default vault-dir = Brain-Vault (_paths), output-dir = work/
+```
+
+Bänder pro Doc-Paar: `exact` (SHA-256) · `near-dup` (TF-IDF ≥ Schwelle) ·
+`semantic-dup` (Embedding ≥ Schwelle, TF-IDF niedrig) · `thematic` (Embedding-
+Mittelband). Synthese-Kandidaten = thematische Komponenten ≥ N Docs. Schwellen in
+`pipeline.config.yaml → redundancy_scan` (REVIEW-Gate-2-Weiche). Reports:
+`redundancy_report.md` + `synthesis_candidates.md` (idempotent, kein Wall-Clock im
+Body). `--qwen` aktiviert die optionale Paar-Bewertung (Default aus, Hang-Risiko).
+
 ### Inkrementeller Modus (`ingest`)
 
 `ingest` verarbeitet **nur** Files aus `data/00_inbox/` durch die Per-Doc-Pipeline
@@ -618,6 +636,40 @@ class FrontmatterDraft(BaseModel):
     @classmethod
     def _check_taxonomy_enum(cls, value, info):   # Membership-Check gegen taxonomy.allowed_values
         ...
+
+# --- WP2: Redundanz-/Synthese-Erkennung (Detection + Report, kein Merge) ---
+RedundancyBand = Literal["exact", "near-dup", "semantic-dup", "thematic"]
+
+class RedundancyPair(BaseModel):
+    slug_a: str
+    slug_b: str
+    band: RedundancyBand
+    exact: bool                          # identischer normalisierter Body (SHA-256)
+    tfidf: float                         # lexikalische Cosine-Similarity [0,1]
+    embedding: float                     # semantische Cosine-Similarity [-1,1] (mpnet)
+    sources_a: list[str] = []            # Provenance aus Frontmatter
+    sources_b: list[str] = []
+    chunks_a: list[str] = []
+    chunks_b: list[str] = []
+    qwen_relation: str | None = None     # optionale Qwen-Bewertung (Default aus)
+    qwen_recommendation: str | None = None
+    qwen_confidence: str | None = None
+
+class SynthesisCandidate(BaseModel):
+    candidate_id: str                    # SC_<index:03d>
+    slugs: list[str]                     # Mitglieder (>= synthesis_min_members)
+    mean_similarity: float
+    pair_count: int                      # thematische Kanten in der Komponente
+    sources: list[str] = []
+    qwen_relation: str | None = None     # Verdict des repräsentativen Paars (optional)
+    qwen_recommendation: str | None = None
+    qwen_confidence: str | None = None
+
+class QwenPairVerdict(BaseModel):        # Schema der optionalen Qwen-Paar-Bewertung
+    relation: Literal["duplicate", "overlap", "complementary", "unrelated"]
+    recommendation: Literal["merge", "cross-link", "keep-separate"]
+    confidence: Literal["low", "medium", "high"]
+    rationale: str
 ```
 
 ---
@@ -726,3 +778,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-06-07 — Pipeline-Umbau go-forward: Banner + neues Layout (`pkm-pipeline/`, `_paths.py`); CLI `run`=Orchestrator / `review` / Legacy `corpus-run`; Phasen 5/6/7 als „Alt/nicht im go-forward" markiert; Review-Gates A–D (`review.py`)
 - 2026-06-15 — pipeline-v2 P1 (Taxonomie-SSoT): §7 FrontmatterDraft `type/status/review_status/confidence` von `Literal` auf `str` + Runtime-`field_validator` gegen `pipeline.taxonomy` (Quelle `config/enums.yaml`); `category` als bewusst weicher str dokumentiert (17_unsortiert-Routing); §4 CLI `pkm taxonomy add-category|add-tag|rename` (Rename-Migration, `taxonomy_migrate.py`) ergänzt
 - 2026-06-16 — REVIEW-Gate-1: E1=A — `pkm taxonomy add-tag` schreibt direkt ins YAML-SSoT (Sektion „Erweiterungen" + `changelog` mit `--reason`) + md-Sync `00_Meta/tag-system.md`, idempotent; §4 angepasst. Passives Surfacing: `build-vault` weist 17_unsortiert-Füllstand aus + warnt über `vault.unsorted_warn_threshold` (default 10, §3), read-only (kein P4)
+- 2026-06-16 — WP2 (P5 Redundanz/Synthese-Erkennung): §4 CLI `pkm redundancy-scan` (read-only Detection + Report, kein Merge); §7 Schemas `RedundancyPair`/`SynthesisCandidate`/`QwenPairVerdict`; §3 Config-Block `redundancy_scan` (Schwellen, Gate-2-Weiche). Engine `pipeline/redundancy_scan.py` (Hash + TF-IDF + mpnet paarweise, in-memory)

@@ -91,6 +91,24 @@ redundancy:
     min_df: 2                   # Term muss in ≥2 Docs vorkommen
 
 
+# === Redundanz-/Synthese-Erkennung (WP2, Detection + Report) ==================
+# Doc-Ebene über einen bestehenden Vault (read-only). KEIN Auto-Merge/Vector-DB.
+# Schwellen sind initiale Defaults (REVIEW-Gate 2 / Architektur-Weiche): an einer
+# Report-Stichprobe bestätigen/tunen. Korpus-Finding: 96,5 % Paare < 0,6 →
+# erwartet kleine, hochsignifikante Kandidatenmenge (gewollt).
+redundancy_scan:
+  tfidf_threshold: 0.72           # near-dup (lexikalisch); konsistent mit redundancy.tfidf.threshold
+  embedding_dup_threshold: 0.85   # semantische Dublette (Embedding hoch)
+  # thematic_low: Sweep auf 186 Brain-Vault-Docs (2026-06-16) — 0.60 verbindet 143
+  # Docs zu EINEM Hairball (Ø-Sim 0.36); ab 0.70 zerfällt er in fokussierte 3-5-Doc-
+  # Kandidaten (0.70→11, 0.72→8, 0.75→2, 0.80→0). 0.70 in REVIEW-Gate 2 bestätigt
+  # (2026-06-16): fokussierteste, vollständige Kandidatenmenge.
+  embedding_thematic_low: 0.70    # Untergrenze thematisches Mittelband [0.70, 0.85)
+  synthesis_min_members: 3        # Synthese-Kandidat: Komponente >= N Docs
+  use_embeddings: true            # False = nur Hash + TF-IDF (kein mpnet nötig)
+  qwen_evaluate: false            # optionale Qwen-Paar-Bewertung (Default aus — teuer/Hang-Risiko)
+
+
 # === Embeddings (Phase 6) =====================================================
 embeddings:
   enabled: true

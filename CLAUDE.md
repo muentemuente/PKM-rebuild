@@ -133,17 +133,26 @@ Während Qwen-Läufen werden andere Apps geschlossen (Memory-Pressure, siehe Per
 PKM-rebuild/                    ← Git, public
 ├── README.md
 ├── CLAUDE.md                   ← HIER
+├── config/                     ← categories/tag_vocabulary/enums.yaml (Taxonomie-SSoT)
 ├── docs/                       ← Projekt-Doku
 ├── pipeline/                   ← Code + sub-CLAUDE.md
 ├── prompts/                    ← Qwen-Prompts versioniert + sub-CLAUDE.md
 └── .gitignore
 
-~/projects/aktiv/PKM_rebuild/data/    ← außerhalb Git
-├── 01_corpus_input/            ← read-only
-├── 02_pipeline_output/
-├── 03_drafts/
-└── 04_vault/                   ← finaler Obsidian-Vault
+~/projects/aktiv/pkm-pipeline/        ← go-forward-Daten, außerhalb Git (PKM_PIPELINE_ROOT)
+├── input/                      ← neue .md (Run-Quelle)
+├── work/                       ← Zwischen-JSONL, state.json, Reports (redundancy_*.md)
+├── drafts/                     ← Qwen-Outputs
+├── review/                     ← Gate-Queues
+├── output/                     ← gebauter Staging-Vault
+└── archive/                    ← verarbeitete Inputs + Backups + Snapshots
 ```
+
+**Kanonischer Produktiv-Vault (#3, außerhalb Git):** `~/Zentrale/09_Brain-Vault`
+(`pipeline._paths.BRAIN_VAULT`, überschreibbar per `PKM_BRAIN_VAULT`). Dort liegen
+die ~186 finalen Artikel; `pkm redundancy-scan` (WP2) und der manuelle Asset-Merge
+(WP3) zeigen standardmäßig hierhin. Das Legacy-Layout `~/projects/aktiv/PKM_rebuild/data/0X`
+(Option A, inkl. `04_vault/`) ist verworfen und existiert nicht mehr.
 
 ---
 

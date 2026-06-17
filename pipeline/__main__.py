@@ -568,6 +568,97 @@ def review(do_apply: bool, no_rebuild: bool, config: str) -> None:
     )
 
 
+@cli.command(name="redundancy-scan")
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(),
+    default=None,
+    help="Zu scannender Vault (default: Brain-Vault aus _paths)",
+)
+@click.option(
+    "--output-dir",
+    "output_dir",
+    type=click.Path(),
+    default=None,
+    help="Ziel für Reports (default: work/ aus _paths)",
+)
+@click.option(
+    "--no-embeddings", "no_embeddings", is_flag=True, help="Nur Hash + TF-IDF (ohne mpnet)"
+)
+@click.option("--qwen", "qwen", is_flag=True, help="Optionale Qwen-Paar-Bewertung aktivieren")
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def redundancy_scan(
+    vault_dir: str | None, output_dir: str | None, no_embeddings: bool, qwen: bool, config: str
+) -> None:
+    """WP2: Vault (read-only) auf Redundanz + Synthese-Potenzial prüfen → Reports."""
+    from pipeline import _paths
+    from pipeline.redundancy_scan import (
+        Thresholds,
+        make_qwen_evaluator,
+        run_redundancy_scan,
+        write_reports,
+    )
+
+    cfg = load_config(Path(config))
+    rs = cfg.redundancy_scan
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    out = Path(output_dir) if output_dir else _paths.WORK
+    if not vault.is_dir():
+        console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
+        raise SystemExit(2)
+
+    use_emb = rs.use_embeddings and not no_embeddings
+    evaluator = None
+    if qwen or rs.qwen_evaluate:
+        evaluator = make_qwen_evaluator(
+            endpoint=cfg.qwen.endpoint,
+            model=cfg.qwen.model,
+            temperature=cfg.qwen.temperature.stage4_frontmatter,
+            timeout=cfg.qwen.timeout_seconds,
+        )
+
+    th = Thresholds(
+        tfidf_near=rs.tfidf_threshold,
+        embedding_dup=rs.embedding_dup_threshold,
+        embedding_thematic_low=rs.embedding_thematic_low,
+        synthesis_min_members=rs.synthesis_min_members,
+    )
+    console.print(
+        f"[cyan]redundancy-scan:[/cyan] {vault} (embeddings={'an' if use_emb else 'aus'}, "
+        f"qwen={'an' if evaluator else 'aus'})"
+    )
+    result = run_redundancy_scan(
+        vault,
+        thresholds=th,
+        use_embeddings=use_emb,
+        model_name=cfg.embeddings.model,
+        device=cfg.embeddings.device,
+        batch_size=cfg.embeddings.batch_size,
+        ngram_range=(cfg.redundancy.tfidf.ngram_range[0], cfg.redundancy.tfidf.ngram_range[1]),
+        max_features=cfg.redundancy.tfidf.max_features,
+        min_df=cfg.redundancy.tfidf.min_df,
+        qwen_evaluator=evaluator,
+    )
+    red_path, syn_path = write_reports(result, out)
+
+    counts = result.counts()
+    table = Table(title=f"Redundancy-Scan ({result.n_docs} Docs)")
+    table.add_column("Band")
+    table.add_column("Paare", justify="right")
+    for band in ("exact", "near-dup", "semantic-dup", "thematic"):
+        table.add_row(band, str(counts[band]))
+    table.add_row("[bold]Synthese-Kandidaten[/bold]", str(counts["synthesis_candidates"]))
+    console.print(table)
+    console.print(f"[green]✓[/green] {red_path}")
+    console.print(f"[green]✓[/green] {syn_path}")
+
+
 @cli.group()
 def taxonomy() -> None:
     """Taxonomie-SSoT pflegen (Kategorien/Tags): anlegen + umbenennen (mit Migration)."""

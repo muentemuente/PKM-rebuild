@@ -76,6 +76,28 @@ def _restore_links(text: str, spans: list[str]) -> str:
     return text
 
 
+def _restore_thematic_breaks(text: str) -> str:
+    """Setzt mdformats Thematic-Break-Stil (Zeile aus ``_``) auf ``---`` zurück (E1).
+
+    Fence-aware: innerhalb von Code-Blöcken wird nichts verändert. Eine etwaige
+    Fehl-Konversion in Code würde ohnehin vom Code-Guard als ``unsafe`` markiert.
+    """
+    out: list[str] = []
+    in_fence = False
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if not in_fence and re.match(r"^(`{3,}|~{3,})", stripped):
+            in_fence = True
+        elif in_fence and re.fullmatch(r"(`{3,}|~{3,})", stripped):
+            in_fence = False
+        elif not in_fence and re.fullmatch(r"_{3,}", stripped):
+            indent = line[: len(line) - len(line.lstrip())]
+            out.append(f"{indent}---")
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
 def format_markdown(text: str) -> tuple[str, bool]:
     """Formatiert Markdown deterministisch unter Schutz der Wikilinks/Embeds.
 
@@ -86,6 +108,7 @@ def format_markdown(text: str) -> tuple[str, bool]:
     if collision:
         return text, False
     formatted = mdformat.text(masked, extensions=_EXTENSIONS)
+    formatted = _restore_thematic_breaks(formatted)
     return _restore_links(formatted, spans), True
 
 

@@ -80,6 +80,24 @@ def test_messy_is_safe_normalized() -> None:
 # === Tier-Klassifikator =======================================================
 
 
+def test_thematic_break_stays_dashes() -> None:
+    """E1: Thematic Break bleibt `---` (kein `___`); Idempotenz erhalten."""
+    src = "# A\n\n---\n\nB\n\n***\n\nC\n"
+    out, _ = fv.format_markdown(src)
+    assert "---" in out
+    assert "___" not in out and "____" not in out
+    assert "*" * 3 not in out  # *** ebenfalls zu --- normalisiert
+    twice, _ = fv.format_markdown(out)
+    assert twice == out  # idempotent
+
+
+def test_underscores_in_code_not_converted() -> None:
+    """`___`-Zeile im Code-Block bleibt unangetastet (fence-aware)."""
+    src = "```\n___\nx = 1\n```\n"
+    out, _ = fv.format_markdown(src)
+    assert "___" in out  # im Code erhalten
+
+
 def test_classify_unchanged() -> None:
     clean = "# Titel\n\nSauberer Text.\n"
     out, _ = fv.format_markdown(clean)

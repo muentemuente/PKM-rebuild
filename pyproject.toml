@@ -125,6 +125,7 @@ module = [
     "yaml",
     "mdformat",
     "mdformat.*",
+    "mistune",
 ]
 ignore_missing_imports = true
 

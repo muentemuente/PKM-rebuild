@@ -161,6 +161,16 @@ def test_example_frontmatter_in_body_not_flagged_as_heading() -> None:
     assert res.tier in (fv._TIER_SAFE, fv._TIER_UNCHANGED), res.reasons
 
 
+def test_indented_to_fenced_code_is_safe() -> None:
+    """mdformat konvertiert indented Code → fenced (Code-Fence-Normalisierung = safe)."""
+    original = "Beispiel:\n\n    x = 1\n    y = 2\n\nEnde.\n"
+    formatted, _ = fv.format_markdown(original)
+    assert "```" in formatted  # wurde gefenced
+    tier, reasons = fv.classify(original, formatted)
+    assert tier == fv._TIER_SAFE, reasons  # NICHT unsafe
+    assert "x = 1" in formatted and "y = 2" in formatted
+
+
 def test_sentinel_collision_is_unsafe() -> None:
     text = f"Text mit {fv._SENTINEL_BASE}0000x und [[link]].\n"
     out, ok = fv.format_markdown(text)

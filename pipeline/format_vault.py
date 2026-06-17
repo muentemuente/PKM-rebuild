@@ -34,10 +34,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import mdformat
+import mistune
 import structlog
 import yaml
 
 log = structlog.get_logger()
+
+# AST-Parser für repräsentations-agnostische Code-Block-Extraktion (indented + fenced).
+_MD_AST = mistune.create_markdown(renderer=None)
 
 _EXTENSIONS = {"gfm", "frontmatter"}
 
@@ -126,11 +130,23 @@ def _norm_code(content: str) -> str:
 
 
 def _code_block_contents(text: str) -> list[str]:
-    """Normalisierter Inner-Content jedes Fenced-Code-Blocks (ohne Fence-Zeilen)."""
+    """Normalisierter Code-Inhalt aller Code-Blöcke (indented UND fenced) via mistune-AST.
+
+    Repräsentations-agnostisch: mdformats Konversion indented→fenced (= Code-Fence-
+    Normalisierung, laut Spec safe-auto) ändert den Inhalt nicht und löst daher KEIN
+    unsafe aus — nur eine echte Änderung am Code-Text tut das.
+    """
     out: list[str] = []
-    for m in _FENCE_RE.finditer(text):
-        lines = m.group(0).split("\n")
-        out.append(_norm_code("\n".join(lines[1:-1])))
+
+    def _walk(tokens: list[dict]) -> None:
+        for t in tokens:
+            if t.get("type") == "block_code":
+                out.append(_norm_code(str(t.get("raw", ""))))
+            children = t.get("children")
+            if isinstance(children, list):
+                _walk(children)
+
+    _walk(_MD_AST(text))
     return sorted(out)
 
 
@@ -156,7 +172,10 @@ def _heading_texts(text: str) -> list[str]:
     mdformat (das es nicht tut) bliebe so trotzdem erkennbar.
     """
     body = _strip_code(_strip_frontmatter(text))
-    return sorted(m.group(1).strip() for m in _ATX_RE.finditer(body))
+    # Interner Whitespace im Heading-Text wird kollabiert: mdformat normalisiert
+    # `# H  X` → `# H X` (kosmetisch, Heading-Text semantisch unverändert). Echte
+    # Text-Änderungen / neu auftauchende Headings bleiben dadurch trotzdem erkennbar.
+    return sorted(re.sub(r"\s+", " ", m.group(1).strip()) for m in _ATX_RE.finditer(body))
 
 
 def _wikilinks(text: str) -> list[str]:
@@ -312,6 +331,35 @@ def scan_vault(vault_dir: Path, work_dir: Path, *, write_work: bool = True) -> S
         **scan_counts(results),
     )
     return ScanReport(vault_dir=vault_dir, work_dir=work_dir, results=results)
+
+
+def export_formatted(vault_dir: Path, relpaths: list[str]) -> list[tuple[str, str]]:
+    """**Gate-3-Mutation**: schreibt die formatierte Fassung NUR von ``safe``-Files
+    zurück in den Vault (#3). Re-formatiert aus dem Raw-Original (autoritativ) und
+    weigert sich bei ``unsafe``/``unchanged``.
+
+    Returns: Liste ``(relpath, status)`` mit status ∈ {written, skipped-unchanged,
+    refused-unsafe, missing}.
+    """
+    results: list[tuple[str, str]] = []
+    for rel in relpaths:
+        target = vault_dir / rel
+        if not target.is_file():
+            results.append((rel, "missing"))
+            continue
+        original = target.read_text(encoding="utf-8")
+        res = format_file(original, rel)
+        if res.tier == _TIER_UNSAFE:
+            results.append((rel, "refused-unsafe"))
+            continue
+        if res.tier == _TIER_UNCHANGED:
+            results.append((rel, "skipped-unchanged"))
+            continue
+        formatted, _ = format_markdown(original)
+        target.write_text(formatted, encoding="utf-8")
+        results.append((rel, "written"))
+        log.info("format_vault_exported", relpath=rel)
+    return results
 
 
 def scan_counts(results: list[FileResult]) -> dict[str, int]:

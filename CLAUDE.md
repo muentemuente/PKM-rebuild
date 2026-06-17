@@ -125,6 +125,10 @@ Bei drohendem Token-Limit wird die Session sauber beendet, ein Snapshot in `.cla
 
 Während Qwen-Läufen werden andere Apps geschlossen (Memory-Pressure, siehe Persona Sektion 6).
 
+### Kontext-Hygiene (verbindlich)
+
+Session-Kontextgröße in Editor UND Chat aktiv überwachen. Vor jedem WP-/Task-Wechsel oder bei Token-Warnung: Stand in ein committetes Handover-Doc (`docs/handover/`) destillieren (Stand, offene Schritte, Learnings), DANN erst `/clear` bzw. neue Session, Resume mit Projektplan + `WAYFINDING.md` + jüngstem Handover. Commits/Reports bewahren das Ergebnis, nicht den Entscheidungs-Thread. Keinen WP-Wechsel in überladener Session beginnen (Regel-Drift, RV6).
+
 ---
 
 ## 9. File-Layout

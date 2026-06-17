@@ -252,6 +252,25 @@ Mittelband). Synthese-Kandidaten = thematische Komponenten ≥ N Docs. Schwellen
 `redundancy_report.md` + `synthesis_candidates.md` (idempotent, kein Wall-Clock im
 Body). `--qwen` aktiviert die optionale Paar-Bewertung (Default aus, Hang-Risiko).
 
+### Deterministische Formatierung (`format-vault`, WP3a)
+
+Normalisiert einen Vault **deterministisch + idempotent** via `mdformat` (+gfm,
++frontmatter) — KEIN Content-Rewrite, KEIN LLM. Engine: `pipeline/format_vault.py`.
+**Non-mutating gegenüber dem Vault** (#3): liest Originale (raw), schreibt
+Arbeitskopien + `diff_report.md` nach `work/format/` (#2). Export nach #3 ist ein
+separater, **Gate-3-pflichtiger** Schritt (nicht in dieser CLI).
+
+```bash
+pkm format-vault [--vault-dir DIR] [--work-dir DIR] [--examples N]
+# default vault-dir = Brain-Vault (_paths), work-dir = work/format
+```
+
+Obsidian-**Schutzbereiche** (nie verändert): Wikilinks `[[…]]`/Embeds `![[…]]`
+(maskiert, sonst escaped mdformat sie), Callouts `> [!x]`, Code-Block-Inhalte,
+Frontmatter-Werte+Key-Order. **Tier-Split (D4):** `unchanged` · `safe` (rein
+deterministische Formatierung → auto in Arbeitskopie) · `unsafe` (würde Schutz-
+bereich/Heading-Text/Code-Inhalt berühren → nur `.patch`-Vorschlag, NIE auto).
+
 ### Inkrementeller Modus (`ingest`)
 
 `ingest` verarbeitet **nur** Files aus `data/00_inbox/` durch die Per-Doc-Pipeline
@@ -779,3 +798,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-06-15 — pipeline-v2 P1 (Taxonomie-SSoT): §7 FrontmatterDraft `type/status/review_status/confidence` von `Literal` auf `str` + Runtime-`field_validator` gegen `pipeline.taxonomy` (Quelle `config/enums.yaml`); `category` als bewusst weicher str dokumentiert (17_unsortiert-Routing); §4 CLI `pkm taxonomy add-category|add-tag|rename` (Rename-Migration, `taxonomy_migrate.py`) ergänzt
 - 2026-06-16 — REVIEW-Gate-1: E1=A — `pkm taxonomy add-tag` schreibt direkt ins YAML-SSoT (Sektion „Erweiterungen" + `changelog` mit `--reason`) + md-Sync `00_Meta/tag-system.md`, idempotent; §4 angepasst. Passives Surfacing: `build-vault` weist 17_unsortiert-Füllstand aus + warnt über `vault.unsorted_warn_threshold` (default 10, §3), read-only (kein P4)
 - 2026-06-16 — WP2 (P5 Redundanz/Synthese-Erkennung): §4 CLI `pkm redundancy-scan` (read-only Detection + Report, kein Merge); §7 Schemas `RedundancyPair`/`SynthesisCandidate`/`QwenPairVerdict`; §3 Config-Block `redundancy_scan` (Schwellen, Gate-2-Weiche). Engine `pipeline/redundancy_scan.py` (Hash + TF-IDF + mpnet paarweise, in-memory)
+- 2026-06-17 — WP3a (P2 deterministische Formatierung): §4 CLI `pkm format-vault` (mdformat +gfm +frontmatter, non-mutating Dry-Run → work/format/). Obsidian-Schutzbereiche (Wikilink/Embed-Maskierung, Callout/Code/Frontmatter-Guards), Tier-Split safe/unsafe (D4 raw→work→export), Export Gate-3-pflichtig. Engine `pipeline/format_vault.py`

@@ -28,6 +28,9 @@ dependencies = [
 
     # === Markdown / Text ===
     "mistune>=3.0",
+    "mdformat>=0.7",            # deterministische, idempotente Markdown-Formatierung (WP3)
+    "mdformat-gfm>=0.3",        # GFM-Tabellen/Strikethrough/Autolinks
+    "mdformat-frontmatter>=2.0",  # YAML-Frontmatter-Normalisierung (Key-Order erhalten)
 
     # === Daten / Embeddings ===
     "sentence-transformers>=3.0",
@@ -120,6 +123,9 @@ module = [
     "umap.*",
     "hdbscan.*",
     "yaml",
+    "mdformat",
+    "mdformat.*",
+    "mistune",
 ]
 ignore_missing_imports = true
 

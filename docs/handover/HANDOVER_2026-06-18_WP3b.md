@@ -53,22 +53,27 @@ Arbeitskopie, pro `flagged` `*.flag`.
 - *Meta-Markdown* (`#`-Beispiele in 49 Fences): `markdown-syntax`.
 - *emergentes Leer-Heading*: `thinkstation-pgx-roadmap`.
 
-## 4. Offene Schritte (in Reihenfolge)
+## 4. Export AUSGEFÜHRT (2026-06-18) ✓
 
-1. **Owner-Review der 6 Diffs** (`work/fence_indented/*.diff`). Beachten:
-   - Inhalt mancher Beispiele ist **bereits in der Quelle korrumpiert** (multi-line YAML auf
-     eine Zeile kollabiert, z. B. `konfigurationsformate` Z. 69). Fencing bewahrt den
-     Ist-Zustand, **repariert** ihn nicht (bräuchte Korpus-Original → eigener Task).
-   - Geordnete Listen erscheinen als `1./1./1.` (mdformat-`1.`-Stil, bereits WP3a-Standard,
-     rendert 1,2,3) — kosmetisch, kein Fehler.
-2. **Snapshot** `bash scripts/backup_vault.sh` **VOR** Export (Gate-3, Pflicht).
-3. **Export** der 6 `convertible` nach #3 — `fence_indented.export_convertible()` ist
-   **geschrieben, aber NICHT ausgeführt** (wartet auf Diff-Review-OK). Re-evaluiert aus
-   Raw, weigert sich bei `flagged` (`refused-flagged`), idempotent (`skipped-unchanged`,
-   da bereits konvertierte Files mdformat-stabil sind). Noch **kein CLI-Subcommand** — bewusst,
-   damit kein versehentlicher Lauf. Nach Export: Idempotenz-Verify am geschriebenen Vault.
-4. **WP3b mergen** (PR) nach Owner-OK.
-5. **Folge-Tasks**: (a) Kat-A Heading-Typos; (b) **3 Deferred-Cleanup** (Display-Beispiel-FM
+Owner-Review der 6 Diffs OK → Export durchgeführt:
+
+- **Snapshot vorher**: `archive/backups/vault_2026-06-18_110803.tar.gz` (28M, Hash `1eb9f52256c0…`).
+- **`export_convertible` → 6× `written`** in #3.
+- **Idempotenz verifiziert**: 2. Export-Lauf = 6× `skipped-unchanged`.
+- **Vault-weit** (`pkm format-vault`): unsafe **20 → 14** (−6), unchanged 166 → 172 (+6),
+  0 neue unsafe. Die 6 sind jetzt `unchanged` (safe-stabil).
+- Verbleibende 14 unsafe = 8 WP3b-flagged + 3 Kat A + 1 git-setup (Track B) + 2 WP3a-REVIEW.
+
+Review-Notizen (im Vault so akzeptiert):
+- Inhalt mancher Beispiele war **bereits in der Quelle korrumpiert** (multi-line YAML auf
+  eine Zeile kollabiert, z. B. `konfigurationsformate` Z. 69). Fencing bewahrt den Ist-Zustand,
+  **repariert** ihn nicht (bräuchte Korpus-Original → eigener Task).
+- Geordnete Listen als `1./1./1.` (mdformat-`1.`-Stil, WP3a-Standard, rendert 1,2,3) — kosmetisch.
+
+## 4b. Offene Schritte
+
+1. **WP3b mergen** (PR) nach Owner-OK.
+2. **Folge-Tasks**: (a) Kat-A Heading-Typos; (b) **3 Deferred-Cleanup** (Display-Beispiel-FM
    `metadata-processor`/`claude-agenten` → ```yaml; Setext `vector-databases` → Leerzeile) +
    2 sonstige (`markdown-syntax`, `thinkstation`); (c) Beispiel-Inhalt-Reparatur aus Korpus.
 

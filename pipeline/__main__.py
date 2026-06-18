@@ -619,6 +619,67 @@ def format_vault_cmd(vault_dir: str | None, work_dir: str | None, examples: int)
     )
 
 
+@cli.command(name="fence-indented")
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(),
+    default=None,
+    help="Vault, read-only (default: Brain-Vault aus _paths)",
+)
+@click.option(
+    "--work-dir",
+    "work_dir",
+    type=click.Path(),
+    default=None,
+    help="Arbeitskopie + Reports (default: work/fence_indented aus _paths)",
+)
+def fence_indented_cmd(vault_dir: str | None, work_dir: str | None) -> None:
+    """WP3b: indentierte Code-Beispiele → fenced — DRY-RUN (raw read-only → work/).
+
+    Konvertiert nur die WP3b-Scope-Files (KAT_B_FILES). Schreibt für `convertible`
+    formatierte Arbeitskopien + Diffs, für `flagged` einen Mechanismus-Hinweis, plus
+    Report + Sprach-Tag-Vorschläge nach work/. Der Vault (#3) bleibt unangetastet;
+    Export ist separat + Gate-3-pflichtig (nicht hier).
+    """
+    from pipeline import _paths
+    from pipeline.fence_indented import (
+        KAT_B_FILES,
+        render_language_suggestions,
+        render_report,
+        scan_files,
+        write_work,
+    )
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    work = Path(work_dir) if work_dir else (_paths.WORK / "fence_indented")
+    if not vault.is_dir():
+        console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
+        raise SystemExit(2)
+
+    console.print(f"[cyan]fence-indented (dry-run):[/cyan] {vault} → {work}")
+    outcomes = scan_files(vault, KAT_B_FILES)
+    write_work(work, vault, outcomes)
+    (work / "fence_indented_report.md").write_text(
+        render_report(outcomes, vault), encoding="utf-8"
+    )
+    (work / "language_tag_suggestions.md").write_text(
+        render_language_suggestions(outcomes), encoding="utf-8"
+    )
+    conv = sum(1 for o in outcomes if o.status == "convertible")
+    flag = sum(1 for o in outcomes if o.status == "flagged")
+    table = Table(title=f"WP3b Indented→Fenced ({len(outcomes)} Files)")
+    table.add_column("Status")
+    table.add_column("Files", justify="right")
+    table.add_row("[green]convertible[/green]", str(conv))
+    table.add_row("[yellow]flagged (Review)[/yellow]", str(flag))
+    console.print(table)
+    console.print(f"[green]✓[/green] {work / 'fence_indented_report.md'}")
+    console.print(
+        "[dim]Vault unangetastet. Export nach #3 ist Gate-3-pflichtig (nicht hier).[/dim]"
+    )
+
+
 @cli.command(name="redundancy-scan")
 @click.option(
     "--vault-dir",

@@ -62,13 +62,19 @@ Arbeitskopie, pro `flagged` `*.flag`.
    - Geordnete Listen erscheinen als `1./1./1.` (mdformat-`1.`-Stil, bereits WP3a-Standard,
      rendert 1,2,3) — kosmetisch, kein Fehler.
 2. **Snapshot** `bash scripts/backup_vault.sh` **VOR** Export (Gate-3, Pflicht).
-3. **Export** der 6 `convertible` nach #3 — Export-Funktion liegt **noch nicht** in
-   `fence_indented.py` (Dry-Run-only). Vor Export: schlanke `export_*`-Funktion analog
-   `format_vault.export_formatted` ergänzen (re-evaluiert aus Raw, weigert sich bei
-   `flagged`), + Idempotenz-Verify am geschriebenen Vault.
+3. **Export** der 6 `convertible` nach #3 — `fence_indented.export_convertible()` ist
+   **geschrieben, aber NICHT ausgeführt** (wartet auf Diff-Review-OK). Re-evaluiert aus
+   Raw, weigert sich bei `flagged` (`refused-flagged`), idempotent (`skipped-unchanged`,
+   da bereits konvertierte Files mdformat-stabil sind). Noch **kein CLI-Subcommand** — bewusst,
+   damit kein versehentlicher Lauf. Nach Export: Idempotenz-Verify am geschriebenen Vault.
 4. **WP3b mergen** (PR) nach Owner-OK.
-5. **Folge-Tasks**: (a) Kat-A Heading-Typos; (b) 8 flagged manuell; (c) Beispiel-Inhalt-
-   Reparatur aus Korpus-Originalen.
+5. **Folge-Tasks**: (a) Kat-A Heading-Typos; (b) **3 Deferred-Cleanup** (Display-Beispiel-FM
+   `metadata-processor`/`claude-agenten` → ```yaml; Setext `vector-databases` → Leerzeile) +
+   2 sonstige (`markdown-syntax`, `thinkstation`); (c) Beispiel-Inhalt-Reparatur aus Korpus.
+
+**Dauerhafte Ausnahme (KEIN offener Punkt):** `artikel-template-grundlagen`,
+`artikel-template-kompaktreferenz`, `artikel-formatierung` bleiben **unfenced** (funktionale
+Template-FM; Fencing bräche Copy). Kodifiziert in `PERMANENT_UNFENCED` + Report-Sektion.
 
 ## 5. Learnings (verbindlich)
 

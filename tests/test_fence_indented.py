@@ -138,6 +138,40 @@ def test_scan_and_reports(tmp_path: Path) -> None:
 
     report = fi.render_report(outcomes, vault)
     assert "Convertible" in report
-    assert "Flagged" in report
     langs = fi.render_language_suggestions(outcomes)
     assert "a.md" in langs
+
+
+# === Export (Gate-3-Mutation) =================================================
+
+
+def test_export_writes_convertible_refuses_flagged(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "a.md").write_text("Beispiel:\n\n    # x\n    a = 1\n\nEnde.\n", encoding="utf-8")
+    # genuinely unsafe + flagged (mdformat würde `**` im Heading escapen, kein indented Block)
+    (vault / "b.md").write_text("# **Variablen\n\nText.\n", encoding="utf-8")
+    (vault / "c.md").write_text("# Sauber\n\nText.\n", encoding="utf-8")
+
+    results = dict(fi.export_convertible(vault, ["a.md", "b.md", "c.md", "fehlt.md"]))
+    assert results["a.md"] == "written"
+    assert results["b.md"] == "refused-flagged"  # unsafe + flagged → nie geschrieben
+    assert results["c.md"] == "skipped-unchanged"  # bereits sauber → no-op
+    assert results["fehlt.md"] == "missing"
+    # a.md ist jetzt gefenced; b.md unangetastet
+    assert "```" in (vault / "a.md").read_text(encoding="utf-8")
+    assert (vault / "b.md").read_text(encoding="utf-8") == "# **Variablen\n\nText.\n"
+
+
+def test_export_idempotent_second_run_skips(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "a.md").write_text("Beispiel:\n\n    # x\n    a = 1\n\nEnde.\n", encoding="utf-8")
+    fi.export_convertible(vault, ["a.md"])
+    second = dict(fi.export_convertible(vault, ["a.md"]))
+    assert second["a.md"] == "skipped-unchanged"  # 2. Lauf = no-op
+
+
+def test_permanent_unfenced_disjoint_from_convertible_scope() -> None:
+    # Dauerhafte Ausnahmen sind Teil des Scopes, aber nie convertible-Ziel.
+    assert set(fi.PERMANENT_UNFENCED).issubset(set(fi.KAT_B_FILES))

@@ -64,6 +64,22 @@ KAT_B_FILES: tuple[str, ...] = (
     "10_Datenarchitektur-und-Datenbanken/vector-databases-embeddings.md",
 )
 
+# Dauerhafte, akzeptierte Ausnahme (Owner-Entscheid): funktionale Template-Frontmatter.
+# Diese Files sind als Vorlage zum Kopieren gedacht — das `---`-Frontmatter MUSS roh
+# bleiben; ein ```yaml-Fence bräche die Copy-Funktion. NIE auto-konvertieren.
+PERMANENT_UNFENCED: dict[str, str] = {
+    "00_Meta/artikel-template-grundlagen.md": "funktionale Template-FM — Fencing bräche Copy-Funktion",
+    "00_Meta/artikel-template-kompaktreferenz.md": "funktionale Template-FM — Fencing bräche Copy-Funktion",
+    "01_Grundlagen/artikel-formatierung.md": "funktionale Template-FM — Fencing bräche Copy-Funktion",
+}
+
+# In einen späteren Kat-A/Cleanup-Mini-Task verschoben (kein WP3b-Eingriff).
+DEFERRED_CLEANUP: dict[str, str] = {
+    "10_Datenarchitektur-und-Datenbanken/metadata-processor-pipeline.md": "Display-Beispiel-FM → manuell ```yaml",
+    "09_KI-und-Semantische-Systeme/claude-agenten-uebersicht.md": "Display-Beispiel-FM → manuell ```yaml",
+    "10_Datenarchitektur-und-Datenbanken/vector-databases-embeddings.md": "versehentliches Setext-Heading (`Prosa`+`---`) → Leerzeile",
+}
+
 _FM_RE = re.compile(r"^---\n.*?\n---\n", re.S)
 _FENCE_OPEN_RE = re.compile(r"^([ \t]*)(`{3,}|~{3,})")
 # Eine „indentierte" Zeile: mind. 4 führende Spaces (Tabs werden nicht als Code-Indent
@@ -352,6 +368,42 @@ def write_work(work_dir: Path, vault_dir: Path, outcomes: list[FileOutcome]) -> 
             )
 
 
+def export_convertible(
+    vault_dir: Path, relpaths: tuple[str, ...] | list[str]
+) -> list[tuple[str, str]]:
+    """**Gate-3-Mutation**: schreibt die konvertierte+formatierte Fassung NUR von Files
+    zurück in den Vault (#3), die das Gate erneut als ``convertible`` bestätigt.
+
+    Re-evaluiert jede Datei aus dem **Raw-Original** (autoritativ, nicht aus einer
+    Arbeitskopie) und weigert sich bei ``flagged``. **Kein** Snapshot-/Backup-Schritt
+    hier — der ist Aufrufer-Pflicht VOR diesem Aufruf (`scripts/backup_vault.sh`).
+
+    Returns: Liste ``(relpath, status)`` mit status ∈ {written, refused-flagged,
+    skipped-unchanged, missing}.
+    """
+    results: list[tuple[str, str]] = []
+    for rel in relpaths:
+        target = vault_dir / rel
+        if not target.is_file():
+            results.append((rel, "missing"))
+            continue
+        current = target.read_text(encoding="utf-8")
+        # Idempotenz: ein bereits konvertierter+formatierter (oder ohnehin sauberer)
+        # File ist mdformat-stabil → nichts zu tun. (Nach Export hat er keine
+        # indentierten Blöcke mehr, würde sonst fälschlich als flagged refused.)
+        if format_file(current, rel).tier == "unchanged":
+            results.append((rel, "skipped-unchanged"))
+            continue
+        outcome = evaluate_file(current, rel)
+        if outcome.status != "convertible":
+            results.append((rel, "refused-flagged"))
+            continue
+        target.write_text(outcome.final, encoding="utf-8")
+        results.append((rel, "written"))
+        log.info("fence_indented_exported", relpath=rel)
+    return results
+
+
 def render_report(outcomes: list[FileOutcome], vault_dir: Path) -> str:
     """``fence_indented_report.md`` — Konvertierbare + geflaggte Files mit Begründung."""
     conv = [o for o in outcomes if o.status == "convertible"]
@@ -372,15 +424,41 @@ def render_report(outcomes: list[FileOutcome], vault_dir: Path) -> str:
     for o in conv:
         langs = ", ".join(f"`{b.lang_suggestion or '?'}`" for b in o.blocks)
         lines.append(f"- `{o.relpath}` — {len(o.blocks)} Block(e); Sprach-Vorschlag: {langs}")
-    lines += ["", f"## Flagged (Review) — {len(flag)}", ""]
-    for o in flag:
-        # Persistent-unsafe trotz Block ⇒ Meta-Markdown; sonst Mechanismus-Hinweis.
-        if o.blocks:
-            hint = "weitere `#`-Beispiele/Meta-Markdown — manuell prüfen"
-        else:
-            original = (vault_dir / o.relpath).read_text(encoding="utf-8")
-            hint = mechanism_hint(original)
-        lines.append(f"- `{o.relpath}` — {hint}  _(Gate: {'; '.join(o.reasons)})_")
+
+    # Geflaggte Files in drei Buckets: dauerhafte Ausnahme / späterer Cleanup / sonstiges.
+    perm = [o for o in flag if o.relpath in PERMANENT_UNFENCED]
+    defer = [
+        o for o in flag if o.relpath in DEFERRED_CLEANUP and o.relpath not in PERMANENT_UNFENCED
+    ]
+    other = [
+        o for o in flag if o.relpath not in PERMANENT_UNFENCED and o.relpath not in DEFERRED_CLEANUP
+    ]
+
+    lines += [
+        "",
+        f"## Akzeptierte Ausnahme — dauerhaft unfenced ({len(perm)})",
+        "",
+        "> Owner-Entscheid: funktionale Template-Frontmatter. Das `---`-Frontmatter bleibt "
+        "**roh** (Vorlage zum Kopieren); ein ```yaml-Fence bräche die Copy-Funktion. Diese "
+        "Files werden von WP3b **nie** konvertiert und sind **kein** offener Punkt.",
+        "",
+    ]
+    for o in perm:
+        lines.append(f"- `{o.relpath}` — {PERMANENT_UNFENCED[o.relpath]}")
+
+    lines += ["", f"## Späterer Kat-A/Cleanup-Mini-Task ({len(defer)})", ""]
+    for o in defer:
+        lines.append(f"- `{o.relpath}` — {DEFERRED_CLEANUP[o.relpath]}")
+
+    if other:
+        lines += ["", f"## Sonstige Review-Fälle ({len(other)})", ""]
+        for o in other:
+            hint = (
+                "weitere `#`-Beispiele/Meta-Markdown — manuell prüfen"
+                if o.blocks
+                else mechanism_hint((vault_dir / o.relpath).read_text(encoding="utf-8"))
+            )
+            lines.append(f"- `{o.relpath}` — {hint}  _(Gate: {'; '.join(o.reasons)})_")
     return "\n".join(lines) + "\n"
 
 

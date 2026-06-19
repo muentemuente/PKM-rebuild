@@ -10,6 +10,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pipeline import vault_audit as va
@@ -327,11 +329,33 @@ def test_repair_junk_heading_removed() -> None:
     assert any("Junk-Heading" in a for a in actions)
 
 
-def test_repair_url_mash_reconstruct() -> None:
+def test_repair_keeps_url_mash() -> None:
+    # url-Mashup ist an der URL/Prosa-Grenze nicht deterministisch (CANARY A-2.1)
+    # -> NICHT im Safe-Tier, sondern Review-Patch (analog turn-Token).
     text = _doc("a", "siehe urlFigmahttps://www.figma.com hier\n")
     out, actions = va.repair_text(text)
-    assert "[Figma](https://www.figma.com)" in out
-    assert any("Mashup" in a for a in actions)
+    assert "urlFigmahttps://www.figma.com" in out  # repair_text fasst es NICHT an
+    assert all("Mashup" not in a for a in actions)
+    patch = va.review_patches("a.md", text)
+    assert patch
+    assert any(line.startswith("+") and "[Figma](https://www.figma.com)" in line for line in patch)
+
+
+@pytest.mark.parametrize(
+    "mashup",
+    [
+        # CANARY-Realfälle: beweisen die Nicht-Determinismus-Verschiebung in den Review-Tier.
+        "urlFigmahttps://figma.com: weiter",  # Trailing-Doppelpunkt wird mitgegriffen
+        "urlSetuphttps://affinity.serif.com/-Setup runter",  # angehängte Prosa verschluckt
+        "urlDochttps://example.com, danach",  # Trailing-Komma wird mitgegriffen
+    ],
+)
+def test_url_mash_is_review_only(mashup: str) -> None:
+    text = _doc("a", f"{mashup}\n")
+    out, actions = va.repair_text(text)
+    assert out == text  # Safe-Tier lässt den Mashup unangetastet
+    assert actions == []
+    assert va.review_patches("a.md", text)  # erscheint als Review-Patch-Vorschlag
 
 
 def test_repair_tag_fences_highconf() -> None:

@@ -5,13 +5,14 @@ Zielt auf den **produktiven** Obsidian-Vault (``_paths.BRAIN_VAULT``). Drei Modi
 * :func:`audit_vault` — read-only Befund-Report über alle Content-Files
   (``_attic``/``_index``/``00_Meta``/Templates ausgenommen). Implementiert die
   neun Detektionsregeln aus dem WP4-Spec.
-* :func:`repair_text` — deterministische, idempotente Safe-Tier-Fixes auf einem
-  einzelnen File-Text (``**``-Heading entbolden, geleakte Tokens/Mashups
-  bereinigen, eindeutig erkennbare Code-Fences taggen). Schutzbereiche
-  (Frontmatter, Code-Inhalt, Wikilinks/Embeds) bleiben unberührt.
-* :func:`review_patches` — Unified-Diff-Vorschläge für **Unsafe**-Fälle, die nie
-  auto-angewendet werden (Fence ohne erkennbare Sprache, Setext-Bruch,
-  Junk-Heading).
+* :func:`repair_text` — deterministische, **verlustfreie**, idempotente Safe-Tier-
+  Fixes auf einem File-Text: ``**``-Heading entbolden, Junk-Heading entfernen,
+  Setext-Bruch entkoppeln, URL-Mashup rekonstruieren, PUA-Wrapper bereinigen,
+  Code-Fences bei eindeutiger Heuristik taggen. Schutzbereiche (Frontmatter,
+  Code-Inhalt, Wikilinks/Embeds) bleiben unberührt.
+* :func:`review_patches` — Unified-Diff-Vorschläge für **Review-Tier**-Fälle, die
+  nie auto-angewendet werden: verlustbehaftete ``turn…``-Token-Leaks (keine
+  rekonstruierbare URL → B-2). Fences ohne erkennbare Sprache bleiben Audit-Findings.
 
 Das Modul ist **non-mutating gegenüber dem Vault**: alle öffentlichen Funktionen
 lesen und liefern Datenstrukturen bzw. neuen Text zurück. Das Schreiben (3-State
@@ -384,26 +385,101 @@ def check_fences(relpath: str, text: str) -> list[Finding]:
     return out
 
 
-def detect_fence_lang(lines: list[str], open_idx: int) -> str | None:
-    """Heuristische Sprach-Erkennung für einen untagged Fence (ab ``open_idx``).
-
-    Liefert nur bei **eindeutigem** Signal eine Sprache, sonst ``None`` (→ Review).
-    """
+def _fence_block(lines: list[str], open_idx: int) -> str:
+    """Liefert den Inhalt eines Fences (Zeilen nach ``open_idx`` bis zum nächsten Fence)."""
     block: list[str] = []
     for raw in lines[open_idx + 1 :]:
         if _FENCE_RE.match(raw):
             break
         block.append(raw)
-    content = "\n".join(block)
+    return "\n".join(block)
+
+
+def detect_fence_lang(lines: list[str], open_idx: int) -> str | None:
+    """Heuristische Sprach-Erkennung für einen untagged Fence (ab ``open_idx``).
+
+    Liefert nur bei **eindeutigem** Signal eine Sprache, sonst ``None`` (→ Review).
+    Reihenfolge spezifisch→generisch; ``text`` nur als bewusster Prosa-Fallback.
+    """
+    content = _fence_block(lines, open_idx)
     if not content.strip():
         return None
-    if re.search(r"\b(def|import|print\()|^\s*(class|return)\b", content, re.MULTILINE):
+    for detector in (
+        _is_python,
+        _is_bash,
+        _is_json,
+        _is_toml,
+        _is_yaml,
+        _is_regex,
+        _is_md,
+        _is_text,
+    ):
+        lang = detector(content)
+        if lang:
+            return lang
+    return None
+
+
+def _is_python(c: str) -> str | None:
+    if re.search(r"^\s*(def |class |import |from .+ import |return\b)|print\(", c, re.MULTILINE):
         return "python"
-    if re.search(r"(^|\n)\s*(\$ |sudo |apt |pip |brew |cd |ls |git )", content):
+    return None
+
+
+def _is_bash(c: str) -> str | None:
+    if re.search(
+        r"(^|\n)\s*(\$ |sudo |apt |pip |brew |cd |ls |git |export |echo |chmod |mkdir )", c
+    ):
         return "bash"
-    if re.match(r"^\s*[/(].*[/)]\s*(#|$)", content) or re.search(r"\\[dbsw]|\[\^?\\?\]", content):
+    if re.search(r"^#!.*/(ba|z)?sh\b", c, re.MULTILINE):
+        return "bash"
+    return None
+
+
+def _is_regex(c: str) -> str | None:
+    if re.match(r"^\s*/.*/[a-z]*\s*(#|$)", c, re.MULTILINE) or re.search(r"\\[dDwWsSbB]|\\\[", c):
         return "regex"
     return None
+
+
+def _is_json(c: str) -> str | None:
+    stripped = c.strip()
+    if stripped[:1] in "{[" and re.search(r'"\s*:\s*', stripped):
+        return "json"
+    return None
+
+
+def _is_toml(c: str) -> str | None:
+    if re.search(r"^\[[\w.\-]+\]\s*$", c, re.MULTILINE) and re.search(
+        r"^[\w.\-]+ = ", c, re.MULTILINE
+    ):
+        return "toml"
+    return None
+
+
+def _is_yaml(c: str) -> str | None:
+    keyed = re.findall(r"^[ \t]*[\w.\-]+:( .+)?$", c, re.MULTILINE)
+    code_like = re.search(r"[{}=]|^\s*(def |class )", c, re.MULTILINE)
+    if len(keyed) >= 2 and not code_like:
+        return "yaml"
+    return None
+
+
+def _is_md(c: str) -> str | None:
+    if re.search(r"^\|[\s:\-|]+\|\s*$", c, re.MULTILINE):  # GFM-Tabellen-Separator
+        return "md"
+    return None
+
+
+def _is_text(c: str) -> str | None:
+    """Prosa-Fallback: nur wenn keine Code-/Struktur-Signale und natürlichsprachlich."""
+    if re.search(r"[{}<>=$/\\|]|\b(def|class|import|function|var|const)\b", c):
+        return None
+    lines = [ln for ln in c.splitlines() if ln.strip()]
+    if not lines:
+        return None
+    proselike = sum(1 for ln in lines if len(ln.split()) >= 4 and re.search(r"[A-Za-zÄÖÜäöüß]", ln))
+    return "text" if proselike >= max(1, len(lines) // 2) else None
 
 
 # === Regel 5: Korruptions-Scan ================================================
@@ -634,27 +710,141 @@ def _debold_headings(text: str) -> tuple[str, int]:
     return "\n".join(parts), n
 
 
-def _clean_tokens(text: str) -> tuple[str, int]:
-    """Entfernt geleakte Klartext-Tokens und PUA-Spans (gesamtes Dokument). Idempotent."""
-    cleaned, n1 = _TOKEN_LEAK_RE.subn("", text)
-    cleaned, n2 = _PUA_RE.subn("", cleaned)
-    return cleaned, n1 + n2
+_URL_MASH_RECON_RE = re.compile(r"\burl(\S+?)(https?://[^\s)\]]+)")
+_JUNK_HEADING_TEXTS = frozenset({"unbenannt", "untitled", ""})
+
+
+def _scan_states(parts: list[str]) -> list[tuple[bool, bool]]:
+    """Pro Zeile ``(in_frontmatter, in_fence)``. Fence-Marker-Zeilen zählen als ``in_fence``."""
+    states: list[tuple[bool, bool]] = []
+    in_fm = bool(parts) and parts[0] == "---"
+    fm_closed = not in_fm
+    in_fence = False
+    marker = ""
+    for i, raw in enumerate(parts):
+        if in_fm and not fm_closed:
+            states.append((True, False))
+            if i > 0 and raw.strip() == "---":
+                fm_closed = True
+            continue
+        fence = _FENCE_RE.match(raw)
+        if fence and not in_fence:
+            in_fence, marker = True, fence.group(1)
+            states.append((False, True))
+        elif fence and in_fence and raw.strip().startswith(marker):
+            in_fence = False
+            states.append((False, True))
+        else:
+            states.append((False, in_fence))
+    return states
+
+
+def _clean_pua(text: str) -> tuple[str, int]:
+    """Entfernt PUA-Wrapper-Zeichen ``\\ue200``/``\\ue201`` (verlustfrei). Idempotent."""
+    return _PUA_RE.subn("", text)
+
+
+def _fix_setext(text: str) -> tuple[str, int]:
+    """Entkoppelt ``Prosa\\n---``-Setext-False-Breaks (Leerzeile davor). Idempotent, fence-aware."""
+    parts = text.split("\n")
+    states = _scan_states(parts)
+    out: list[str] = []
+    n = 0
+    for i, raw in enumerate(parts):
+        in_fm, in_fence = states[i]
+        if not in_fm and not in_fence and i > 0 and _SETEXT_RE.match(raw):
+            prev_fm, prev_fence = states[i - 1]
+            prev = parts[i - 1]
+            if not prev_fm and not prev_fence and prev.strip() and not _HEADING_RE.match(prev):
+                out.append("")
+                n += 1
+        out.append(raw)
+    return "\n".join(out), n
+
+
+def _remove_junk_headings(text: str) -> tuple[str, int]:
+    """Entfernt eindeutige Junk-/Platzhalter-Headings (``# Unbenannt``, leer). Idempotent."""
+    parts = text.split("\n")
+    states = _scan_states(parts)
+    out: list[str] = []
+    n = 0
+    for i, raw in enumerate(parts):
+        in_fm, in_fence = states[i]
+        heading = _HEADING_RE.match(raw)
+        if (
+            not in_fm
+            and not in_fence
+            and heading
+            and heading.group(2).strip().lower() in _JUNK_HEADING_TEXTS
+        ):
+            n += 1
+            continue
+        out.append(raw)
+    return "\n".join(out), n
+
+
+def _reconstruct_url_mash(text: str) -> tuple[str, int]:
+    """``url<Text>https://<url>``-Mashup → ``[Text](url)`` (nur mit realer URL). Idempotent."""
+    return _URL_MASH_RECON_RE.subn(lambda m: f"[{m.group(1)}]({m.group(2)})", text)
+
+
+def _tag_fences(text: str) -> tuple[str, int]:
+    """Taggt untagged Code-Fences bei **eindeutiger** Sprach-Heuristik. Idempotent, fm-aware."""
+    parts = text.split("\n")
+    states = _scan_states(parts)
+    out: list[str] = []
+    n = 0
+    in_fence = False
+    marker = ""
+    for i, raw in enumerate(parts):
+        in_fm = states[i][0]
+        fence = _FENCE_RE.match(raw)
+        if not in_fm and fence and not in_fence:
+            in_fence, marker = True, fence.group(1)
+            if not fence.group(2).strip():
+                lang = detect_fence_lang(parts, i)
+                if lang:
+                    out.append(f"{marker}{lang}")
+                    n += 1
+                    continue
+        elif not in_fm and fence and in_fence and raw.strip().startswith(marker):
+            in_fence = False
+        out.append(raw)
+    return "\n".join(out), n
+
+
+#: Safe-Tier-Ops (deterministisch, verlustfrei, idempotent) — Reihenfolge fix.
+_SAFE_OPS: tuple[tuple[Any, str], ...] = (
+    (_debold_headings, "`**`-Heading(s) entboldet"),
+    (_remove_junk_headings, "Junk-Heading(s) entfernt"),
+    (_fix_setext, "Setext-Bruch/-Brüche entkoppelt"),
+    (_reconstruct_url_mash, "URL-Mashup(s) rekonstruiert"),
+    (_clean_pua, "PUA-Wrapper bereinigt"),
+    (_tag_fences, "Fence(s) sprach-getaggt"),
+)
 
 
 def repair_text(text: str) -> tuple[str, list[str]]:
-    """Wendet alle Safe-Tier-Fixes idempotent an.
+    """Wendet alle Safe-Tier-Fixes idempotent + verlustfrei an.
+
+    Safe-Tier = entbolden · Junk-Heading entfernen · Setext entkoppeln ·
+    URL-Mashup rekonstruieren · PUA-Wrapper bereinigen · Fence-Tagging (high-conf).
+    **Nicht** enthalten: ``turn…``-Token-Strip (verlustbehaftet → :func:`review_patches`).
 
     Returns:
         ``(neuer_text, [aktions-logs])``. Bei ``[]`` war nichts zu tun.
     """
     actions: list[str] = []
-    text, n_bold = _debold_headings(text)
-    if n_bold:
-        actions.append(f"{n_bold} `**`-Heading(s) entboldet")
-    text, n_tok = _clean_tokens(text)
-    if n_tok:
-        actions.append(f"{n_tok} geleakte Token/PUA bereinigt")
+    for op, label in _SAFE_OPS:
+        text, count = op(text)
+        if count:
+            actions.append(f"{count} {label}")
     return text, actions
+
+
+def _strip_turn_tokens(text: str) -> tuple[str, int]:
+    """Review-Tier: entfernt ``turn\\d+(view|search)\\d+``-Leaks (verlustbehaftet → kein Auto)."""
+    return _TOKEN_LEAK_RE.subn("", text)
 
 
 # === Repair: bidirektionale related: (für WP4 Teil B) ========================
@@ -733,18 +923,19 @@ def _related_of(fm_text: str) -> list[str]:
 
 
 def review_patches(relpath: str, text: str) -> list[str]:
-    """Erzeugt Unified-Diff-Vorschläge für Unsafe-Fälle (kein Auto-Write).
+    """Erzeugt Unified-Diff-Vorschläge für **Review-Tier**-Fälle (kein Auto-Write).
 
-    Deckt aktuell ab: Safe-Tier-Vorschau (entbolden/token-clean) als Patch. Fälle
-    ohne deterministische Lösung (Fence ohne erkennbare Sprache, Junk-Heading)
-    bleiben Befund-only und erscheinen nicht als Patch.
+    Aktuell: verlustbehaftete ``turn…``-Token-Strips (B-2) — die echte URL ist nicht
+    rekonstruierbar, daher kein Safe-Auto, sondern menschlich zu prüfender Patch.
+    Safe-Fixes laufen über :func:`repair_text` / ``vault-repair``; Fences ohne
+    erkennbare Sprache bleiben reine Audit-Findings (kein deterministischer Patch).
     """
-    repaired, _actions = repair_text(text)
-    if repaired == text:
+    suggested, count = _strip_turn_tokens(text)
+    if count == 0 or suggested == text:
         return []
     diff = difflib.unified_diff(
         text.splitlines(keepends=True),
-        repaired.splitlines(keepends=True),
+        suggested.splitlines(keepends=True),
         fromfile=f"a/{relpath}",
         tofile=f"b/{relpath}",
     )
@@ -777,7 +968,9 @@ def render_report(findings: list[Finding]) -> str:
         by_file.setdefault(finding.relpath, []).append(finding)
     lines = ["# Vault-Audit-Report", ""]
     sev = count_by_severity(findings)
-    lines.append(f"**{len(findings)} Befunde** — {sev['error']} error · {sev['warning']} warning · {sev['info']} info")
+    lines.append(
+        f"**{len(findings)} Befunde** — {sev['error']} error · {sev['warning']} warning · {sev['info']} info"
+    )
     lines.append("")
     for relpath in sorted(by_file, key=lambda r: (r == "", r)):
         title = relpath or "(Vault-Ebene)"

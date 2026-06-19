@@ -297,10 +297,14 @@ URL-Mashups, fremdsprachige Kontamination), (6) Doc-Count-Metrik + Baseline-Reco
 `work/synthesis_candidates.md` (nur Liste), (9) Quarantäne nicht-parsebarer Files.
 Ausgenommen: `_attic`/`_assets`/`00_Meta`/`_index.md`/funktionale Templates.
 
-**`repair`** (Safe-Tier, idempotent) — `**`-Heading entbolden, geleakte Tokens/PUA
-bereinigen; bidirektionale `related:` aus freigegebener Kandidatenliste (Teil B).
-Schutzbereiche (Frontmatter, Code-Inhalt, Wikilinks) byte-genau erhalten.
-**`review`** — Patch-Vorschläge für Fälle ohne deterministische Auto-Lösung.
+**`repair`** (Safe-Tier = **deterministisch + verlustfrei + idempotent**) — `**`-Heading
+entbolden, Junk-Heading (`# Unbenannt`) entfernen, Setext-Bruch entkoppeln, URL-Mashup
+(`url<Text>https://<url>` → `[Text](url)`) rekonstruieren, PUA-Wrapper bereinigen,
+Code-Fences bei **eindeutiger** Heuristik taggen (python/bash/regex/json/toml/yaml/md/text;
+unsichere bleiben untagged). Bidirektionale `related:` aus freigegebener Kandidatenliste
+(Teil B). Schutzbereiche (Frontmatter, Code-Inhalt, Wikilinks) byte-genau erhalten.
+**`review`** — Patch-Vorschläge für **verlustbehaftete** Fälle (kein Auto): `turn…`-Token-Leaks
+ohne rekonstruierbare URL (→ B-2). Fences ohne erkennbare Sprache bleiben Audit-Findings.
 
 ### Inkrementeller Modus (`ingest`)
 
@@ -830,4 +834,5 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-06-16 — REVIEW-Gate-1: E1=A — `pkm taxonomy add-tag` schreibt direkt ins YAML-SSoT (Sektion „Erweiterungen" + `changelog` mit `--reason`) + md-Sync `00_Meta/tag-system.md`, idempotent; §4 angepasst. Passives Surfacing: `build-vault` weist 17_unsortiert-Füllstand aus + warnt über `vault.unsorted_warn_threshold` (default 10, §3), read-only (kein P4)
 - 2026-06-16 — WP2 (P5 Redundanz/Synthese-Erkennung): §4 CLI `pkm redundancy-scan` (read-only Detection + Report, kein Merge); §7 Schemas `RedundancyPair`/`SynthesisCandidate`/`QwenPairVerdict`; §3 Config-Block `redundancy_scan` (Schwellen, Gate-2-Weiche). Engine `pipeline/redundancy_scan.py` (Hash + TF-IDF + mpnet paarweise, in-memory)
 - 2026-06-17 — WP3a (P2 deterministische Formatierung): §4 CLI `pkm format-vault` (mdformat +gfm +frontmatter, non-mutating Dry-Run → work/format/). Obsidian-Schutzbereiche (Wikilink/Embed-Maskierung, Callout/Code/Frontmatter-Guards), Tier-Split safe/unsafe (D4 raw→work→export), Export Gate-3-pflichtig. Engine `pipeline/format_vault.py`
+- 2026-06-19 — WP4 Teil A-2 (Safe-Tier komplettiert): `repair_text` um Junk-Heading-Removal, Setext-Entkopplung, URL-Mashup-Rekonstruktion, Fence-Tagging-Apply (high-conf, +yaml/json/toml/md/text) erweitert; `turn…`-Token-Strip **aus** dem Safe-Tier entfernt (verlustbehaftet → `vault-review`/B-2). Safe-Tier-Definition gelockt: deterministisch+verlustfrei+idempotent. §4 angeglichen. Engine `pipeline/vault_audit.py` (37 Tests)
 - 2026-06-19 — WP4 Teil A (Vault-Audit/Repair-Tooling): §4 CLI `pkm vault-audit`/`vault-repair`/`vault-review` (3 Modi, non-mutating → work/). Neun read-only Detektionsregeln (Frontmatter↔SSoT, Wikilink-Auflösbarkeit+Dangling-Klassifikation, Heading-Defekte, untagged Fences, Korruptions-Scan, Doc-Count-Reconcile, Alias-Kollisionen, Cross-Link-Kandidaten, Quarantäne); Safe-Tier-Repair (entbolden/Token-Clean/bidir-`related:`) idempotent mit 3-State; Review-Patches für Unsafe. Engine `pipeline/vault_audit.py` (reuse `pipeline.taxonomy`/WP3a-Schutzmuster). Anwendung = Teil B (gegatet). Keine `schemas.py`-Änderung (Dataclasses `Finding`/`VaultIndex`, kein Pydantic → §7 n/a)

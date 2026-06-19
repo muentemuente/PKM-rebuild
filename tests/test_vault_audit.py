@@ -185,14 +185,24 @@ def test_fence_tagged_clean() -> None:
 
 
 def test_detect_fence_lang() -> None:
-    py = ["```", "def f():", "    return 1", "```"]
-    sh = ["```", "$ pip install x", "```"]
-    rx = ["```", "/\\[\\[.*\\]\\]/  # wikilinks", "```"]
-    txt = ["```", "einfach prosa ohne signal", "```"]
-    assert va.detect_fence_lang(py, 0) == "python"
-    assert va.detect_fence_lang(sh, 0) == "bash"
-    assert va.detect_fence_lang(rx, 0) == "regex"
-    assert va.detect_fence_lang(txt, 0) is None
+    cases = {
+        "python": ["```", "def f():", "    return 1", "```"],
+        "bash": ["```", "$ pip install x", "```"],
+        "regex": ["```", "/\\[\\[.*\\]\\]/  # wikilinks", "```"],
+        "json": ["```", '{"a": 1, "b": 2}', "```"],
+        "toml": ["```", "[section]", "key = 1", "```"],
+        "yaml": ["```", "title: x", "count: 3", "```"],
+        "md": ["```", "| A | B |", "|---|---|", "```"],
+        "text": ["```", "Dies ist ein ganzer Satz mit Woertern.", "```"],
+    }
+    for lang, block in cases.items():
+        assert va.detect_fence_lang(block, 0) == lang, lang
+
+
+def test_detect_fence_lang_ambiguous_none() -> None:
+    # Shortcut mit Sonderzeichen + zu kurze Zeile -> kein eindeutiges Signal
+    assert va.detect_fence_lang(["```", "Cmd/Ctrl + Shift + F", "```"], 0) is None
+    assert va.detect_fence_lang(["```", "ab cd", "```"], 0) is None
 
 
 # === Regel 5: Korruption =====================================================
@@ -279,12 +289,65 @@ def test_repair_debold_and_idempotent() -> None:
     assert actions2 == []
 
 
-def test_repair_clean_tokens() -> None:
-    text = _doc("a", "leak turn1view2 und \ue200 ende\n")
+def test_repair_clean_pua_lossless() -> None:
+    text = _doc("a", "siehe \ue200cite\ue201 hier\n")
     out, actions = va.repair_text(text)
-    assert "turn1view2" not in out
     assert "\ue200" not in out
-    assert any("Token/PUA" in a for a in actions)
+    assert "\ue201" not in out
+    assert "cite" in out  # verlustfrei: nur PUA-Wrapper raus
+    assert any("PUA-Wrapper" in a for a in actions)
+
+
+def test_repair_keeps_turn_token() -> None:
+    # turn-Token-Leak ist verlustbehaftet -> NICHT im Safe-Tier, sondern Review-Patch
+    text = _doc("a", "x citeturn29search5 y\n")
+    out, actions = va.repair_text(text)
+    assert "turn29search5" in out  # repair_text fasst es NICHT an
+    assert all("Token" not in a for a in actions)
+    patch = va.review_patches("a.md", text)
+    assert patch
+    assert any(line.startswith("-") and "turn29search5" in line for line in patch)
+
+
+def test_repair_setext_decouple() -> None:
+    text = _doc("a", "# Ok\n\nProsa-Zeile\n---\n\nweiter\n")
+    out, actions = va.repair_text(text)
+    assert "Prosa-Zeile\n\n---" in out  # entkoppelt
+    assert any("Setext" in a for a in actions)
+    twice, acts2 = va.repair_text(out)
+    assert twice == out  # idempotent
+    assert acts2 == []
+
+
+def test_repair_junk_heading_removed() -> None:
+    text = _doc("a", "# Ok\n\n# Unbenannt\n\nInhalt\n")
+    out, actions = va.repair_text(text)
+    assert "# Unbenannt" not in out
+    assert "Inhalt" in out
+    assert any("Junk-Heading" in a for a in actions)
+
+
+def test_repair_url_mash_reconstruct() -> None:
+    text = _doc("a", "siehe urlFigmahttps://www.figma.com hier\n")
+    out, actions = va.repair_text(text)
+    assert "[Figma](https://www.figma.com)" in out
+    assert any("Mashup" in a for a in actions)
+
+
+def test_repair_tag_fences_highconf() -> None:
+    text = _doc("a", "# Ok\n\n```\ndef f():\n    return 1\n```\n")
+    out, actions = va.repair_text(text)
+    assert "```python" in out
+    assert any("Fence" in a for a in actions)
+    twice, _ = va.repair_text(out)
+    assert twice == out  # idempotent (nicht doppelt taggen)
+
+
+def test_repair_tag_fences_lowconf_untouched() -> None:
+    text = _doc("a", "# Ok\n\n```\nCmd/Ctrl + Shift + F\n```\n")
+    out, actions = va.repair_text(text)
+    assert "```\nCmd/Ctrl" in out  # bleibt untagged (kein Signal)
+    assert all("Fence" not in a for a in actions)
 
 
 def test_repair_preserves_code_and_frontmatter() -> None:
@@ -323,10 +386,9 @@ def test_bidirectional_related_skips_unknown() -> None:
 # === Review-Modus ============================================================
 
 
-def test_review_patch_for_fixable() -> None:
-    patch = va.review_patches("a.md", _doc("a", "## **Fett**\n"))
-    assert patch
-    assert any(line.startswith("+") for line in patch)
+def test_review_patch_empty_for_safe_only() -> None:
+    # reiner Safe-Fall (`**`-Heading) erzeugt KEINEN Review-Patch (laeuft ueber repair)
+    assert va.review_patches("a.md", _doc("a", "## **Fett**\n")) == []
 
 
 def test_review_patch_empty_for_clean() -> None:

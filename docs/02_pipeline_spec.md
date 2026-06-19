@@ -271,6 +271,37 @@ Frontmatter-Werte+Key-Order. **Tier-Split (D4):** `unchanged` · `safe` (rein
 deterministische Formatierung → auto in Arbeitskopie) · `unsafe` (würde Schutz-
 bereich/Heading-Text/Code-Inhalt berühren → nur `.patch`-Vorschlag, NIE auto).
 
+### Vault-Audit/Repair (`vault-audit` / `vault-repair` / `vault-review`, WP4)
+
+Zielgerichtetes Audit/Repair-Tooling über den produktiven Vault. Engine:
+`pipeline/vault_audit.py`. **Non-mutating gegenüber dem Vault** (#3): `audit` ist
+read-only, `repair` schreibt Safe-Tier-Arbeitskopien nach `work/vault_repair/` (#2),
+`review` schreibt Unified-Diff-Patches nach `work/vault_review/`. Anwendung auf den
+Vault ist **Gate-pflichtig** (WP4 Teil B), nicht in dieser CLI.
+
+```bash
+pkm vault-audit  [--vault-dir DIR] [--work-dir DIR] [--baseline content,attic]
+pkm vault-repair [--vault-dir DIR] [--work-dir DIR]
+pkm vault-review [--vault-dir DIR] [--work-dir DIR]
+# default vault-dir = Brain-Vault (_paths); baseline-default 194,6
+```
+
+**`audit`** — neun read-only Detektionsregeln, gruppierter Markdown-Report:
+(1) Frontmatter↔SSoT (Pflichtfelder/Enums/`slug`, gegen `pipeline.taxonomy`),
+(2) Wikilink-Auflösbarkeit + Dangling-Klassifikation (intendierte Stub-Links unter
+„Verwandte Themen"/„Folge-Notizen" vs. echt-defekt), (3) Heading-Defekte
+(`**`-im-Heading, Junk-Heading, literales `\n`, Setext-Bruch), (4) Code-Fences ohne
+Sprach-Tag, (5) Korruptions-Scan (`turn\d+(view|search)\d+`, PUA `\ue200-\ue201`,
+URL-Mashups, fremdsprachige Kontamination), (6) Doc-Count-Metrik + Baseline-Reconcile,
+(7) Alias-Kollisionen vault-weit, (8) Cross-Link-Kandidaten aus
+`work/synthesis_candidates.md` (nur Liste), (9) Quarantäne nicht-parsebarer Files.
+Ausgenommen: `_attic`/`_assets`/`00_Meta`/`_index.md`/funktionale Templates.
+
+**`repair`** (Safe-Tier, idempotent) — `**`-Heading entbolden, geleakte Tokens/PUA
+bereinigen; bidirektionale `related:` aus freigegebener Kandidatenliste (Teil B).
+Schutzbereiche (Frontmatter, Code-Inhalt, Wikilinks) byte-genau erhalten.
+**`review`** — Patch-Vorschläge für Fälle ohne deterministische Auto-Lösung.
+
 ### Inkrementeller Modus (`ingest`)
 
 `ingest` verarbeitet **nur** Files aus `data/00_inbox/` durch die Per-Doc-Pipeline
@@ -799,3 +830,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-06-16 — REVIEW-Gate-1: E1=A — `pkm taxonomy add-tag` schreibt direkt ins YAML-SSoT (Sektion „Erweiterungen" + `changelog` mit `--reason`) + md-Sync `00_Meta/tag-system.md`, idempotent; §4 angepasst. Passives Surfacing: `build-vault` weist 17_unsortiert-Füllstand aus + warnt über `vault.unsorted_warn_threshold` (default 10, §3), read-only (kein P4)
 - 2026-06-16 — WP2 (P5 Redundanz/Synthese-Erkennung): §4 CLI `pkm redundancy-scan` (read-only Detection + Report, kein Merge); §7 Schemas `RedundancyPair`/`SynthesisCandidate`/`QwenPairVerdict`; §3 Config-Block `redundancy_scan` (Schwellen, Gate-2-Weiche). Engine `pipeline/redundancy_scan.py` (Hash + TF-IDF + mpnet paarweise, in-memory)
 - 2026-06-17 — WP3a (P2 deterministische Formatierung): §4 CLI `pkm format-vault` (mdformat +gfm +frontmatter, non-mutating Dry-Run → work/format/). Obsidian-Schutzbereiche (Wikilink/Embed-Maskierung, Callout/Code/Frontmatter-Guards), Tier-Split safe/unsafe (D4 raw→work→export), Export Gate-3-pflichtig. Engine `pipeline/format_vault.py`
+- 2026-06-19 — WP4 Teil A (Vault-Audit/Repair-Tooling): §4 CLI `pkm vault-audit`/`vault-repair`/`vault-review` (3 Modi, non-mutating → work/). Neun read-only Detektionsregeln (Frontmatter↔SSoT, Wikilink-Auflösbarkeit+Dangling-Klassifikation, Heading-Defekte, untagged Fences, Korruptions-Scan, Doc-Count-Reconcile, Alias-Kollisionen, Cross-Link-Kandidaten, Quarantäne); Safe-Tier-Repair (entbolden/Token-Clean/bidir-`related:`) idempotent mit 3-State; Review-Patches für Unsafe. Engine `pipeline/vault_audit.py` (reuse `pipeline.taxonomy`/WP3a-Schutzmuster). Anwendung = Teil B (gegatet). Keine `schemas.py`-Änderung (Dataclasses `Finding`/`VaultIndex`, kein Pydantic → §7 n/a)

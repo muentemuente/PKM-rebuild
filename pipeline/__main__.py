@@ -619,6 +619,133 @@ def format_vault_cmd(vault_dir: str | None, work_dir: str | None, examples: int)
     )
 
 
+@cli.command(name="vault-audit")
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(),
+    default=None,
+    help="Vault, read-only (default: Brain-Vault)",
+)
+@click.option(
+    "--work-dir",
+    "work_dir",
+    type=click.Path(),
+    default=None,
+    help="Report-Ziel (default: work/vault_audit)",
+)
+@click.option("--baseline", default="194,6", help="Doc-Count-Baseline 'content,attic'")
+def vault_audit_cmd(vault_dir: str | None, work_dir: str | None, baseline: str) -> None:
+    """WP4: read-only Audit über den Vault (9 Regeln) → Befund-Report in work/."""
+    from pipeline import _paths
+    from pipeline import vault_audit as va
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    work = Path(work_dir) if work_dir else (_paths.WORK / "vault_audit")
+    if not vault.is_dir():
+        console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
+        raise SystemExit(2)
+    base_content, base_attic = (int(x) for x in baseline.split(","))
+    candidates = _paths.WORK / "synthesis_candidates.md"
+    findings = va.audit_vault(
+        vault,
+        baseline=(base_content, base_attic),
+        candidates_md=candidates if candidates.is_file() else None,
+    )
+    work.mkdir(parents=True, exist_ok=True)
+    (work / "audit_report.md").write_text(va.render_report(findings), encoding="utf-8")
+    sev = va.count_by_severity(findings)
+    table = Table(title=f"Vault-Audit ({len(findings)} Befunde)")
+    table.add_column("Regel")
+    table.add_column("Anzahl", justify="right")
+    for rule, count in sorted(va.count_by_rule(findings).items()):
+        table.add_row(rule, str(count))
+    console.print(table)
+    console.print(
+        f"[red]{sev['error']} error[/red] · [yellow]{sev['warning']} warning[/yellow] · {sev['info']} info"
+    )
+    console.print(f"[green]✓[/green] {work / 'audit_report.md'} [dim](Vault unangetastet)[/dim]")
+
+
+@cli.command(name="vault-repair")
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(),
+    default=None,
+    help="Vault, read-only (default: Brain-Vault)",
+)
+@click.option(
+    "--work-dir",
+    "work_dir",
+    type=click.Path(),
+    default=None,
+    help="Arbeitskopien (default: work/vault_repair)",
+)
+def vault_repair_cmd(vault_dir: str | None, work_dir: str | None) -> None:
+    """WP4: Safe-Tier-Repairs (raw read-only → work/), idempotent. Kein Vault-Write."""
+    from pipeline import _paths
+    from pipeline import vault_audit as va
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    work = Path(work_dir) if work_dir else (_paths.WORK / "vault_repair")
+    if not vault.is_dir():
+        console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
+        raise SystemExit(2)
+    index = va.build_index(vault)
+    changed = 0
+    for rel, text in index.audit_files.items():
+        repaired, actions = va.repair_text(text)
+        if not actions:
+            continue
+        dest = work / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(repaired, encoding="utf-8")
+        changed += 1
+        console.print(f"[green]✓[/green] {rel}: {'; '.join(actions)}")
+    console.print(
+        f"[cyan]vault-repair:[/cyan] {changed} Files mit Safe-Fixes → {work} [dim](Vault unangetastet)[/dim]"
+    )
+
+
+@cli.command(name="vault-review")
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(),
+    default=None,
+    help="Vault, read-only (default: Brain-Vault)",
+)
+@click.option(
+    "--work-dir",
+    "work_dir",
+    type=click.Path(),
+    default=None,
+    help="Patch-Ziel (default: work/vault_review)",
+)
+def vault_review_cmd(vault_dir: str | None, work_dir: str | None) -> None:
+    """WP4: Unified-Diff-Patch-Vorschläge für fixable Fälle (kein Auto-Write)."""
+    from pipeline import _paths
+    from pipeline import vault_audit as va
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    work = Path(work_dir) if work_dir else (_paths.WORK / "vault_review")
+    if not vault.is_dir():
+        console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
+        raise SystemExit(2)
+    index = va.build_index(vault)
+    patches = [
+        "".join(patch)
+        for rel, text in index.audit_files.items()
+        if (patch := va.review_patches(rel, text))
+    ]
+    work.mkdir(parents=True, exist_ok=True)
+    (work / "review_patches.diff").write_text("\n".join(patches), encoding="utf-8")
+    console.print(
+        f"[cyan]vault-review:[/cyan] {len(patches)} Patch-Vorschläge → {work / 'review_patches.diff'}"
+    )
+
+
 @cli.command(name="fence-indented")
 @click.option(
     "--vault-dir",
@@ -660,9 +787,7 @@ def fence_indented_cmd(vault_dir: str | None, work_dir: str | None) -> None:
     console.print(f"[cyan]fence-indented (dry-run):[/cyan] {vault} → {work}")
     outcomes = scan_files(vault, KAT_B_FILES)
     write_work(work, vault, outcomes)
-    (work / "fence_indented_report.md").write_text(
-        render_report(outcomes, vault), encoding="utf-8"
-    )
+    (work / "fence_indented_report.md").write_text(render_report(outcomes, vault), encoding="utf-8")
     (work / "language_tag_suggestions.md").write_text(
         render_language_suggestions(outcomes), encoding="utf-8"
     )

@@ -298,13 +298,17 @@ URL-Mashups, fremdsprachige Kontamination), (6) Doc-Count-Metrik + Baseline-Reco
 Ausgenommen: `_attic`/`_assets`/`00_Meta`/`_index.md`/funktionale Templates.
 
 **`repair`** (Safe-Tier = **deterministisch + verlustfrei + idempotent**) — `**`-Heading
-entbolden, Junk-Heading (`# Unbenannt`) entfernen, Setext-Bruch entkoppeln, URL-Mashup
-(`url<Text>https://<url>` → `[Text](url)`) rekonstruieren, PUA-Wrapper bereinigen,
-Code-Fences bei **eindeutiger** Heuristik taggen (python/bash/regex/json/toml/yaml/md/text;
-unsichere bleiben untagged). Bidirektionale `related:` aus freigegebener Kandidatenliste
-(Teil B). Schutzbereiche (Frontmatter, Code-Inhalt, Wikilinks) byte-genau erhalten.
-**`review`** — Patch-Vorschläge für **verlustbehaftete** Fälle (kein Auto): `turn…`-Token-Leaks
-ohne rekonstruierbare URL (→ B-2). Fences ohne erkennbare Sprache bleiben Audit-Findings.
+entbolden, Junk-Heading (`# Unbenannt`) entfernen, Setext-Bruch entkoppeln, PUA-Wrapper
+bereinigen, Code-Fences bei **eindeutiger** Heuristik taggen
+(python/bash/regex/json/toml/yaml/md/text; unsichere bleiben untagged). Bidirektionale
+`related:` aus freigegebener Kandidatenliste (Teil B). Schutzbereiche (Frontmatter,
+Code-Inhalt, Wikilinks) byte-genau erhalten.
+**`review`** — Patch-Vorschläge für **verlustbehaftete/nicht-deterministische** Fälle
+(kein Auto): `turn…`-Token-Leaks ohne rekonstruierbare URL (→ B-2) sowie URL-Mashup-
+Rekonstruktion (`url<Text>https://<url>` → `[Text](url)`) — an der URL/Prosa-Grenze
+nicht deterministisch (CANARY A-2.1: `figma.com:` schluckt den Doppelpunkt,
+`affinity.serif.com/-Setup` verschluckt Prosa). Fences ohne erkennbare Sprache bleiben
+Audit-Findings.
 
 ### Inkrementeller Modus (`ingest`)
 
@@ -835,4 +839,5 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-06-16 — WP2 (P5 Redundanz/Synthese-Erkennung): §4 CLI `pkm redundancy-scan` (read-only Detection + Report, kein Merge); §7 Schemas `RedundancyPair`/`SynthesisCandidate`/`QwenPairVerdict`; §3 Config-Block `redundancy_scan` (Schwellen, Gate-2-Weiche). Engine `pipeline/redundancy_scan.py` (Hash + TF-IDF + mpnet paarweise, in-memory)
 - 2026-06-17 — WP3a (P2 deterministische Formatierung): §4 CLI `pkm format-vault` (mdformat +gfm +frontmatter, non-mutating Dry-Run → work/format/). Obsidian-Schutzbereiche (Wikilink/Embed-Maskierung, Callout/Code/Frontmatter-Guards), Tier-Split safe/unsafe (D4 raw→work→export), Export Gate-3-pflichtig. Engine `pipeline/format_vault.py`
 - 2026-06-19 — WP4 Teil A-2 (Safe-Tier komplettiert): `repair_text` um Junk-Heading-Removal, Setext-Entkopplung, URL-Mashup-Rekonstruktion, Fence-Tagging-Apply (high-conf, +yaml/json/toml/md/text) erweitert; `turn…`-Token-Strip **aus** dem Safe-Tier entfernt (verlustbehaftet → `vault-review`/B-2). Safe-Tier-Definition gelockt: deterministisch+verlustfrei+idempotent. §4 angeglichen. Engine `pipeline/vault_audit.py` (37 Tests)
+- 2026-06-19 — WP4 Teil A-2.1 (url-Mashup raus aus Safe-Tier): URL-Mashup-Rekonstruktion aus `repair_text` (Safe-Tier) entfernt → `review_patches` (Review-Tier, kein Auto), analog `turn…`-Token. CANARY-Befund: URL/Prosa-Grenze nicht deterministisch (`figma.com:` Doppelpunkt, `affinity.serif.com/-Setup` Prosa-Schluck, `.com,` Komma). Safe-Tier bleibt: entbolden/Junk-Heading/Setext/PUA/Fence-Tagging. §4 angeglichen, 3 Realfälle als Regressionsfixtures. Engine `pipeline/vault_audit.py`
 - 2026-06-19 — WP4 Teil A (Vault-Audit/Repair-Tooling): §4 CLI `pkm vault-audit`/`vault-repair`/`vault-review` (3 Modi, non-mutating → work/). Neun read-only Detektionsregeln (Frontmatter↔SSoT, Wikilink-Auflösbarkeit+Dangling-Klassifikation, Heading-Defekte, untagged Fences, Korruptions-Scan, Doc-Count-Reconcile, Alias-Kollisionen, Cross-Link-Kandidaten, Quarantäne); Safe-Tier-Repair (entbolden/Token-Clean/bidir-`related:`) idempotent mit 3-State; Review-Patches für Unsafe. Engine `pipeline/vault_audit.py` (reuse `pipeline.taxonomy`/WP3a-Schutzmuster). Anwendung = Teil B (gegatet). Keine `schemas.py`-Änderung (Dataclasses `Finding`/`VaultIndex`, kein Pydantic → §7 n/a)

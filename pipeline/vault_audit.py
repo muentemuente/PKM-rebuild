@@ -7,12 +7,14 @@ Zielt auf den **produktiven** Obsidian-Vault (``_paths.BRAIN_VAULT``). Drei Modi
   neun Detektionsregeln aus dem WP4-Spec.
 * :func:`repair_text` — deterministische, **verlustfreie**, idempotente Safe-Tier-
   Fixes auf einem File-Text: ``**``-Heading entbolden, Junk-Heading entfernen,
-  Setext-Bruch entkoppeln, URL-Mashup rekonstruieren, PUA-Wrapper bereinigen,
-  Code-Fences bei eindeutiger Heuristik taggen. Schutzbereiche (Frontmatter,
-  Code-Inhalt, Wikilinks/Embeds) bleiben unberührt.
+  Setext-Bruch entkoppeln, PUA-Wrapper bereinigen, Code-Fences bei eindeutiger
+  Heuristik taggen. Schutzbereiche (Frontmatter, Code-Inhalt, Wikilinks/Embeds)
+  bleiben unberührt.
 * :func:`review_patches` — Unified-Diff-Vorschläge für **Review-Tier**-Fälle, die
   nie auto-angewendet werden: verlustbehaftete ``turn…``-Token-Leaks (keine
-  rekonstruierbare URL → B-2). Fences ohne erkennbare Sprache bleiben Audit-Findings.
+  rekonstruierbare URL → B-2) und URL-Mashup-Rekonstruktion (an der URL/Prosa-Grenze
+  **nicht** deterministisch — CANARY-Belege ``figma.com:``, ``affinity.serif.com/-Setup``).
+  Fences ohne erkennbare Sprache bleiben Audit-Findings.
 
 Das Modul ist **non-mutating gegenüber dem Vault**: alle öffentlichen Funktionen
 lesen und liefern Datenstrukturen bzw. neuen Text zurück. Das Schreiben (3-State
@@ -784,7 +786,12 @@ def _remove_junk_headings(text: str) -> tuple[str, int]:
 
 
 def _reconstruct_url_mash(text: str) -> tuple[str, int]:
-    """``url<Text>https://<url>``-Mashup → ``[Text](url)`` (nur mit realer URL). Idempotent."""
+    """Review-Tier: ``url<Text>https://<url>``-Mashup → ``[Text](url)``.
+
+    **Kein Safe-Auto** — die URL/Prosa-Grenze ist nicht trennscharf (``[^\\s)\\]]+``
+    greift Trailing-``:``/``,`` mit, verschluckt angehängte Prosa wie ``/-Setup``).
+    Daher als Vorschlag über :func:`review_patches`, nicht in :func:`repair_text`.
+    """
     return _URL_MASH_RECON_RE.subn(lambda m: f"[{m.group(1)}]({m.group(2)})", text)
 
 
@@ -814,11 +821,12 @@ def _tag_fences(text: str) -> tuple[str, int]:
 
 
 #: Safe-Tier-Ops (deterministisch, verlustfrei, idempotent) — Reihenfolge fix.
+#: URL-Mashup-Rekonstruktion ist hier **nicht** enthalten: an der URL/Prosa-Grenze
+#: nicht deterministisch (CANARY-Befund A-2.1) → :func:`review_patches`.
 _SAFE_OPS: tuple[tuple[Any, str], ...] = (
     (_debold_headings, "`**`-Heading(s) entboldet"),
     (_remove_junk_headings, "Junk-Heading(s) entfernt"),
     (_fix_setext, "Setext-Bruch/-Brüche entkoppelt"),
-    (_reconstruct_url_mash, "URL-Mashup(s) rekonstruiert"),
     (_clean_pua, "PUA-Wrapper bereinigt"),
     (_tag_fences, "Fence(s) sprach-getaggt"),
 )
@@ -828,8 +836,9 @@ def repair_text(text: str) -> tuple[str, list[str]]:
     """Wendet alle Safe-Tier-Fixes idempotent + verlustfrei an.
 
     Safe-Tier = entbolden · Junk-Heading entfernen · Setext entkoppeln ·
-    URL-Mashup rekonstruieren · PUA-Wrapper bereinigen · Fence-Tagging (high-conf).
-    **Nicht** enthalten: ``turn…``-Token-Strip (verlustbehaftet → :func:`review_patches`).
+    PUA-Wrapper bereinigen · Fence-Tagging (high-conf).
+    **Nicht** enthalten (verlustbehaftet/nicht-deterministisch → :func:`review_patches`):
+    ``turn…``-Token-Strip, URL-Mashup-Rekonstruktion.
 
     Returns:
         ``(neuer_text, [aktions-logs])``. Bei ``[]`` war nichts zu tun.
@@ -922,16 +931,29 @@ def _related_of(fm_text: str) -> list[str]:
 # === Review-Modus (Unified-Diff-Patches, kein Auto-Write) =====================
 
 
+#: Review-Tier-Ops (verlustbehaftet ODER nicht-deterministisch → nie Safe-Auto).
+_REVIEW_OPS: tuple[Any, ...] = (_strip_turn_tokens, _reconstruct_url_mash)
+
+
 def review_patches(relpath: str, text: str) -> list[str]:
     """Erzeugt Unified-Diff-Vorschläge für **Review-Tier**-Fälle (kein Auto-Write).
 
-    Aktuell: verlustbehaftete ``turn…``-Token-Strips (B-2) — die echte URL ist nicht
-    rekonstruierbar, daher kein Safe-Auto, sondern menschlich zu prüfender Patch.
+    Review-Tier (menschlich zu prüfen, nie auto-appliziert):
+
+    * ``turn…``-Token-Strips (B-2) — verlustbehaftet, echte URL nicht rekonstruierbar.
+    * URL-Mashup-Rekonstruktion (``url<Text>https://<url>`` → ``[Text](url)``) — an
+      der URL/Prosa-Grenze **nicht** deterministisch (CANARY A-2.1: ``figma.com:``
+      schluckt den Doppelpunkt, ``affinity.serif.com/-Setup`` verschluckt Prosa).
+
     Safe-Fixes laufen über :func:`repair_text` / ``vault-repair``; Fences ohne
     erkennbare Sprache bleiben reine Audit-Findings (kein deterministischer Patch).
     """
-    suggested, count = _strip_turn_tokens(text)
-    if count == 0 or suggested == text:
+    suggested = text
+    total = 0
+    for op in _REVIEW_OPS:
+        suggested, count = op(suggested)
+        total += count
+    if total == 0 or suggested == text:
         return []
     diff = difflib.unified_diff(
         text.splitlines(keepends=True),

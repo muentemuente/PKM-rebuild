@@ -7,9 +7,9 @@ Zielt auf den **produktiven** Obsidian-Vault (``_paths.BRAIN_VAULT``). Drei Modi
   neun Detektionsregeln aus dem WP4-Spec.
 * :func:`repair_text` — deterministische, **verlustfreie**, idempotente Safe-Tier-
   Fixes auf einem File-Text: ``**``-Heading entbolden, Junk-Heading entfernen,
-  Setext-Bruch entkoppeln, PUA-Wrapper bereinigen, Code-Fences bei eindeutiger
-  Heuristik taggen. Schutzbereiche (Frontmatter, Code-Inhalt, Wikilinks/Embeds)
-  bleiben unberührt.
+  Setext-Bruch entkoppeln, PUA-Wrapper bereinigen, genuin unclosed Code-Fence
+  schließen, Code-Fences bei eindeutiger Heuristik taggen. Schutzbereiche
+  (Frontmatter, Code-Inhalt, Wikilinks/Embeds) bleiben unberührt.
 * :func:`review_patches` — Unified-Diff-Vorschläge für **Review-Tier**-Fälle, die
   nie auto-angewendet werden: verlustbehaftete ``turn…``-Token-Leaks (keine
   rekonstruierbare URL → B-2) und URL-Mashup-Rekonstruktion (an der URL/Prosa-Grenze
@@ -86,6 +86,8 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 _FENCE_RE = re.compile(r"^(`{3,}|~{3,})(.*)$")
 _WIKILINK_RE = re.compile(r"(!?)\[\[([^\]]+)\]\]")
 _SETEXT_RE = re.compile(r"^(={3,}|-{3,})\s*$")
+#: Box-Drawing/Bullet-Glyphen → markiert ASCII-Diagramme/Trees (kein md/text-Tag).
+_BOXDRAW_RE = re.compile(r"[─│┌┐└┘├┤┬┴┼╔╗╚╝═║╠╣╦╩╬•◦▪▶►]")
 
 _TOKEN_LEAK_RE = re.compile(r"turn\d+(?:view|search)\d+")
 _PUA_RE = re.compile("[\ue200-\ue201]")
@@ -409,9 +411,11 @@ def detect_fence_lang(lines: list[str], open_idx: int) -> str | None:
     for detector in (
         _is_python,
         _is_bash,
+        _is_sql,
         _is_json,
         _is_toml,
         _is_yaml,
+        _is_html,
         _is_regex,
         _is_md,
         _is_text,
@@ -429,12 +433,38 @@ def _is_python(c: str) -> str | None:
 
 
 def _is_bash(c: str) -> str | None:
-    if re.search(
-        r"(^|\n)\s*(\$ |sudo |apt |pip |brew |cd |ls |git |export |echo |chmod |mkdir )", c
-    ):
+    """Shell: Prompt/Tool-Token am Zeilenanfang. **Kein** bares ``$VAR`` (fängt sonst JS ``$0``)."""
+    tools = (
+        r"\$ |sudo |apt |apt-get |pip |pip3 |brew |cd |ls |git |export |echo |chmod |chown |"
+        r"mkdir |source |deactivate\b|npm |yarn |pnpm |npx |docker |kubectl |cargo |curl |wget |"
+        r"ssh |scp |rsync |tar |grep |sed |awk |systemctl "
+    )
+    if re.search(r"(?m)^\s*(" + tools + r")", c):
+        return "bash"
+    if re.search(r"(?m)^\$\{\w+", c):  # ${VAR} mit Klammer (nicht JS $0/$1)
         return "bash"
     if re.search(r"^#!.*/(ba|z)?sh\b", c, re.MULTILINE):
         return "bash"
+    return None
+
+
+def _is_sql(c: str) -> str | None:
+    """SQL: ``SELECT … FROM`` oder eindeutige DDL/DML-Anweisung (mehrteilig, prosa-fest)."""
+    if re.search(r"\bSELECT\b.+\bFROM\b", c, re.IGNORECASE | re.DOTALL):
+        return "sql"
+    if re.search(
+        r"(?im)^\s*(INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|"
+        r"CREATE\s+(TABLE|DATABASE|INDEX)|ALTER\s+TABLE|DROP\s+(TABLE|DATABASE))\b",
+        c,
+    ):
+        return "sql"
+    return None
+
+
+def _is_html(c: str) -> str | None:
+    """HTML/XML: Schließ-Tag ``</tag>`` **und** passender Öffner im Block."""
+    if re.search(r"</[a-zA-Z][\w-]*>", c) and re.search(r"<[a-zA-Z][\w-]*(\s[^>]*)?>", c):
+        return "html"
     return None
 
 
@@ -468,13 +498,28 @@ def _is_yaml(c: str) -> str | None:
 
 
 def _is_md(c: str) -> str | None:
+    """Markdown: GFM-Tabellen-Separator ODER mehrheitlich Listen-Items (Bullets/nummeriert)."""
+    if _BOXDRAW_RE.search(c):  # ASCII-Diagramm/Tree → kein md
+        return None
     if re.search(r"^\|[\s:\-|]+\|\s*$", c, re.MULTILINE):  # GFM-Tabellen-Separator
+        return "md"
+    nonblank = [ln for ln in c.splitlines() if ln.strip()]
+    if not nonblank:
+        return None
+    # yaml-artig (``key:`` + Listen) ist kein md
+    if re.search(r"(?m)^\s*[\w.\-]+:\s*$", c) and re.search(r"(?m)^\s*[-*+]\s", c):
+        return None
+    # Listen-Items sind das starke Signal; ATX-``#`` NICHT zählen (fängt Code-Kommentare).
+    markers = sum(1 for ln in nonblank if re.match(r"^\s{0,3}(\d+\.\s+\S|[-*+]\s+\S)", ln))
+    if markers >= 2 and markers >= len(nonblank) / 2:
         return "md"
     return None
 
 
 def _is_text(c: str) -> str | None:
-    """Prosa-Fallback: nur wenn keine Code-/Struktur-Signale und natürlichsprachlich."""
+    """Prosa-Fallback: nur wenn keine Code-/Struktur-/Diagramm-Signale und natürlichsprachlich."""
+    if _BOXDRAW_RE.search(c):  # ASCII-Diagramm/Tree → keine Prosa
+        return None
     if re.search(r"[{}<>=$/\\|]|\b(def|class|import|function|var|const)\b", c):
         return None
     lines = [ln for ln in c.splitlines() if ln.strip()]
@@ -820,6 +865,40 @@ def _tag_fences(text: str) -> tuple[str, int]:
     return "\n".join(out), n
 
 
+def _close_unclosed_fences(text: str) -> tuple[str, int]:
+    """Schließt eine **genuin unclosed** Code-Fence deterministisch + verlustfrei.
+
+    Erkennung über die line-start-Fence-State-Machine (`_FENCE_RE`): nur wenn sie am
+    Body-Ende noch ``in_fence`` ist, existiert eine echt offene Fence (inline-``` in Prosa
+    triggert nicht, da nicht zeilenanfang-matchend). Schließ-Position: schließende
+    Marker-Zeile (gleicher Marker) **vor der ersten** Leerzeile / ATX-Heading nach der
+    Open-Zeile, sonst am EOF. Idempotent (nach Close endet die Maschine balanciert).
+    """
+    fm_text, body, _ = split_frontmatter(text)
+    parts = body.split("\n")
+    in_fence = False
+    marker = ""
+    open_idx = -1
+    for i, raw in enumerate(parts):
+        fence = _FENCE_RE.match(raw)
+        if fence and not in_fence:
+            in_fence, marker, open_idx = True, fence.group(1), i
+        elif fence and in_fence and raw.strip().startswith(marker):
+            in_fence = False
+    if not in_fence:
+        return text, 0
+    close_at = len(parts)
+    for j in range(open_idx + 1, len(parts)):
+        if parts[j].strip() == "" or _HEADING_RE.match(parts[j]):
+            close_at = j
+            break
+    parts.insert(close_at, marker)
+    new_body = "\n".join(parts)
+    if fm_text is None:
+        return new_body, 1
+    return f"---\n{fm_text}\n---\n{new_body}", 1
+
+
 #: Safe-Tier-Ops (deterministisch, verlustfrei, idempotent) — Reihenfolge fix.
 #: URL-Mashup-Rekonstruktion ist hier **nicht** enthalten: an der URL/Prosa-Grenze
 #: nicht deterministisch (CANARY-Befund A-2.1) → :func:`review_patches`.
@@ -828,6 +907,7 @@ _SAFE_OPS: tuple[tuple[Any, str], ...] = (
     (_remove_junk_headings, "Junk-Heading(s) entfernt"),
     (_fix_setext, "Setext-Bruch/-Brüche entkoppelt"),
     (_clean_pua, "PUA-Wrapper bereinigt"),
+    (_close_unclosed_fences, "unclosed Fence(s) geschlossen"),
     (_tag_fences, "Fence(s) sprach-getaggt"),
 )
 
@@ -836,7 +916,8 @@ def repair_text(text: str) -> tuple[str, list[str]]:
     """Wendet alle Safe-Tier-Fixes idempotent + verlustfrei an.
 
     Safe-Tier = entbolden · Junk-Heading entfernen · Setext entkoppeln ·
-    PUA-Wrapper bereinigen · Fence-Tagging (high-conf).
+    PUA-Wrapper bereinigen · unclosed Fence schließen · Fence-Tagging (high-conf,
+    inkl. bash/sql/html/md-Listen seit v2).
     **Nicht** enthalten (verlustbehaftet/nicht-deterministisch → :func:`review_patches`):
     ``turn…``-Token-Strip, URL-Mashup-Rekonstruktion.
 

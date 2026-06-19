@@ -207,6 +207,30 @@ def test_detect_fence_lang_ambiguous_none() -> None:
     assert va.detect_fence_lang(["```", "ab cd", "```"], 0) is None
 
 
+def test_detect_fence_lang_v2() -> None:
+    # v2: verschärfte Heuristik (bash-Tools, sql, html, md-Listen) — je Repräsentant
+    cases = {
+        "bash": ["```", "npm install left-pad", "docker compose up", "```"],
+        "sql": ["```", "SELECT name FROM users WHERE id = 1;", "```"],
+        "html": ["```", '<div class="x">', "  <p>Hallo</p>", "</div>", "```"],
+        "md": ["```", "- Punkt eins", "- Punkt zwei", "- Punkt drei", "```"],
+    }
+    for lang, block in cases.items():
+        assert va.detect_fence_lang(block, 0) == lang, lang
+
+
+def test_detect_fence_lang_v2_negatives() -> None:
+    # edit-Fälle bleiben None: ASCII-Box-Diagramm, JS-$0 (kein bash), Excel-Formel+Kommentar
+    box = ["```", "┌────────┐", "│ Client │", "└────────┘", "```"]
+    assert va.detect_fence_lang(box, 0) is None
+    js = ["```", "# Element finden", "document.querySelector('h1')", "$0", "```"]
+    assert va.detect_fence_lang(js, 0) is None
+    excel = ["```", "=LEN(A1)", "# 6 Zeichen", "```"]
+    assert va.detect_fence_lang(excel, 0) is None
+    # yaml-artiger Block (key: + Liste) wird nicht als md getaggt
+    assert va.detect_fence_lang(["```", "tags:", "  - a", "  - b", "```"], 0) != "md"
+
+
 # === Regel 5: Korruption =====================================================
 
 
@@ -372,6 +396,29 @@ def test_repair_tag_fences_lowconf_untouched() -> None:
     out, actions = va.repair_text(text)
     assert "```\nCmd/Ctrl" in out  # bleibt untagged (kein Signal)
     assert all("Fence" not in a for a in actions)
+
+
+def test_repair_close_unclosed_fence() -> None:
+    # genuin unclosed ```bash → schließt vor erster Leerzeile; Prosa/Heading wieder ausserhalb
+    text = _doc("a", "# Ok\n\n```bash\nexport PATH=x\n\nMerktext\n\n## Weiter\n")
+    out, actions = va.repair_text(text)
+    assert any("unclosed" in a for a in actions)
+    _, body, _ = va.split_frontmatter(out)
+    assert body.count("```") % 2 == 0  # Fence-Parität jetzt gerade
+    assert "```bash\nexport PATH=x\n```" in out  # nur die Code-Zeile im Block
+    assert "## Weiter" in out  # Heading ausserhalb
+    assert "```\n\nMerktext" in out  # Prosa ausserhalb
+    twice, act2 = va.repair_text(out)
+    assert twice == out  # idempotent
+    assert act2 == []
+
+
+def test_repair_balanced_fence_untouched() -> None:
+    # inline-``` in Prosa (line-start balanciert) → KEIN Close eingefügt
+    text = _doc("a", "# Ok\n\nNutze ``` zum Starten eines Codeblocks.\n\nNormaler Text.\n")
+    out, actions = va.repair_text(text)
+    assert all("unclosed" not in a for a in actions)
+    assert out == text
 
 
 def test_repair_preserves_code_and_frontmatter() -> None:

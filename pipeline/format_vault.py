@@ -236,6 +236,53 @@ def classify(original: str, formatted: str, *, format_ok: bool = True) -> tuple[
     return _TIER_SAFE, []
 
 
+# === Build-Finalize: safe-tier-Formatierung mit byte-strikter Schutz-Garantie ==
+
+
+def _protected_fingerprint(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Byte-exakte Schutz-Signatur eines Textes für den Build-Finalize-Guard.
+
+    Returns ``(code_fence_blocks, pipe_lines)`` — alle fenced Code-Blöcke (verbatim,
+    inkl. Whitespace) und alle ``|``-haltigen Zeilen **außerhalb** von Code (= GFM-
+    Tabellen + sonstige Pipe-Zeilen). Ändert die Formatierung eine davon, weicht die
+    Signatur ab → der Build wendet die Formatierung dann NICHT an (HARD: Code-Blöcke
+    + Tabellen unverändert, Hash-Check pre/post wie Phase 2).
+    """
+    fences = tuple(m.group(0) for m in _FENCE_RE.finditer(text))
+    no_code = _strip_code(text)
+    pipe_lines = tuple(line for line in no_code.split("\n") if "|" in line)
+    return fences, pipe_lines
+
+
+def format_body_safe(text: str) -> tuple[str, bool]:
+    """Deterministische safe-tier-Formatierung eines Bodys für den Build-Chokepoint.
+
+    Wendet :func:`format_markdown` (mdformat, Wikilink-/Embed-Schutz) an, übernimmt das
+    Ergebnis aber NUR, wenn es
+
+    * nicht als ``unsafe`` klassifiziert (Schutzbereiche/Heading-Text/Code-Inhalt/
+      Frontmatter-Wert, s. :func:`classify`) **und**
+    * Code-Fence-Blöcke UND Tabellen-/Pipe-Zeilen **byte-identisch** lässt
+      (:func:`_protected_fingerprint`).
+
+    Andernfalls bleibt der Originaltext unverändert (verlustfrei + konservativ). Wirkt
+    nur auf den übergebenen Body (kein Frontmatter) — der Aufrufer (Phase 9) schreibt
+    ausschließlich nach ``output/``, nie in den Live-Vault.
+
+    Returns:
+        ``(text, changed)`` — ``changed`` = True, wenn formatiert übernommen wurde.
+    """
+    formatted, ok = format_markdown(text)
+    if not ok:
+        return text, False
+    tier, _ = classify(text, formatted, format_ok=ok)
+    if tier == _TIER_UNSAFE:
+        return text, False
+    if _protected_fingerprint(text) != _protected_fingerprint(formatted):
+        return text, False
+    return formatted, formatted != text
+
+
 # === Datei-/Vault-Scan (3-State raw → work) ===================================
 
 

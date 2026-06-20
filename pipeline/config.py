@@ -178,6 +178,7 @@ class VaultConfig(BaseModel):
     unsorted_folder: str
     unsorted_warn_threshold: int = 10  # build-vault warnt, wenn 17_unsortiert > diesem Wert
     repair_on_build: bool = True  # S1/G1: Safe-Tier-repair_text am Body-Chokepoint (Phase 9)
+    format_on_build: bool = True  # S2/G2: safe-tier-mdformat NACH repair am Body-Chokepoint
 
 
 class TagsConfig(BaseModel):

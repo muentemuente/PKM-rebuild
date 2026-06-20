@@ -381,6 +381,24 @@ child_concepts: ["CK_rest-status-codes", "CK_rest-methods"]
 
 **Detektion ↔ Auflösung:** Der `alias-collision`-Check in `pkm vault-audit` (WP4) meldet jeden Alias an > 1 Doc. Detektion (Audit) und Auflösung (diese Konvention) greifen ineinander — das Audit findet die Kollision, die Konvention entscheidet den Gewinner bzw. die Qualifizierung.
 
+### Beispiel-Wikilinks (didaktisch)
+
+**Didaktische Beispiel-Wikilinks gehören in Inline-Code oder Code-Fence.** Ein `[[…]]`, das Wikilink-**Syntax demonstriert** (in einem Markdown-/Obsidian-Tutorial) statt zu navigieren, wird als `` `[[Beispiel]]` `` (Inline-Code) bzw. innerhalb eines Code-Fence geschrieben:
+
+- Didaktisch korrekt — die Syntax ist sichtbar, aber nicht klickbar.
+- **Verlustfrei** und eliminiert den `wikilink`-Dangling-Befund.
+- Echte Navigations-Wikilinks zeigen immer auf existierende Slugs/Aliase.
+
+Der `wikilink`-Audit-Check maskiert Code-Fences **und** Inline-Code-Spans, bevor er Links auflöst — gewrappte Beispiele zählen daher nicht als Dangling.
+
+### Code-Fence-Sprach-Tags (low-conf)
+
+**Low-conf untagged Code-Fences sind ein akzeptierter Zustand.** Sprach-Tags (` ```python `, ` ```bash `, …) werden nur bei **eindeutiger** Heuristik automatisch gesetzt (`vault-repair`/fence-v2). Fences ohne eindeutiges Signal — ASCII-Diagramme, mehrdeutige/symbolische Snippets, Output-Dumps — **bleiben untagged**:
+
+- Kein vault-weites Raten — eine falsche `lang`-Zuweisung ist schädlicher als gar keine.
+- **Opt-in:** pro File kann ein manueller Sprach-Review fehlende Tags ergänzen.
+- Der `fence-untagged`-Audit-Befund ist damit **Info, kein Defekt**.
+
 ---
 
 ## 11. Redundanz-Regelwerk

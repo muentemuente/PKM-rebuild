@@ -85,6 +85,8 @@ _SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 _FENCE_RE = re.compile(r"^(`{3,}|~{3,})(.*)$")
 _WIKILINK_RE = re.compile(r"(!?)\[\[([^\]]+)\]\]")
+#: Inline-Code-Span (Backtick-delimitiert, einzeilig) — Wikilinks darin sind Syntax-Demo.
+_INLINE_CODE_RE = re.compile(r"`+[^`\n]*`+")
 _SETEXT_RE = re.compile(r"^(={3,}|-{3,})\s*$")
 #: Box-Drawing/Bullet-Glyphen → markiert ASCII-Diagramme/Trees (kein md/text-Tag).
 _BOXDRAW_RE = re.compile(r"[─│┌┐└┘├┤┬┴┼╔╗╚╝═║╠╣╦╩╬•◦▪▶►]")
@@ -282,7 +284,9 @@ def check_wikilinks(relpath: str, text: str, index: VaultIndex) -> list[Finding]
     for bl in iter_body(text):
         if bl.in_fence:
             continue  # Links in Code-Blöcken sind intendiert (Beispiel)
-        for _embed, raw_target in _WIKILINK_RE.findall(bl.text):
+        # Inline-Code maskieren: `` `[[Beispiel]]` `` ist Syntax-Demo, kein echter Link.
+        scan_text = _INLINE_CODE_RE.sub("", bl.text)
+        for _embed, raw_target in _WIKILINK_RE.findall(scan_text):
             base = _link_target_base(raw_target)
             if _resolves(base, index):
                 continue

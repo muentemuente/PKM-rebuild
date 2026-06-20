@@ -135,6 +135,27 @@ def test_wikilink_classification(tmp_path: Path) -> None:
     assert "im-code" not in msgs  # in Code-Fence → ignoriert
 
 
+def test_wikilink_inline_code_masked(tmp_path: Path) -> None:
+    # `[[…]]` in Inline-Code ist Syntax-Demo → kein Dangling; echtes Prosa-[[…]] bleibt Defekt.
+    vault = _make_vault(
+        tmp_path,
+        {
+            "a.md": _doc(
+                "a",
+                "Beispiel-Syntax: `[[Beispiel-Notiz]]` zeigt einen Wikilink.\n\n"
+                "Echter defekter Link: [[fehlt-wirklich]].\n\n"
+                "Prosa neben `inline code` mit [[auch-defekt]] im Fließtext.\n",
+            )
+        },
+    )
+    index = va.build_index(vault)
+    findings = va.check_wikilinks("a.md", index.audit_files["a.md"], index)
+    msgs = " ".join(f.message for f in findings)
+    assert "Beispiel-Notiz" not in msgs  # in Inline-Code → maskiert, kein Befund
+    assert "fehlt-wirklich" in msgs  # Prosa → weiterhin Dangling
+    assert "auch-defekt" in msgs  # Prosa neben (nicht in) Inline-Code → weiterhin Dangling
+
+
 def test_wikilink_alias_resolves(tmp_path: Path) -> None:
     vault = _make_vault(
         tmp_path,

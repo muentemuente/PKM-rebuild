@@ -166,6 +166,7 @@ vault:
   attic_folder: "_attic"            # für deprecated
   unsorted_folder: "17_unsortiert"  # regulärer Cluster (Mapping-Lücke / Domäne ohne eigenen Ordner)
   unsorted_warn_threshold: 10       # build-vault: Warnung, wenn 17_unsortiert mehr Artikel hat (passives Surfacing, kein P4)
+  repair_on_build: true             # S1/G1: Safe-Tier-repair_text (entbolden/Junk-Heading/Setext/PUA/Fence-Tag/unclosed-Fence) auf jeden Body beim Build nach output/ (single-pass). Nur output/, nie der Live-Vault. false → Build ohne Auto-Repair
 
 
 # === Tag-Vokabular ============================================================

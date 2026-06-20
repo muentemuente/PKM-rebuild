@@ -51,6 +51,7 @@ from pipeline.schemas import FrontmatterDraft
 # pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER für Bestands-Konsumenten
 # (phase_10_reports, review, ingest) und macht mypy den Re-Export sichtbar.
 from pipeline.taxonomy import CATEGORY_TO_FOLDER as CATEGORY_TO_FOLDER
+from pipeline.vault_audit import repair_text
 
 log = structlog.get_logger()
 
@@ -167,6 +168,22 @@ def _render_article(data: dict[str, Any], body: str) -> str:
     fm = _dump_frontmatter(data)
     body_norm = body.strip("\n")
     return f"---\n{fm}---\n\n{body_norm}\n"
+
+
+def _finalize_body(body: str, repair_on_build: bool) -> tuple[str, bool]:
+    """S1/G1: Safe-Tier-`repair_text` am Body-Chokepoint, bevor nach output/ geschrieben wird.
+
+    Deterministisch/verlustfrei/idempotent (entbolden · Junk-Heading · Setext · PUA ·
+    unclosed-Fence · Fence-Tag high-conf). Review-Tier (url-Mash, turn…-Token) bleibt außen
+    vor. Wirkt NUR auf den Build-Body, nie auf die Quell-Drafts oder den Live-Vault.
+
+    Returns:
+        ``(body, was_repaired)`` — ``was_repaired`` = True, wenn mindestens ein Fix griff.
+    """
+    if not repair_on_build:
+        return body, False
+    repaired, actions = repair_text(body)
+    return repaired, bool(actions)
 
 
 def _render_index(folder: str, articles: list[_Article]) -> str:
@@ -422,6 +439,7 @@ def run_phase_9(
     assets_dst: Path | None = None,
     force: bool = False,
     dry_run: bool = False,
+    repair_on_build: bool = True,
     pipeline_version: str = "0.1.0",
 ) -> dict[str, Any]:
     """Baut den Vault aus den aktiven Drafts.
@@ -435,6 +453,10 @@ def run_phase_9(
         assets_dst: Ziel-Asset-Ordner (`output/_assets/`); None → kein Copy.
         force: Cache (Input-Hash) ignorieren und neu bauen.
         dry_run: Plan berechnen, nichts schreiben.
+        repair_on_build: Safe-Tier-`repair_text` (deterministisch/verlustfrei/idempotent)
+            auf jeden Body anwenden, bevor er nach output/ geschrieben wird (S1, G1 —
+            single-pass für neue Files). Default an; nur output/ betroffen, nie der
+            Live-Vault. Abschaltbar via `vault.repair_on_build` in der Config.
         pipeline_version: für Meta-Datei.
 
     Returns:
@@ -466,10 +488,15 @@ def run_phase_9(
 
     write_stats: Counter[str] = Counter()
     asset_stats: Counter[str] = Counter()
+    repaired_files = 0
     if not dry_run:
         for art in plan.articles:
             target = vault_dir / art.folder / f"{art.final_slug}.md"
-            content = _render_article(art.data, art.body)
+            body, was_repaired = _finalize_body(art.body, repair_on_build)
+            if was_repaired:
+                repaired_files += 1
+                log.info("phase9_body_repaired", slug=art.final_slug)
+            content = _render_article(art.data, body)
             write_stats[_write_if_changed(target, content, archive_root, dry_run)] += 1
 
         # _index.md pro genutztem Ordner (außer ausgeschlossene Sonderordner)
@@ -509,6 +536,7 @@ def run_phase_9(
         "collisions": len(plan.collisions),
         "unknown_categories": sorted(set(plan.unknown_categories)),
         "folder_counts": dict(sorted(plan.folder_counts.items())),
+        "repaired_files": repaired_files,
         "assets_needed": len(asset_plan.needed),
         "assets_copied": asset_stats["copied"] + asset_stats["overwritten"],
         "missing_assets": len(asset_plan.missing),

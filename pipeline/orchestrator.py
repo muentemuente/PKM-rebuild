@@ -180,6 +180,7 @@ def run_pipeline(
         assets_dst=cfg.paths.output / "_assets",
         force=force,
         dry_run=False,
+        repair_on_build=cfg.vault.repair_on_build,
         pipeline_version=cfg.pipeline.version,
     )
     for stem, st in list(docs.items()):

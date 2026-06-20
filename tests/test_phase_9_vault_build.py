@@ -370,3 +370,95 @@ def test_no_assets_without_dirs(vault_env) -> None:
     assert summary["assets_copied"] == 0
     assert summary["missing_assets"] == 0
     assert (vault / "01_Grundlagen" / "alpha.md").exists()
+
+
+# === S1 / G1: Safe-Tier-repair_text am Body-Chokepoint (Phase 9) ==============
+
+# Body mit Safe-Tier-Defekten (entboldbares Heading + PUA-Wrapper + Junk-Heading)
+# UND einem Review-Tier-Defekt (turn…-Token), der NICHT angefasst werden darf.
+_DEFECT_BODY = (
+    "# Unbenannt\n\n"  # Junk-Heading → Safe-Tier: entfernt
+    "## **Wichtig**\n\n"  # `**`-Heading → Safe-Tier: entboldet
+    "Ein markierter Begriff.\n\n"  # PUA-Wrapper → Safe-Tier: bereinigt
+    "Ein Leak turn0view0 hier.\n"  # turn…-Token → Review-Tier: bleibt
+)
+
+
+def _built_body(vault: Path, slug: str = "alpha", folder: str = "01_Grundlagen") -> str:
+    """Body-Teil (nach Frontmatter) der gebauten Datei."""
+    text = (vault / folder / f"{slug}.md").read_text(encoding="utf-8")
+    return text.split("\n---\n\n", 1)[1]
+
+
+def test_repair_on_build_applies_safe_tier(vault_env) -> None:
+    """Default an: Safe-Tier-Fixes landen im gebauten output/-Body, Zähler stimmt."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_DEFECT_BODY)
+    summary = _run(vault_env, force=True)
+    body = _built_body(vault)
+    assert "## Wichtig" in body  # entboldet
+    assert "**Wichtig**" not in body
+    assert "" not in body  # PUA-Open bereinigt
+    assert "" not in body  # PUA-Close bereinigt
+    assert "# Unbenannt" not in body  # Junk-Heading entfernt
+    assert summary["repaired_files"] == 1
+
+
+def test_repair_on_build_skips_review_tier(vault_env) -> None:
+    """Review-Tier (turn…-Token, url-Mash) wird NICHT automatisch angewandt."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_DEFECT_BODY)
+    _run(vault_env, force=True)
+    body = _built_body(vault)
+    assert "turn0view0" in body  # Review-Tier bleibt unangetastet
+
+
+def test_repair_on_build_lossless(vault_env) -> None:
+    """Verlustfrei: inhaltlicher Text bleibt erhalten, nur Defekt-Marker verschwinden."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_DEFECT_BODY)
+    _run(vault_env, force=True)
+    body = _built_body(vault)
+    assert "markierter" in body  # Wort im PUA-Wrapper bleibt
+    assert "Wichtig" in body
+    assert "Ein Leak" in body
+    assert "hier." in body
+
+
+def test_repair_on_build_idempotent(vault_env) -> None:
+    """2. Build (force) ist byte-identisch — Safe-Tier ist idempotent."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_DEFECT_BODY)
+    _run(vault_env, force=True)
+    first = (vault / "01_Grundlagen" / "alpha.md").read_text(encoding="utf-8")
+    _run(vault_env, force=True)
+    second = (vault / "01_Grundlagen" / "alpha.md").read_text(encoding="utf-8")
+    assert first == second
+
+
+def test_repair_off_keeps_defects(vault_env) -> None:
+    """Abschaltbar via Flag: repair_on_build=False baut die Defekte unverändert."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_DEFECT_BODY)
+    summary = _run(vault_env, force=True, repair_on_build=False)
+    body = _built_body(vault)
+    assert "**Wichtig**" in body  # nicht entboldet
+    assert "" in body  # PUA bleibt
+    assert "# Unbenannt" in body  # Junk bleibt
+    assert summary["repaired_files"] == 0
+
+
+def test_repair_on_build_does_not_mutate_source_drafts(vault_env) -> None:
+    """Input read-only: die Quell-Drafts (drafts/) bleiben byte-identisch.
+
+    Der Hook wirkt ausschließlich auf den nach output/ geschriebenen Body —
+    nie auf die Quelle (und damit erst recht nicht auf den Live-Vault, der gar
+    nicht als Ziel übergeben wird).
+    """
+    drafts, _, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_DEFECT_BODY)
+    md_before = (drafts / "CK_a.md").read_text(encoding="utf-8")
+    body_before = (drafts / "CK_a.body.md").read_text(encoding="utf-8")
+    _run(vault_env, force=True)
+    assert (drafts / "CK_a.md").read_text(encoding="utf-8") == md_before
+    assert (drafts / "CK_a.body.md").read_text(encoding="utf-8") == body_before

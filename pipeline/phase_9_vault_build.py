@@ -45,6 +45,7 @@ import structlog
 import yaml
 from pydantic import ValidationError
 
+from pipeline.format_vault import format_body_safe
 from pipeline.schemas import FrontmatterDraft
 
 # Expliziter Re-Export (PEP 484 `as`-Muster) — erhält den eingeführten Importpfad
@@ -170,20 +171,34 @@ def _render_article(data: dict[str, Any], body: str) -> str:
     return f"---\n{fm}---\n\n{body_norm}\n"
 
 
-def _finalize_body(body: str, repair_on_build: bool) -> tuple[str, bool]:
-    """S1/G1: Safe-Tier-`repair_text` am Body-Chokepoint, bevor nach output/ geschrieben wird.
+def _finalize_body(
+    body: str, repair_on_build: bool, format_on_build: bool
+) -> tuple[str, bool, bool]:
+    """Deterministische Finalize-Stufe am Body-Chokepoint, bevor nach output/ geschrieben wird.
 
-    Deterministisch/verlustfrei/idempotent (entbolden · Junk-Heading · Setext · PUA ·
-    unclosed-Fence · Fence-Tag high-conf). Review-Tier (url-Mash, turn…-Token) bleibt außen
-    vor. Wirkt NUR auf den Build-Body, nie auf die Quell-Drafts oder den Live-Vault.
+    Reihenfolge (Architect-Entscheidung): **repair → format**.
+
+    1. S1/G1 — Safe-Tier-`repair_text` (entbolden · Junk-Heading · Setext · PUA ·
+       unclosed-Fence · Fence-Tag high-conf). Review-Tier (url-Mash, turn…-Token) bleibt
+       außen vor.
+    2. S2/G2 — safe-tier-`format_body_safe` (mdformat, deterministisch/idempotent):
+       nur übernommen, wenn kein Schutzbereich berührt wird und Code-Fences + Tabellen
+       byte-identisch bleiben.
+
+    Beides verlustfrei + idempotent. Wirkt NUR auf den Build-Body, nie auf die
+    Quell-Drafts oder den Live-Vault.
 
     Returns:
-        ``(body, was_repaired)`` — ``was_repaired`` = True, wenn mindestens ein Fix griff.
+        ``(body, was_repaired, was_formatted)``.
     """
-    if not repair_on_build:
-        return body, False
-    repaired, actions = repair_text(body)
-    return repaired, bool(actions)
+    was_repaired = False
+    if repair_on_build:
+        body, actions = repair_text(body)
+        was_repaired = bool(actions)
+    was_formatted = False
+    if format_on_build:
+        body, was_formatted = format_body_safe(body)
+    return body, was_repaired, was_formatted
 
 
 def _render_index(folder: str, articles: list[_Article]) -> str:
@@ -440,6 +455,7 @@ def run_phase_9(
     force: bool = False,
     dry_run: bool = False,
     repair_on_build: bool = True,
+    format_on_build: bool = True,
     pipeline_version: str = "0.1.0",
 ) -> dict[str, Any]:
     """Baut den Vault aus den aktiven Drafts.
@@ -457,6 +473,10 @@ def run_phase_9(
             auf jeden Body anwenden, bevor er nach output/ geschrieben wird (S1, G1 —
             single-pass für neue Files). Default an; nur output/ betroffen, nie der
             Live-Vault. Abschaltbar via `vault.repair_on_build` in der Config.
+        format_on_build: Safe-tier-`format_body_safe` (mdformat) NACH dem Repair anwenden
+            (S2, G2). Nur übernommen, wenn kein Schutzbereich berührt wird und Code-Fences
+            + Tabellen byte-identisch bleiben. Default an; nur output/, nie der Live-Vault.
+            Abschaltbar via `vault.format_on_build` in der Config.
         pipeline_version: für Meta-Datei.
 
     Returns:
@@ -489,13 +509,15 @@ def run_phase_9(
     write_stats: Counter[str] = Counter()
     asset_stats: Counter[str] = Counter()
     repaired_files = 0
+    formatted_files = 0
     if not dry_run:
         for art in plan.articles:
             target = vault_dir / art.folder / f"{art.final_slug}.md"
-            body, was_repaired = _finalize_body(art.body, repair_on_build)
-            if was_repaired:
-                repaired_files += 1
-                log.info("phase9_body_repaired", slug=art.final_slug)
+            body, was_repaired, was_formatted = _finalize_body(
+                art.body, repair_on_build, format_on_build
+            )
+            repaired_files += int(was_repaired)
+            formatted_files += int(was_formatted)
             content = _render_article(art.data, body)
             write_stats[_write_if_changed(target, content, archive_root, dry_run)] += 1
 
@@ -537,6 +559,7 @@ def run_phase_9(
         "unknown_categories": sorted(set(plan.unknown_categories)),
         "folder_counts": dict(sorted(plan.folder_counts.items())),
         "repaired_files": repaired_files,
+        "formatted_files": formatted_files,
         "assets_needed": len(asset_plan.needed),
         "assets_copied": asset_stats["copied"] + asset_stats["overwritten"],
         "missing_assets": len(asset_plan.missing),

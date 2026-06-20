@@ -235,6 +235,7 @@ def _dispatch_phase_9(cfg: PipelineConfig, force: bool, dry_run: bool = False) -
         force=force,
         dry_run=dry_run,
         repair_on_build=cfg.vault.repair_on_build,
+        format_on_build=cfg.vault.format_on_build,
         pipeline_version=cfg.pipeline.version,
     )
     prefix = "[cyan]--dry-run:[/cyan] " if dry_run else ""
@@ -245,6 +246,7 @@ def _dispatch_phase_9(cfg: PipelineConfig, force: bool, dry_run: bool = False) -
         f"{summary['folders_used']} Ordnern, {summary['dropped_links']} Links gedroppt "
         f"({summary['dropped_links_drafts']} Drafts), {summary['collisions']} Slug-Kollisionen, "
         f"{summary.get('repaired_files', 0)} Bodies safe-repariert, "
+        f"{summary.get('formatted_files', 0)} safe-formatiert, "
         f"{summary['errors']} Errors"
     )
     if summary.get("unknown_categories"):

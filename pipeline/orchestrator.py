@@ -181,6 +181,7 @@ def run_pipeline(
         force=force,
         dry_run=False,
         repair_on_build=cfg.vault.repair_on_build,
+        format_on_build=cfg.vault.format_on_build,
         pipeline_version=cfg.pipeline.version,
     )
     for stem, st in list(docs.items()):

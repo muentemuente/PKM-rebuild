@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -462,3 +463,150 @@ def test_repair_on_build_does_not_mutate_source_drafts(vault_env) -> None:
     _run(vault_env, force=True)
     assert (drafts / "CK_a.md").read_text(encoding="utf-8") == md_before
     assert (drafts / "CK_a.body.md").read_text(encoding="utf-8") == body_before
+
+
+# === S2 / G2: safe-tier mdformat NACH repair am Body-Chokepoint (Phase 9) ======
+
+# Liste mit nicht-kanonischen Bullet-Markern (`*  ` → mdformat normalisiert zu `- `).
+_LIST_BODY = "# Titel\n\n*  erstes\n*  zweites\n"
+
+# Body mit kanonischem Code-Block + GFM-Tabelle (Schutzbereiche, byte-stabil zu halten).
+_CODE_BLOCK = "```python\nx = 1\ny = 2\n```"
+_TABLE_BLOCK = "| A | B |\n| --- | --- |\n| 1 | 2 |"
+_CODE_BODY = f"# C\n\n*  punkt\n\n{_CODE_BLOCK}\n"
+_TABLE_BODY = f"# T\n\n*  punkt\n\n{_TABLE_BLOCK}\n"
+
+
+def _built_fm(vault: Path, slug: str = "alpha", folder: str = "01_Grundlagen") -> str:
+    """Frontmatter-Teil (zwischen den ersten beiden `---`) der gebauten Datei."""
+    text = (vault / folder / f"{slug}.md").read_text(encoding="utf-8")
+    return text.split("\n---\n\n", 1)[0]
+
+
+def _first_fence(text: str) -> str:
+    m = re.search(r"(?ms)^```.*?^```", text)
+    return m.group(0) if m else ""
+
+
+def test_format_on_build_applies_safe_tier(vault_env) -> None:
+    """Default an: mdformat normalisiert non-kanonische Bullets (`*  ` → `- `)."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_LIST_BODY)
+    summary = _run(vault_env, force=True)
+    body = _built_body(vault)
+    assert "- erstes" in body
+    assert "- zweites" in body
+    assert "*  erstes" not in body
+    assert summary["formatted_files"] == 1
+
+
+def test_format_off_keeps_unformatted(vault_env) -> None:
+    """Abschaltbar via Flag: format_on_build=False lässt die Bullets unverändert."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_LIST_BODY)
+    summary = _run(vault_env, force=True, format_on_build=False)
+    body = _built_body(vault)
+    assert "*  erstes" in body
+    assert summary["formatted_files"] == 0
+
+
+def test_format_on_build_idempotent(vault_env) -> None:
+    """2. Build (force) byte-identisch — repair→format ist idempotent."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_LIST_BODY)
+    _run(vault_env, force=True)
+    first = (vault / "01_Grundlagen" / "alpha.md").read_text(encoding="utf-8")
+    _run(vault_env, force=True)
+    second = (vault / "01_Grundlagen" / "alpha.md").read_text(encoding="utf-8")
+    assert first == second
+
+
+def test_format_on_build_lossless(vault_env) -> None:
+    """Verlustfrei: inhaltliche Wörter bleiben erhalten."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_LIST_BODY)
+    _run(vault_env, force=True)
+    body = _built_body(vault)
+    assert "erstes" in body
+    assert "zweites" in body
+    assert "Titel" in body
+
+
+def test_format_on_build_code_block_byte_identical(vault_env) -> None:
+    """HARD: Code-Blöcke bleiben byte-identisch (Hash-Check pre/post)."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_CODE_BODY)
+    _run(vault_env, force=True)
+    body = _built_body(vault)
+    assert "- punkt" in body  # Formatierung lief (Bullet normalisiert)
+    src_hash = hashlib.sha256(_CODE_BLOCK.encode()).hexdigest()
+    out_hash = hashlib.sha256(_first_fence(body).encode()).hexdigest()
+    assert out_hash == src_hash
+
+
+def test_format_on_build_table_byte_identical(vault_env) -> None:
+    """HARD: Tabellen bleiben byte-identisch (mdformat-GFM-Realignment darf nicht greifen)."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_TABLE_BODY)
+    _run(vault_env, force=True)
+    body = _built_body(vault)
+    assert _TABLE_BLOCK in body  # Tabelle verbatim erhalten
+
+
+def test_format_skipped_when_table_would_change(vault_env) -> None:
+    """Guard: würde mdformat eine Tabelle realignen (GFM), wird NICHT formatiert.
+
+    `|-|-|` → mdformat `| --- | --- |` + Zell-Padding. Der byte-strikte Tabellen-Guard
+    erkennt das und überspringt die Formatierung → Tabelle bleibt verbatim, der Bullet
+    wird in diesem File NICHT normalisiert (konservativ, HARD: Tabellen unverändert).
+    """
+    drafts, vault, _, _ = vault_env
+    ragged = "| A | B |\n|-|-|\n| 1 | 2 |"
+    body_in = f"*  punkt\n\n{ragged}\n"
+    _make_draft(drafts, "a", slug="alpha", body=body_in)
+    summary = _run(vault_env, force=True)
+    body = _built_body(vault)
+    assert ragged in body  # Tabelle byte-identisch (kein Realignment)
+    assert "*  punkt" in body  # Format übersprungen → Bullet NICHT normalisiert
+    assert summary["formatted_files"] == 0
+
+
+def test_format_on_build_frontmatter_untouched(vault_env) -> None:
+    """HARD: Frontmatter unberührt — identisch mit/ohne Format."""
+    drafts, vault, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_LIST_BODY)
+    _run(vault_env, force=True, format_on_build=False)
+    fm_off = _built_fm(vault)
+    _run(vault_env, force=True, format_on_build=True)
+    fm_on = _built_fm(vault)
+    assert fm_on == fm_off
+
+
+def test_format_on_build_does_not_mutate_source_drafts(vault_env) -> None:
+    """Input read-only: Quell-Drafts bleiben byte-identisch (nur output/ betroffen)."""
+    drafts, _, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_LIST_BODY)
+    md_before = (drafts / "CK_a.md").read_text(encoding="utf-8")
+    body_before = (drafts / "CK_a.body.md").read_text(encoding="utf-8")
+    _run(vault_env, force=True)
+    assert (drafts / "CK_a.md").read_text(encoding="utf-8") == md_before
+    assert (drafts / "CK_a.body.md").read_text(encoding="utf-8") == body_before
+
+
+def test_repair_then_format_combination_stable(vault_env) -> None:
+    """Kombination repair→format: S1-Repair greift weiter, Format zusätzlich, Review-Tier bleibt."""
+    drafts, vault, _, _ = vault_env
+    combo = _DEFECT_BODY + "\n*  punkt\n"
+    _make_draft(drafts, "a", slug="alpha", body=combo)
+    summary = _run(vault_env, force=True)
+    body = _built_body(vault)
+    # S1-Repair unverändert wirksam:
+    assert "## Wichtig" in body
+    assert "**Wichtig**" not in body
+    assert "# Unbenannt" not in body
+    assert "" not in body  # PUA bereinigt
+    assert "turn0view0" in body  # Review-Tier bleibt
+    # S2-Format zusätzlich:
+    assert "- punkt" in body
+    assert summary["repaired_files"] == 1
+    assert summary["formatted_files"] == 1

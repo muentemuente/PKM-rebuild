@@ -730,6 +730,37 @@ def audit_vault(
     return out
 
 
+def audit_build_output(vault_dir: Path) -> dict[str, int]:
+    """Read-only Post-Build-Audit über das frisch gebaute ``output/`` (S3/G4).
+
+    Fokus-Verifikation des Build-Ergebnisses — **keine** Mutation, **kein** Doc-Count-
+    Reconcile (für den Staging-Build irrelevant). Reuse der bestehenden Engine
+    (:func:`build_index`, :func:`repair_text`, :func:`check_wikilinks`).
+
+    Returns:
+        Zähler-Dict:
+
+        * ``safe_tier_rest`` — Files, in denen :func:`repair_text` noch Safe-Tier-Fixes
+          fände (bei korrektem repair-on-build erwartet **0** — der Beleg für den
+          sauberen Build).
+        * ``parse_errors`` — Files mit nicht-parsebarem Frontmatter.
+        * ``dangling`` — unauflösbare (echt-defekte) Wikilinks im Body.
+    """
+    index = build_index(vault_dir)
+    safe_tier_rest = 0
+    dangling = 0
+    for rel, text in index.audit_files.items():
+        _, actions = repair_text(text)
+        if actions:
+            safe_tier_rest += 1
+        dangling += sum(1 for f in check_wikilinks(rel, text, index) if f.rule == "wikilink")
+    return {
+        "safe_tier_rest": safe_tier_rest,
+        "parse_errors": len(index.parse_errors),
+        "dangling": dangling,
+    }
+
+
 # === Repair (Safe-Tier, idempotent) ==========================================
 
 

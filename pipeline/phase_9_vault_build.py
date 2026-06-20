@@ -52,7 +52,7 @@ from pipeline.schemas import FrontmatterDraft
 # pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER für Bestands-Konsumenten
 # (phase_10_reports, review, ingest) und macht mypy den Re-Export sichtbar.
 from pipeline.taxonomy import CATEGORY_TO_FOLDER as CATEGORY_TO_FOLDER
-from pipeline.vault_audit import repair_text
+from pipeline.vault_audit import audit_build_output, repair_text
 
 log = structlog.get_logger()
 
@@ -456,6 +456,7 @@ def run_phase_9(
     dry_run: bool = False,
     repair_on_build: bool = True,
     format_on_build: bool = True,
+    audit_on_build: bool = True,
     pipeline_version: str = "0.1.0",
 ) -> dict[str, Any]:
     """Baut den Vault aus den aktiven Drafts.
@@ -477,6 +478,10 @@ def run_phase_9(
             (S2, G2). Nur übernommen, wenn kein Schutzbereich berührt wird und Code-Fences
             + Tabellen byte-identisch bleiben. Default an; nur output/, nie der Live-Vault.
             Abschaltbar via `vault.format_on_build` in der Config.
+        audit_on_build: read-only Audit-Pass über das gebaute output/ NACH dem Build
+            (S3, G4) — verifiziert Safe-Tier-Rest (erwartet 0), Frontmatter-Parse-Errors
+            und dangling Wikilinks. Befund landet als `audit_*`-Felder im Summary.
+            Mutiert NICHTS. Default an; abschaltbar via `vault.audit_on_build`.
         pipeline_version: für Meta-Datei.
 
     Returns:
@@ -508,6 +513,7 @@ def run_phase_9(
 
     write_stats: Counter[str] = Counter()
     asset_stats: Counter[str] = Counter()
+    audit_counts: dict[str, int] = {}
     repaired_files = 0
     formatted_files = 0
     if not dry_run:
@@ -549,6 +555,11 @@ def run_phase_9(
             [{"asset": a, "reason": "unreferenced_in_built_bodies"} for a in asset_plan.orphans],
         )
 
+        # S3 (G4): read-only Audit-Pass über das frisch gebaute output/ (nach repair+format).
+        # Verifiziert den sauberen Build (Safe-Tier-Rest erwartet 0); mutiert nichts.
+        if audit_on_build:
+            audit_counts = audit_build_output(vault_dir)
+
     summary: dict[str, Any] = {
         "articles": len(plan.articles),
         "errors": len(plan.errors),
@@ -560,6 +571,10 @@ def run_phase_9(
         "folder_counts": dict(sorted(plan.folder_counts.items())),
         "repaired_files": repaired_files,
         "formatted_files": formatted_files,
+        "audit_on_build": audit_on_build,
+        "audit_safe_tier_rest": audit_counts.get("safe_tier_rest", 0),
+        "audit_parse_errors": audit_counts.get("parse_errors", 0),
+        "audit_dangling": audit_counts.get("dangling", 0),
         "assets_needed": len(asset_plan.needed),
         "assets_copied": asset_stats["copied"] + asset_stats["overwritten"],
         "missing_assets": len(asset_plan.missing),

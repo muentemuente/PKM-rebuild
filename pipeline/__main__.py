@@ -236,6 +236,7 @@ def _dispatch_phase_9(cfg: PipelineConfig, force: bool, dry_run: bool = False) -
         dry_run=dry_run,
         repair_on_build=cfg.vault.repair_on_build,
         format_on_build=cfg.vault.format_on_build,
+        audit_on_build=cfg.vault.audit_on_build,
         pipeline_version=cfg.pipeline.version,
     )
     prefix = "[cyan]--dry-run:[/cyan] " if dry_run else ""
@@ -253,6 +254,16 @@ def _dispatch_phase_9(cfg: PipelineConfig, force: bool, dry_run: bool = False) -
         console.print(
             f"[yellow]  unbekannte Kategorien → unsortiert:[/yellow] "
             f"{summary['unknown_categories']}"
+        )
+    # S3 (G4): read-only Post-Build-Audit über output/ (kein Write)
+    if summary.get("audit_on_build") and not dry_run:
+        rest = summary.get("audit_safe_tier_rest", 0)
+        perr = summary.get("audit_parse_errors", 0)
+        dang = summary.get("audit_dangling", 0)
+        style = "green" if (rest + perr + dang) == 0 else "yellow"
+        console.print(
+            f"[{style}]  Post-Build-Audit (output/, read-only):[/{style}] "
+            f"{rest} Safe-Tier-Rest · {perr} parse-errors · {dang} dangling"
         )
     table = Table(title="Ordner-Verteilung")
     table.add_column("Ordner")

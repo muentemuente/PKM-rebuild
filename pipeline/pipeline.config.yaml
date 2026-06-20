@@ -168,6 +168,7 @@ vault:
   unsorted_warn_threshold: 10       # build-vault: Warnung, wenn 17_unsortiert mehr Artikel hat (passives Surfacing, kein P4)
   repair_on_build: true             # S1/G1: Safe-Tier-repair_text (entbolden/Junk-Heading/Setext/PUA/Fence-Tag/unclosed-Fence) auf jeden Body beim Build nach output/ (single-pass). Nur output/, nie der Live-Vault. false → Build ohne Auto-Repair
   format_on_build: true             # S2/G2: safe-tier-mdformat NACH repair (Reihenfolge repair→format). Nur übernommen, wenn kein Schutzbereich berührt + Code-Fences/Tabellen byte-identisch. Nur output/, nie der Live-Vault. false → Build ohne Auto-Format
+  audit_on_build: true              # S3/G4: read-only Audit-Pass über das gebaute output/ nach repair+format (Safe-Tier-Rest/parse-errors/dangling als audit_*-Summary). Mutiert nichts. false → kein Post-Build-Audit
 
 
 # === Tag-Vokabular ============================================================

@@ -17,6 +17,7 @@ from pipeline.phase_9_vault_build import (
     run_phase_9,
 )
 from pipeline.schemas import FrontmatterDraft
+from pipeline.vault_audit import audit_build_output
 
 _BASE_FM: dict = {
     "title": "Testartikel",
@@ -610,3 +611,83 @@ def test_repair_then_format_combination_stable(vault_env) -> None:
     assert "- punkt" in body
     assert summary["repaired_files"] == 1
     assert summary["formatted_files"] == 1
+
+
+# === S3 / G4: read-only Post-Build-Audit über output/ (Phase 9) ================
+
+
+def _snapshot(d: Path) -> dict[str, bytes]:
+    """Byte-Snapshot aller Dateien unter d (für Read-only-Nachweis)."""
+    return {str(p.relative_to(d)): p.read_bytes() for p in sorted(d.rglob("*")) if p.is_file()}
+
+
+def test_audit_on_build_clean(vault_env) -> None:
+    """Sauberer Build (repair+format an): 0 Safe-Tier-Rest, 0 parse-errors, 0 dangling."""
+    drafts, _, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body="# Alpha\n\nSauberer Körper.\n")
+    summary = _run(vault_env, force=True)
+    assert summary["audit_on_build"] is True
+    assert summary["audit_safe_tier_rest"] == 0
+    assert summary["audit_parse_errors"] == 0
+    assert summary["audit_dangling"] == 0
+
+
+def test_audit_on_build_detects_safe_tier_rest_when_repair_off(vault_env) -> None:
+    """Injizierter Defekt + repair/format aus → Post-Build-Audit meldet Safe-Tier-Rest."""
+    drafts, _, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_DEFECT_BODY)
+    summary = _run(vault_env, force=True, repair_on_build=False, format_on_build=False)
+    assert summary["audit_safe_tier_rest"] >= 1
+
+
+def test_audit_on_build_detects_body_dangling(vault_env) -> None:
+    """Dangling Wikilink im Body (nicht in related:) → Audit meldet dangling."""
+    drafts, _, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body="# Alpha\n\nSiehe [[gibt-es-nicht]].\n")
+    summary = _run(vault_env, force=True)
+    assert summary["audit_dangling"] >= 1
+
+
+def test_audit_off_disables_pass(vault_env) -> None:
+    """Abschaltbar via Flag: audit_on_build=False → kein Audit-Pass."""
+    drafts, _, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_DEFECT_BODY)
+    summary = _run(vault_env, force=True, repair_on_build=False, audit_on_build=False)
+    assert summary["audit_on_build"] is False
+    assert summary["audit_safe_tier_rest"] == 0  # nicht gelaufen → Default 0
+
+
+def test_audit_on_build_idempotent(vault_env) -> None:
+    """2. Build (force) liefert identische Audit-Befunde."""
+    drafts, _, _, _ = vault_env
+    _make_draft(drafts, "a", slug="alpha", body=_DEFECT_BODY)
+    s1 = _run(vault_env, force=True, repair_on_build=False, format_on_build=False)
+    s2 = _run(vault_env, force=True, repair_on_build=False, format_on_build=False)
+    for k in ("audit_safe_tier_rest", "audit_parse_errors", "audit_dangling"):
+        assert s1[k] == s2[k]
+
+
+def test_audit_build_output_is_read_only(vault_env, temp_dir: Path) -> None:
+    """audit_build_output mutiert das gescannte Verzeichnis nicht (byte-stabil)."""
+    target = temp_dir / "built"
+    (target / "01_Grundlagen").mkdir(parents=True)
+    (target / "01_Grundlagen" / "alpha.md").write_text(
+        "---\ntitle: A\n---\n\n## **Fett**\n\nSiehe [[weg]].\n", encoding="utf-8"
+    )
+    before = _snapshot(target)
+    counts = audit_build_output(target)
+    after = _snapshot(target)
+    assert before == after  # read-only: nichts geschrieben/geändert
+    assert counts["safe_tier_rest"] >= 1  # `**`-Heading wäre reparierbar
+    assert counts["dangling"] >= 1
+
+
+def test_audit_build_output_counts_parse_errors(temp_dir: Path) -> None:
+    """Nicht-parsebares Frontmatter wird als parse_error gezählt."""
+    target = temp_dir / "built2"
+    (target / "01_Grundlagen").mkdir(parents=True)
+    (target / "01_Grundlagen" / "bad.md").write_text(
+        "---\n: : kaputtes: yaml\n  - x\n---\n\nKörper.\n", encoding="utf-8"
+    )
+    counts = audit_build_output(target)
+    assert counts["parse_errors"] >= 1

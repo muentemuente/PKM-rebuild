@@ -3,7 +3,7 @@ title: PKM-rebuild Vault-Standard
 slug: 03-vault-standard
 status: stable
 created: 2026-05-25
-updated: 2026-06-05
+updated: 2026-06-20
 ---
 
 # Vault-Standard
@@ -367,6 +367,19 @@ child_concepts: ["CK_rest-status-codes", "CK_rest-methods"]
 - Workflows / Prozessdokumente, die diesen Concept referenzieren
 - Initial leer; wird gepflegt, wenn Prozessdokumente angelegt werden
 - Pflege erfolgt am referenzierenden Doku, nicht am referenzierten Concept
+
+### `aliases` — Disambiguierung
+
+`aliases:` (§3) werden bei Merges aus `merged_from` als Alias-Union generiert. Damit derselbe Kurz-Alias nicht an mehreren Files hängt (Obsidian-`[[Alias]]` löst sonst mehrdeutig auf), gilt für Bestand **und** künftige Files:
+
+1. **Kurz-Alias gehört dem Concept-Home.** Der umfassendste/grundlegendste Artikel zu einem Konzept beansprucht den Kurz-Alias (`NLP`, `CLI`, `Markdown`, `REST`). Concept-Home = Slug ≈ Konzept **oder** breitester Überblick.
+2. **Spezifischere Files → qualifizierte Aliase** mit Klammer-Suffix `Konzept (Aspekt)` (z. B. `NLP (NER)`, `Projektstruktur (OS-Ordner)`, `Auflösung (DPI/PPI)`). Suffix = der unterscheidende Aspekt aus Slug/Scope.
+3. **Reine Erwähnungen beanspruchen keinen Alias.** Erwähnt ein File ein Konzept nur am Rande (z. B. TOML in einem Protokoll-Überblick), trägt es den Konzept-Alias nicht.
+4. **Test-/Scratch-/Template-Files beanspruchen keine Konzept-Aliase.**
+5. **Gleichrangige Geschwister** (kein klares Concept-Home) → **alle** qualifiziert, kein „Gewinner".
+6. **Dringlichkeit:** Solange kein `[[Alias]]`-Wikilink auf einen kollidierenden Alias zeigt, ist die Mehrdeutigkeit **latent** (nur Obsidian-Autocomplete betroffen) — die Konvention verhindert Wiederauftreten bei neuen Files; Bestands-Cleanup ist optional/kosmetisch.
+
+**Detektion ↔ Auflösung:** Der `alias-collision`-Check in `pkm vault-audit` (WP4) meldet jeden Alias an > 1 Doc. Detektion (Audit) und Auflösung (diese Konvention) greifen ineinander — das Audit findet die Kollision, die Konvention entscheidet den Gewinner bzw. die Qualifizierung.
 
 ---
 

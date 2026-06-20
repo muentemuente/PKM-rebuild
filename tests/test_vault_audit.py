@@ -156,6 +156,27 @@ def test_wikilink_inline_code_masked(tmp_path: Path) -> None:
     assert "auch-defekt" in msgs  # Prosa neben (nicht in) Inline-Code → weiterhin Dangling
 
 
+def test_wikilink_mdlink_text_not_dangling(tmp_path: Path) -> None:
+    # `[[N]](url)` = Markdown-Link mit Klammer-Text (z. B. Wikipedia-Zitat), kein Wikilink.
+    vault = _make_vault(
+        tmp_path,
+        {
+            "a.md": _doc(
+                "a",
+                "Rekord über 160 km[[12]](https://de.wikipedia.org/wiki/X#cite_note-15).\n\n"
+                "Echter Dangling: [[fehlt-wirklich]].\n\n"
+                "Wikilink dann Klammer: [[auch-defekt]] (siehe Kapitel 3).\n",
+            )
+        },
+    )
+    index = va.build_index(vault)
+    findings = va.check_wikilinks("a.md", index.audit_files["a.md"], index)
+    msgs = " ".join(f.message for f in findings)
+    assert "[[12]]" not in msgs  # `[[N]](url)` → Markdown-Link, kein Befund
+    assert "fehlt-wirklich" in msgs  # echtes Dangling bleibt
+    assert "auch-defekt" in msgs  # `]] (` mit Leerzeichen ≠ Markdown-Link → bleibt Dangling
+
+
 def test_wikilink_alias_resolves(tmp_path: Path) -> None:
     vault = _make_vault(
         tmp_path,

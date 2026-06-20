@@ -286,8 +286,11 @@ def check_wikilinks(relpath: str, text: str, index: VaultIndex) -> list[Finding]
             continue  # Links in Code-Blöcken sind intendiert (Beispiel)
         # Inline-Code maskieren: `` `[[Beispiel]]` `` ist Syntax-Demo, kein echter Link.
         scan_text = _INLINE_CODE_RE.sub("", bl.text)
-        for _embed, raw_target in _WIKILINK_RE.findall(scan_text):
-            base = _link_target_base(raw_target)
+        for m in _WIKILINK_RE.finditer(scan_text):
+            # ``[[N]](url)`` = Markdown-Link mit Klammer-Text, kein Wikilink (z. B. Zitate).
+            if scan_text[m.end() : m.end() + 1] == "(":
+                continue
+            base = _link_target_base(m.group(2))
             if _resolves(base, index):
                 continue
             is_stub = any(marker in bl.section for marker in STUB_SECTION_MARKERS)

@@ -158,6 +158,15 @@ def register(transform: Transform, *, replace: bool = False) -> None:
     _REGISTRY[transform.name] = transform
 
 
+def unregister(name: str) -> None:
+    """Entfernt einen registrierten Transform (No-op, wenn nicht vorhanden).
+
+    Hauptzweck: temporäre Transforms in Tests sauber wieder entfernen, damit die
+    Registry global stabil bleibt.
+    """
+    _REGISTRY.pop(name, None)
+
+
 def get(name: str) -> Transform:
     """Liefert den registrierten Transform ``name``.
 

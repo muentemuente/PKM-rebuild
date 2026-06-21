@@ -314,6 +314,27 @@ nicht deterministisch (CANARY A-2.1: `figma.com:` schluckt den Doppelpunkt,
 `affinity.serif.com/-Setup` verschluckt Prosa). Fences ohne erkennbare Sprache bleiben
 Audit-Findings.
 
+### Vault-Apply (`vault-apply`, Phase 1 / S6 D4)
+
+CLI-Exposure des D4-Drivers `apply_to_vault` (`pipeline/driver.py`). Wendet eine
+Transform-Chain auf alle Content-Files des Vault an. **Default = dry-run** (Diff +
+Audit-Vorschau nach `work/vault_apply/`, **kein** Write).
+
+```bash
+pkm vault-apply [--vault-dir DIR] [--chain a,b,…] [--work-dir DIR]
+                [--backup-dir DIR] [--execute] [--confirm]
+# default vault-dir = Brain-Vault (_paths); default chain = repair-safe,format-safe
+# default backup-dir = _paths.BACKUPS
+```
+
+`--execute` löst die echte D4-Mutation aus (Snapshot → Canary [1 Write + idempotent-Verify]
+→ Mass-Write → Verify [Audit-Pass]), aber nur hinter einem **harten Owner-Gate**:
+(1) explizite Bestätigung (`--confirm` oder interaktiver Prompt — sonst Abbruch ohne Write),
+(2) **O4-Backup-Präsenz-Check** (`--backup-dir` muss existieren + nicht-leer sein, sonst
+Abbruch). **tier-Gate:** Chains mit review/audit-mutierenden Transforms werden nie
+auto-geschrieben (bleiben Diff, Exit 1). Canary-Verify rot → Mass-Write gestoppt, Rollback
+über `restore_snapshot()` (Snapshot-Pfad wird ausgegeben).
+
 ### Inkrementeller Modus (`ingest`)
 
 `ingest` verarbeitet **nur** Files aus `data/00_inbox/` durch die Per-Doc-Pipeline

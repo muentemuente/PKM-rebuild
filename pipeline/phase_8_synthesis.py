@@ -423,14 +423,33 @@ def _call_qwen_api(
     messages: list[dict[str, str]],
     temperature: float,
     max_tokens: int,
+    *,
+    top_p: float | None = None,
+    presence_penalty: float | None = None,
+    reasoning_effort: str | None = None,
+    extra_body: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
-    """Einzelner API-Aufruf. Gibt (content, finish_reason) zurueck."""
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
+    """Einzelner API-Aufruf. Gibt (content, finish_reason) zurueck.
+
+    Die optionalen Sampler-/``reasoning_effort``-/``extra_body``-Parameter werden nur
+    gesetzt, wenn sie explizit übergeben werden (Default ``None`` → unverändertes
+    Phase-8-Verhalten). Sie tragen u.a. das Reasoning-Toggle des restructure-Pfads (WP3c).
+    """
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if top_p is not None:
+        kwargs["top_p"] = top_p
+    if presence_penalty is not None:
+        kwargs["presence_penalty"] = presence_penalty
+    if reasoning_effort is not None:
+        kwargs["reasoning_effort"] = reasoning_effort
+    if extra_body is not None:
+        kwargs["extra_body"] = extra_body
+    response = client.chat.completions.create(**kwargs)
     choice = response.choices[0]
     return (choice.message.content or ""), (choice.finish_reason or "stop")
 
@@ -443,8 +462,17 @@ def _run_json_stage(
     max_tokens: int,
     max_retries: int,
     backoff_seconds: int,
+    *,
+    top_p: float | None = None,
+    presence_penalty: float | None = None,
+    reasoning_effort: str | None = None,
+    extra_body: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Ruft Qwen auf, erwartet JSON. Retry bei Parse-Fehler."""
+    """Ruft Qwen auf, erwartet JSON. Retry bei Parse-Fehler.
+
+    Optionale Sampler-/``reasoning_effort``-/``extra_body``-Parameter werden an
+    :func:`_call_qwen_api` durchgereicht (Default ``None`` → Phase-8 unverändert).
+    """
     last_raw = ""
     for attempt in range(max_retries + 1):
         msgs = messages[:]
@@ -462,7 +490,17 @@ def _run_json_stage(
             ]
             time.sleep(backoff_seconds)
 
-        last_raw, finish_reason = _call_qwen_api(client, model, msgs, temperature, max_tokens)
+        last_raw, finish_reason = _call_qwen_api(
+            client,
+            model,
+            msgs,
+            temperature,
+            max_tokens,
+            top_p=top_p,
+            presence_penalty=presence_penalty,
+            reasoning_effort=reasoning_effort,
+            extra_body=extra_body,
+        )
         if finish_reason == "length":
             log.warning("qwen_output_truncated", attempt=attempt, max_tokens=max_tokens)
 
@@ -486,12 +524,31 @@ def _run_text_stage(
     max_tokens: int,
     max_retries: int,
     backoff_seconds: int,
+    *,
+    top_p: float | None = None,
+    presence_penalty: float | None = None,
+    reasoning_effort: str | None = None,
+    extra_body: dict[str, Any] | None = None,
 ) -> str:
-    """Ruft Qwen auf, erwartet Markdown-Body. Kein JSON-Parse."""
+    """Ruft Qwen auf, erwartet Markdown-Body. Kein JSON-Parse.
+
+    Optionale Sampler-/``reasoning_effort``-/``extra_body``-Parameter werden an
+    :func:`_call_qwen_api` durchgereicht (Default ``None`` → Phase-8 unverändert).
+    """
     for attempt in range(max_retries + 1):
         if attempt > 0:
             time.sleep(backoff_seconds)
-        raw, finish_reason = _call_qwen_api(client, model, messages, temperature, max_tokens)
+        raw, finish_reason = _call_qwen_api(
+            client,
+            model,
+            messages,
+            temperature,
+            max_tokens,
+            top_p=top_p,
+            presence_penalty=presence_penalty,
+            reasoning_effort=reasoning_effort,
+            extra_body=extra_body,
+        )
         if finish_reason == "length":
             log.warning("qwen_stage3_truncated", attempt=attempt)
         extracted = _extract_markdown_body(raw)

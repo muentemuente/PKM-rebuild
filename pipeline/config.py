@@ -106,6 +106,27 @@ class QwenMaxTokensConfig(BaseModel):
     stage4: int
 
 
+class QwenRestructureConfig(BaseModel):
+    """Sampler + Reasoning-Toggle **nur** für den restructure-Pfad (WP3c).
+
+    Isoliert von Phase 8: das Reasoning-Modell denkt für die deterministische
+    Re-Strukturierung unnötig (93% Reasoning-Overhead, ~28min/File). ``reasoning_effort``
+    steuert das Denken; auf diesem Stack (LM Studio + qwen3.6) ist **``"none"``** der
+    einzige Wert, der Reasoning real abschaltet (``reasoning_tokens=0``) — das
+    ``chat_template_kwargs.enable_thinking``-Toggle und ``/no_think`` werden ignoriert
+    (WP3c-3 empirisch verifiziert). ``max_tokens_*`` brauchen dann nur den Content-Bedarf.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    reasoning_effort: str
+    temperature: float
+    top_p: float
+    presence_penalty: float
+    max_tokens_stage3: int
+    max_tokens_stage4: int
+
+
 class QwenConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -119,6 +140,7 @@ class QwenConfig(BaseModel):
     timeout_seconds: int
     temperature: QwenTemperatureConfig
     max_tokens: QwenMaxTokensConfig
+    restructure: QwenRestructureConfig
 
 
 class EmbeddingsConfig(BaseModel):

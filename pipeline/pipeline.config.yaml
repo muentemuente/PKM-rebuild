@@ -143,7 +143,7 @@ qwen:
   json_mode: false               # inkompatibel mit LM Studio + Reasoning-Modell (Block 0.D); Outputs werden frei geparst
   max_retries: 2
   retry_backoff_seconds: 5
-  timeout_seconds: 600           # Pro Qwen-Call (Stage 3/4); Reasoning-Modell kann lange brauchen — eher großzügig
+  timeout_seconds: 1200          # Pro Qwen-Call; Pragmatik-Bump (WP3c-3): non-thinking ist schnell, Puffer für große Files
 
   # Temperaturen pro Stage (siehe docs/04_qwen_prompts.md)
   # Option B (1 Doc → 1 Concept): nur Stage 3 (Synthese) + Stage 4 (Frontmatter).
@@ -156,6 +156,18 @@ qwen:
   max_tokens:
     stage3: 16000                  # Höchster Bedarf: vollständiger Markdown-Body, Context-Window 49152
     stage4: 10000
+
+  # restructure-Pfad (WP3c): Reasoning aus + Sampler, isoliert von Phase 8.
+  # reasoning_effort:"none" schaltet das Reasoning real ab (reasoning_tokens=0, WP3c-3
+  # verifiziert; enable_thinking/​/no_think werden auf diesem Stack ignoriert).
+  # Sampler = empfohlene non-thinking-Werte (Qwen3 docs). max_tokens nur Content.
+  restructure:
+    reasoning_effort: "none"
+    temperature: 0.7
+    top_p: 0.8
+    presence_penalty: 1.5
+    max_tokens_stage3: 4000        # nur Content-Body (kein 16000-Reasoning-Budget)
+    max_tokens_stage4: 2000
 
 
 # === Vault-Aufbau (Phase 9) ===================================================

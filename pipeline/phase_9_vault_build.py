@@ -244,6 +244,33 @@ def _render_index(folder: str, articles: list[_Article]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _write_indexes(
+    articles: list[_Article], vault_dir: Path, archive_root: Path, dry_run: bool
+) -> None:
+    """Schreibt `_index.md` pro genutztem Ordner (außer ausgeschlossene Sonderordner).
+
+    Der Sonderordner `unsortiert` bekommt IMMER einen Index — auch leer (G8): er ist ein
+    permanenter Auffang-Bucket, dessen (Nicht-)Befüllung sichtbar bleiben soll.
+    """
+    by_folder: dict[str, list[_Article]] = defaultdict(list)
+    for art in articles:
+        by_folder[art.folder].append(art)
+    unsorted_folder = CATEGORY_TO_FOLDER["unsortiert"]
+    if unsorted_folder not in _INDEX_EXCLUDED_FOLDERS:
+        by_folder.setdefault(unsorted_folder, [])
+    for folder, arts in by_folder.items():
+        idx_path = vault_dir / folder / "_index.md"
+        if folder in _INDEX_EXCLUDED_FOLDERS:
+            # 00_Meta enthält Templates/Standards, keine Concept-Notes → kein Index.
+            # Stale Index aus früherem Lauf entfernen (archive-before-delete).
+            if idx_path.exists():
+                _archive_existing(idx_path, archive_root)
+                idx_path.unlink()
+            continue
+        idx_content = _render_index(folder, arts)
+        _write_if_changed(idx_path, idx_content, archive_root, dry_run)
+
+
 def _archive_existing(path: Path, archive_root: Path) -> None:
     """Kopiert eine zu überschreibende Datei nach archive_root (archive-before-delete)."""
     dest = archive_root / path.parent.name / path.name
@@ -527,21 +554,7 @@ def run_phase_9(
             content = _render_article(art.data, body)
             write_stats[_write_if_changed(target, content, archive_root, dry_run)] += 1
 
-        # _index.md pro genutztem Ordner (außer ausgeschlossene Sonderordner)
-        by_folder: dict[str, list[_Article]] = defaultdict(list)
-        for art in plan.articles:
-            by_folder[art.folder].append(art)
-        for folder, arts in by_folder.items():
-            idx_path = vault_dir / folder / "_index.md"
-            if folder in _INDEX_EXCLUDED_FOLDERS:
-                # 00_Meta enthält Templates/Standards, keine Concept-Notes → kein Index.
-                # Stale Index aus früherem Lauf entfernen (archive-before-delete).
-                if idx_path.exists():
-                    _archive_existing(idx_path, archive_root)
-                    idx_path.unlink()
-                continue
-            idx_content = _render_index(folder, arts)
-            _write_if_changed(idx_path, idx_content, archive_root, dry_run)
+        _write_indexes(plan.articles, vault_dir, archive_root, dry_run)
 
         # Asset-Copy (vor der Input-Archivierung im Orchestrator) — Namen unverändert.
         asset_stats = _copy_needed_assets(asset_plan, assets_src, assets_dst, archive_root, dry_run)

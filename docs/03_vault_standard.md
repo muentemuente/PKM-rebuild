@@ -599,7 +599,7 @@ Excalidraw wird **nicht eingeführt**. Freihand-/Skizzen-Diagramme als `.excalid
 Embedding-Clustering ist verworfen (siehe Sektion 4). `category` entsteht in **zwei Schritten**:
 
 1. **Qwen Stage 4** schlägt eine freie `category` vor (88 distinkte Ist-Werte über 180 Drafts).
-2. **Deterministisches Mapping** auf die kanonischen Vault-Kategorien. Single Source: `config/categories.yaml` (gespiegelt von `pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER`, Drift-Guard in `tests/test_config.py`). Im go-forward weist **Gate B** (`pkm review`) unklare/neue Kategorien zu; neue Kategorien landen in `config/categories.yaml` + neuem `output/`-Ordner. (Erstlauf-Tool: `scripts/apply_category_mapping.py`.)
+2. **Deterministisches Mapping** auf die kanonischen Vault-Kategorien. Single Source: `config/categories.yaml` — `pipeline.taxonomy` lädt sie und leitet `CATEGORY_TO_FOLDER` + `ALLOWED_CATEGORIES` daraus ab (kein Code-Literal; Lock-in `tests/test_categories_ssot.py`). Im go-forward weist **Gate B** (`pkm review`) unklare/neue Kategorien zu; neue Kategorien landen in `config/categories.yaml` + neuem `output/`-Ordner. (Erstlauf-Tool: `scripts/apply_category_mapping.py`.)
 
 ### Kanonische `category`-Werte (`ALLOWED_CATEGORIES`, 18)
 

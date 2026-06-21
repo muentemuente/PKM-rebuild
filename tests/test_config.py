@@ -71,9 +71,11 @@ def test_config_paths_come_from_paths_module() -> None:
     assert cfg.paths.vault == _paths.OUTPUT
 
 
-# Erwartetes category→Ordner-Mapping VOR dem Single-Source-Refactor (eingefrorener
-# Snapshot des früheren Code-Literals). Der Identitäts-Gate beweist: das aus
-# categories.yaml geladene Mapping ist nach dem Refactor unverändert.
+# Eingefrorene Erwartung des category→Ordner-Mappings gegen den Vault-Standard §4.3.
+# config/categories.yaml IST die Single Source; CATEGORY_TO_FOLDER wird daraus geladen
+# (pipeline.taxonomy). Dieser Snapshot ist die unabhängige Soll-Liste: er wird rot, wenn
+# die YAML vom dokumentierten Standard abweicht. (Strukturelle SSoT-Lock-ins, inkl.
+# Guard gegen Wiedereinführung eines Code-Literals: tests/test_categories_ssot.py.)
 _EXPECTED_CATEGORY_TO_FOLDER = {
     "meta": "00_Meta",
     "grundlagen": "01_Grundlagen",

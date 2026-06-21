@@ -1168,7 +1168,7 @@ def restructure(file_path: str, out_dir: str | None, config: str) -> None:
     import openai
 
     from pipeline import _paths
-    from pipeline.restructure import restructure_file
+    from pipeline.restructure import RestructureError, restructure_file
 
     cfg = load_config(Path(config))
     client = openai.OpenAI(
@@ -1177,7 +1177,11 @@ def restructure(file_path: str, out_dir: str | None, config: str) -> None:
         timeout=cfg.qwen.timeout_seconds,
     )
     out = Path(out_dir) if out_dir else _paths.DRAFTS
-    draft = restructure_file(Path(file_path), client=client, qwen=cfg.qwen, out_dir=out)
+    try:
+        draft = restructure_file(Path(file_path), client=client, qwen=cfg.qwen, out_dir=out)
+    except RestructureError as exc:
+        console.print(f"[red]✗ restructure fehlgeschlagen:[/red] {exc}")
+        raise SystemExit(1) from exc
 
     flag = " [yellow]⚠ confidence-Fallback[/yellow]" if draft.confidence_fallback else ""
     console.print(

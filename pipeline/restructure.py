@@ -23,15 +23,17 @@ konservativ ``low`` + ``confidence_fallback: true``.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
+from openai import APIConnectionError, APITimeoutError
 
 from pipeline import _paths
-from pipeline.config import QwenConfig
+from pipeline.config import QwenConfig, QwenRestructureConfig
 from pipeline.phase_8_synthesis import (
     _load_prompt,
     _run_json_stage,
@@ -44,6 +46,33 @@ from pipeline.vault_audit import split_frontmatter
 
 #: Default-Wert, wenn Stage 4 keine valide confidence liefert (konservativ).
 _CONFIDENCE_FALLBACK = "low"
+
+
+class RestructureError(RuntimeError):
+    """Sauberer Fehler statt rohem Traceback bei einem fehlgeschlagenen Qwen-Call.
+
+    Wird bei Timeout/Verbindungsabbruch geworfen; die CLI fängt ihn ab und gibt
+    eine actionable Fehlerzeile aus. **Kein Draft** wird geschrieben, das Quell-File
+    bleibt unberührt (review-Tier-Garantie).
+    """
+
+
+def _guarded[T](stage: str, qwen: QwenConfig, call: Callable[[], T]) -> T:
+    """Führt einen Qwen-Stage-Call aus; Timeout/Connection → :class:`RestructureError`.
+
+    Verhindert den rohen ``openai``-Traceback. Bei Fehler ist garantiert **kein**
+    Draft geschrieben (der Write passiert erst nach beiden Stages) und das Quell-File
+    unberührt.
+    """
+    try:
+        return call()
+    except (APITimeoutError, APIConnectionError) as exc:
+        raise RestructureError(
+            f"{stage} fehlgeschlagen: {type(exc).__name__} nach {qwen.timeout_seconds}s. "
+            "Kein Draft geschrieben, Quell-File unberührt. "
+            "Hinweis: qwen.timeout_seconds erhöhen oder Speicher prüfen "
+            "(während Qwen-Läufen andere Apps schließen)."
+        ) from exc
 
 
 # === review-Tier-Transform ====================================================
@@ -69,6 +98,9 @@ class RestructureReviewTransform:
     max_tokens: int
     max_retries: int = 2
     backoff_seconds: int = 0
+    top_p: float | None = None
+    presence_penalty: float | None = None
+    reasoning_effort: str | None = None
     name: str = "restructure-review"
     tier: str = TIER_REVIEW
     mutating: bool = True
@@ -87,6 +119,9 @@ class RestructureReviewTransform:
             self.max_tokens,
             self.max_retries,
             self.backoff_seconds,
+            top_p=self.top_p,
+            presence_penalty=self.presence_penalty,
+            reasoning_effort=self.reasoning_effort,
         )
         report = ["restructure-review: Body via Qwen Stage-3 re-strukturiert"]
         return TransformResult(text=new_body, changed=new_body != text, report=report)
@@ -205,6 +240,7 @@ def restructure_file(
     out = out_dir if out_dir is not None else _paths.DRAFTS
     prompts = prompts_dir if prompts_dir is not None else (_paths.REPO_ROOT / "prompts")
     ts = timestamp if timestamp is not None else datetime.now(tz=UTC).isoformat(timespec="seconds")
+    rc: QwenRestructureConfig = qwen.restructure
 
     raw = source_path.read_text(encoding="utf-8")
     fm_text, body, _ = split_frontmatter(raw)
@@ -213,33 +249,43 @@ def restructure_file(
         source_fm = None
     src_slug = _source_slug(source_fm, source_path)
 
-    # Stage 3 — Body-Restructure (review-Tier-Transform)
+    # Stage 3 — Body-Restructure (review-Tier-Transform), non-thinking + Sampler.
     stage3_prompt = _load_prompt(prompts, qwen.prompt_version, "stage3_synthesis.md")
     transform = RestructureReviewTransform(
         client=client,
         model=qwen.model,
         system_prompt=stage3_prompt,
-        temperature=qwen.temperature.stage3_synthesis,
-        max_tokens=qwen.max_tokens.stage3,
+        temperature=rc.temperature,
+        max_tokens=rc.max_tokens_stage3,
         max_retries=qwen.max_retries,
         backoff_seconds=qwen.retry_backoff_seconds,
+        top_p=rc.top_p,
+        presence_penalty=rc.presence_penalty,
+        reasoning_effort=rc.reasoning_effort,
     )
-    restructured = transform.apply(body).text
+    restructured = _guarded("Stage 3 (Body)", qwen, lambda: transform.apply(body).text)
 
-    # Stage 4 — Frontmatter als Confidence-Quelle
+    # Stage 4 — Frontmatter als Confidence-Quelle, gleiche Sampler-Einstellung.
     stage4_prompt = _load_prompt(prompts, qwen.prompt_version, "stage4_frontmatter_json.md")
     stage4_messages = [
         {"role": "system", "content": stage4_prompt},
         {"role": "user", "content": _build_stage4_user_message(restructured, ts)},
     ]
-    stage4_fm = _run_json_stage(
-        client,
-        qwen.model,
-        stage4_messages,
-        qwen.temperature.stage4_frontmatter,
-        qwen.max_tokens.stage4,
-        qwen.max_retries,
-        qwen.retry_backoff_seconds,
+    stage4_fm = _guarded(
+        "Stage 4 (Frontmatter)",
+        qwen,
+        lambda: _run_json_stage(
+            client,
+            qwen.model,
+            stage4_messages,
+            rc.temperature,
+            rc.max_tokens_stage4,
+            qwen.max_retries,
+            qwen.retry_backoff_seconds,
+            top_p=rc.top_p,
+            presence_penalty=rc.presence_penalty,
+            reasoning_effort=rc.reasoning_effort,
+        ),
     )
     confidence, fallback = _normalize_confidence(stage4_fm.get("confidence"))
 

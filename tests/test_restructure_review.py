@@ -18,7 +18,12 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 from pipeline import driver, transforms
-from pipeline.config import QwenConfig, QwenMaxTokensConfig, QwenTemperatureConfig
+from pipeline.config import (
+    QwenConfig,
+    QwenMaxTokensConfig,
+    QwenRestructureConfig,
+    QwenTemperatureConfig,
+)
 from pipeline.restructure import RestructureReviewTransform, restructure_file
 
 _FIXED_TS = "2026-06-21T00:00:00+00:00"
@@ -66,6 +71,14 @@ def _qwen_cfg() -> QwenConfig:
         timeout_seconds=60,
         temperature=QwenTemperatureConfig(stage3_synthesis=0.3, stage4_frontmatter=0.1),
         max_tokens=QwenMaxTokensConfig(stage3=2000, stage4=800),
+        restructure=QwenRestructureConfig(
+            reasoning_effort="none",
+            temperature=0.7,
+            top_p=0.8,
+            presence_penalty=1.5,
+            max_tokens_stage3=4000,
+            max_tokens_stage4=2000,
+        ),
     )
 
 

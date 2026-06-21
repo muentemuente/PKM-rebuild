@@ -1,10 +1,11 @@
 # =============================================================================
 # categories.yaml — Single Source: category-Wert → Vault-Ordnername
 # =============================================================================
-# 17 kanonische Kategorien. Das Nummern-Präfix ist nur Ordnername, NICHT Teil des
+# 18 kanonische Kategorien. Das Nummern-Präfix ist nur Ordnername, NICHT Teil des
 # category-Feldes im Frontmatter. Deterministisches Mapping (Phase Category-Mapping).
-# Quelle: docs/03_vault_standard.md Appendix A. Gespiegelt von
-# pipeline.phase_9_vault_build.CATEGORY_TO_FOLDER (Drift-Guard: tests/test_config.py).
+# Doku: docs/03_vault_standard.md §4.3. Diese Datei IST die Single Source:
+# pipeline.taxonomy lädt sie und leitet CATEGORY_TO_FOLDER + ALLOWED_CATEGORIES daraus
+# ab (kein Code-Literal). Lock-in: tests/test_categories_ssot.py.
 # Gate B (pkm review --apply) legt neue Kategorien hier an. Auflösung: _paths.py.
 # =============================================================================
 

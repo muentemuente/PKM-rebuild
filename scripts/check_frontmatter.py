@@ -54,6 +54,7 @@ from scripts._pkm_common import (
     ALLOWED_TYPE,
     REQUIRED_FIELDS,
     SLUG_RE,
+    UMLAUT_MAP,
 )
 
 # === Konfiguration (zentral aus pipeline._paths) ===
@@ -71,8 +72,8 @@ COMPARE_FIELDS = [
     "created", "updated", "last_synthesized",
 ]
 
-# Slug-Umlaut-Paare (skript-lokal: check_schema meldet erwartete Ersetzung)
-UMLAUT_PAIRS = [("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")]
+# Slug-Umlaut-Paare aus der SSoT abgeleitet (check_schema meldet erwartete Ersetzung)
+UMLAUT_PAIRS = list(UMLAUT_MAP.items())
 
 
 # === Hilfsfunktionen ===

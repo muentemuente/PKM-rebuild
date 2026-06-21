@@ -5,19 +5,18 @@ from pathlib import Path
 import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline import _paths  # noqa: E402
+from scripts._pkm_common import (  # noqa: E402  # Enum/Slug-SSoT (kein Re-Define)
+    ALLOWED_CATEGORIES as CATS,
+    ALLOWED_TYPE as TYPE,
+    SLUG_RE as SLUG,
+)
 VAULT = _paths.OUTPUT
 ASSETS = VAULT / "_assets"
 FM = re.compile(r"^---\s*\n(.*?\n)---\s*\n", re.DOTALL)
 EMBED = re.compile(r"!\[\[([^\]|#^]+)(?:[#^][^\]|]*)?(?:\|[^\]]+)?\]\]")
-SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-CATS={"meta","grundlagen","webentwicklung","betriebssysteme","protokolle-und-standards",
- "dateitypen-und-konfiguration","methoden-und-prozesse","best-practices","cheatsheets",
- "ki-und-semantische-systeme","datenarchitektur-und-datenbanken","dokumentenverarbeitung-und-extraktion",
- "wissensmodellierung-und-knowledge-graphs","visualisierung-reporting-und-design-systeme",
- "automatisierung-scripting-und-pipelines","gedanken","kunst-kultur","unsortiert"}
-TYPE={"process-document","knowledge-article","compact-reference","gedanke"}
-STATUS={"draft","review","stable","deprecated"}; REV={"ai_drafted","human_reviewed","verified"}
-CONF={"low","medium","high"}
+# REQ: bewusst lokale Teilmenge (ohne last_synthesized/prompt_version) — der
+# gebaute Vault verlangt diese zwei nicht; Angleich an REQUIRED_FIELDS wäre eine
+# Verhaltensänderung, daher nicht konsolidiert.
 REQ={"title","slug","summary","type","doc_role","category","sources_docs","source_chunks",
  "status","review_status","confidence","doc_version","created","updated"}
 vs=set()

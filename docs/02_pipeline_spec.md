@@ -283,7 +283,7 @@ Vault ist **Gate-pflichtig** (WP4 Teil B), nicht in dieser CLI.
 pkm vault-audit  [--vault-dir DIR] [--work-dir DIR] [--baseline content,attic]
 pkm vault-repair [--vault-dir DIR] [--work-dir DIR]
 pkm vault-review [--vault-dir DIR] [--work-dir DIR]
-# default vault-dir = Brain-Vault (_paths); baseline-default 194,6
+# default vault-dir = Brain-Vault (_paths); baseline-default = vault_audit.DOC_COUNT_BASELINE (165,6)
 ```
 
 **`audit`** — neun read-only Detektionsregeln, gruppierter Markdown-Report:

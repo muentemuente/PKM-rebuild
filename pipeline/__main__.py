@@ -649,8 +649,12 @@ def format_vault_cmd(vault_dir: str | None, work_dir: str | None, examples: int)
     default=None,
     help="Report-Ziel (default: work/vault_audit)",
 )
-@click.option("--baseline", default="194,6", help="Doc-Count-Baseline 'content,attic'")
-def vault_audit_cmd(vault_dir: str | None, work_dir: str | None, baseline: str) -> None:
+@click.option(
+    "--baseline",
+    default=None,
+    help="Doc-Count-Baseline 'content,attic' (default: vault_audit.DOC_COUNT_BASELINE)",
+)
+def vault_audit_cmd(vault_dir: str | None, work_dir: str | None, baseline: str | None) -> None:
     """WP4: read-only Audit über den Vault (9 Regeln) → Befund-Report in work/."""
     from pipeline import _paths
     from pipeline import vault_audit as va
@@ -660,7 +664,10 @@ def vault_audit_cmd(vault_dir: str | None, work_dir: str | None, baseline: str) 
     if not vault.is_dir():
         console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
         raise SystemExit(2)
-    base_content, base_attic = (int(x) for x in baseline.split(","))
+    if baseline:
+        base_content, base_attic = (int(x) for x in baseline.split(","))
+    else:
+        base_content, base_attic = va.DOC_COUNT_BASELINE
     candidates = _paths.WORK / "synthesis_candidates.md"
     findings = va.audit_vault(
         vault,

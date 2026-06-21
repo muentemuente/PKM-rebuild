@@ -761,6 +761,144 @@ def vault_review_cmd(vault_dir: str | None, work_dir: str | None) -> None:
     )
 
 
+@cli.command(name="vault-apply")
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(),
+    default=None,
+    help="Ziel-Vault (default: Brain-Vault aus _paths)",
+)
+@click.option(
+    "--chain",
+    "chain_str",
+    default=None,
+    help="Transform-Chain, komma-separiert (default: repair-safe,format-safe)",
+)
+@click.option(
+    "--work-dir",
+    "work_dir",
+    type=click.Path(),
+    default=None,
+    help="Diff-Report-Ziel im dry-run (default: work/vault_apply)",
+)
+@click.option(
+    "--backup-dir",
+    "backup_dir",
+    type=click.Path(),
+    default=None,
+    help="O4-Backup-Verzeichnis für den Präsenz-Check vor --execute (default: _paths.BACKUPS)",
+)
+@click.option("--execute", is_flag=True, help="Echte D4-Mutation. Default: dry-run (kein Write).")
+@click.option(
+    "--confirm",
+    is_flag=True,
+    help="Owner-Bestätigung für --execute (sonst interaktiver Prompt).",
+)
+def vault_apply_cmd(
+    vault_dir: str | None,
+    chain_str: str | None,
+    work_dir: str | None,
+    backup_dir: str | None,
+    execute: bool,
+    confirm: bool,
+) -> None:
+    """Phase 1: Transform-Chain auf den Vault anwenden (D4). Default = dry-run.
+
+    Dry-run berechnet Diffs + Audit-Vorschau und schreibt **nichts**. ``--execute`` löst die
+    D4-Mutation aus (Snapshot → Canary → Mass-Write → Verify), aber nur hinter einem harten
+    Owner-Gate: explizite Bestätigung (``--confirm`` oder interaktiv) **und** ein präsentes
+    O4-Backup (``--backup-dir``, sonst Abbruch). tier-Gate: review/audit-mutierende Transforms
+    werden nie auto-geschrieben (bleiben Diff).
+    """
+    from pipeline import _paths
+    from pipeline.driver import apply_to_vault
+    from pipeline.transforms import DEFAULT_CHAIN, get
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    if not vault.is_dir():
+        console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
+        raise SystemExit(2)
+
+    chain = (
+        tuple(c.strip() for c in chain_str.split(",") if c.strip()) if chain_str else DEFAULT_CHAIN
+    )
+    try:
+        for name in chain:
+            get(name)  # Transform-Namen früh validieren
+    except KeyError as e:
+        console.print(f"[red]✗[/red] {e}")
+        raise SystemExit(2) from e
+
+    # === dry-run (Default): Diffs + Audit-Vorschau, kein Write ===
+    if not execute:
+        report = apply_to_vault(vault, chain=chain)
+        work = Path(work_dir) if work_dir else (_paths.WORK / "vault_apply")
+        work.mkdir(parents=True, exist_ok=True)
+        diffs = "\n".join(p.diff for p in report.plans if p.changed)
+        (work / "apply_diff.diff").write_text(diffs, encoding="utf-8")
+        table = Table(title=f"vault-apply (dry-run) · chain={'→'.join(chain)}")
+        table.add_column("Metrik")
+        table.add_column("Wert", justify="right")
+        table.add_row("Files total", str(report.files_total))
+        table.add_row("[yellow]Files changed[/yellow]", str(report.files_changed))
+        if report.audit_counts is not None:
+            table.add_row(
+                "audit safe_tier_rest", str(report.audit_counts.get("safe_tier_rest", "?"))
+            )
+        console.print(table)
+        if not report.writable:
+            console.print(
+                f"[yellow]⚠ tier-Gate:[/yellow] {report.reason} → --execute würde nicht schreiben"
+            )
+        console.print(
+            f"[green]✓[/green] {work / 'apply_diff.diff'} [dim](Vault unangetastet)[/dim]"
+        )
+        return
+
+    # === --execute: harter Owner-Gate VOR jeder Mutation ===
+    # 1) explizite Bestätigung (--confirm oder interaktiv; sonst Abbruch ohne Write)
+    if not confirm:
+        click.confirm(
+            f"--execute: Chain {'→'.join(chain)} auf {vault} ANWENDEN (mutiert den Vault)?",
+            abort=True,
+        )
+    # 2) O4-Backup-Präsenz-Check (unabhängiges Backup muss existieren)
+    backups = Path(backup_dir) if backup_dir else _paths.BACKUPS
+    if not (backups.is_dir() and any(backups.iterdir())):
+        console.print(
+            f"[red]✗[/red] O4-Backup-Präsenz-Check fehlgeschlagen: kein Backup unter {backups}. "
+            "Abbruch (kein Write)."
+        )
+        raise SystemExit(2)
+
+    report = apply_to_vault(vault, chain=chain, execute=True)
+
+    # tier-Gate: nicht auto-write-fähige Chain → kein Write (driver-seitig erzwungen).
+    if not report.writable:
+        console.print(f"[yellow]⚠ tier-Gate:[/yellow] {report.reason} — kein Write.")
+        raise SystemExit(1)
+    # Canary rot → Mass-Write gestoppt, Rollback via Snapshot.
+    if not report.executed:
+        console.print(
+            f"[red]✗[/red] {report.reason or 'Canary-Verify rot'} "
+            f"(Snapshot: {report.snapshot}) → restore_snapshot() für Rollback."
+        )
+        raise SystemExit(1)
+
+    table = Table(title=f"vault-apply (executed) · chain={'→'.join(chain)}")
+    table.add_column("Metrik")
+    table.add_column("Wert", justify="right")
+    table.add_row("Files changed", str(report.files_changed))
+    table.add_row("Files written", str(report.files_written))
+    table.add_row("Canary", f"{report.canary} ({'ok' if report.canary_ok else 'FAIL'})")
+    if report.audit_counts is not None:
+        table.add_row("audit safe_tier_rest", str(report.audit_counts.get("safe_tier_rest", "?")))
+    console.print(table)
+    console.print(f"[dim]Snapshot: {report.snapshot}[/dim]")
+    console.print(f"[green]✓[/green] {report.files_written} Files geschrieben + verifiziert.")
+
+
 @cli.command(name="fence-indented")
 @click.option(
     "--vault-dir",

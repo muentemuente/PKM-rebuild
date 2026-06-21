@@ -85,7 +85,8 @@ def test_thematic_break_stays_dashes() -> None:
     src = "# A\n\n---\n\nB\n\n***\n\nC\n"
     out, _ = fv.format_markdown(src)
     assert "---" in out
-    assert "___" not in out and "____" not in out
+    assert "___" not in out
+    assert "____" not in out
     assert "*" * 3 not in out  # *** ebenfalls zu --- normalisiert
     twice, _ = fv.format_markdown(out)
     assert twice == out  # idempotent
@@ -148,7 +149,8 @@ def test_trailing_ws_in_codeblock_is_safe_not_unsafe() -> None:
     formatted, _ = fv.format_markdown(original)
     tier, reasons = fv.classify(original, formatted)
     assert tier in (fv._TIER_SAFE, fv._TIER_UNCHANGED), reasons
-    assert "x = 1" in formatted and "y = 2" in formatted  # Inhalt erhalten
+    assert "x = 1" in formatted  # Inhalt erhalten
+    assert "y = 2" in formatted
 
 
 def test_example_frontmatter_in_body_not_flagged_as_heading() -> None:
@@ -168,7 +170,8 @@ def test_indented_to_fenced_code_is_safe() -> None:
     assert "```" in formatted  # wurde gefenced
     tier, reasons = fv.classify(original, formatted)
     assert tier == fv._TIER_SAFE, reasons  # NICHT unsafe
-    assert "x = 1" in formatted and "y = 2" in formatted
+    assert "x = 1" in formatted
+    assert "y = 2" in formatted
 
 
 def test_sentinel_collision_is_unsafe() -> None:

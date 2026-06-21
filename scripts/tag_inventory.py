@@ -29,6 +29,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline import _paths  # noqa: E402
+from scripts._pkm_common import UMLAUT_MAP  # noqa: E402  # Umlaut-SSoT (kein Re-Define)
 
 _REPO_ROOT = _paths.REPO_ROOT
 _DEFAULT_CORPUS = _paths.INPUT
@@ -122,7 +123,7 @@ _MIN_TOKEN_LEN = 2
 def normalize_token(token: str) -> str:
     """Normalisiert ein Token: lowercase, Umlaute → ASCII, nur Buchstaben/Bindestriche."""
     token = token.lower()
-    for old, new in [("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")]:
+    for old, new in UMLAUT_MAP.items():
         token = token.replace(old, new)
     # Nur alphanumerische Zeichen und Bindestriche behalten
     token = re.sub(r"[^\w-]", "", token, flags=re.ASCII)

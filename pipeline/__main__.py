@@ -1142,5 +1142,49 @@ def taxonomy_rename(kind: str, old: str, new: str, dry_run: bool) -> None:
         raise SystemExit(1)
 
 
+@cli.command()
+@click.option(
+    "--file",
+    "file_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Quell-File für die review-Restrukturierung (genau eines, opt-in).",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Draft-Zielordner (default: drafts/). Schreibt NIE in den Vault.",
+)
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def restructure(file_path: str, out_dir: str | None, config: str) -> None:
+    """review-only: erzeugt einen restructure-Draft via Qwen, schreibt NIE in den Vault."""
+    import openai
+
+    from pipeline import _paths
+    from pipeline.restructure import restructure_file
+
+    cfg = load_config(Path(config))
+    client = openai.OpenAI(
+        base_url=cfg.qwen.endpoint,
+        api_key="local",
+        timeout=cfg.qwen.timeout_seconds,
+    )
+    out = Path(out_dir) if out_dir else _paths.DRAFTS
+    draft = restructure_file(Path(file_path), client=client, qwen=cfg.qwen, out_dir=out)
+
+    flag = " [yellow]⚠ confidence-Fallback[/yellow]" if draft.confidence_fallback else ""
+    console.print(
+        f"[green]✓ Draft:[/green] {draft.draft_path} (confidence={draft.confidence}){flag}"
+    )
+    console.print("  review-Tier: kein Vault-Write, Quell-File unberührt.")
+
+
 if __name__ == "__main__":
     cli()

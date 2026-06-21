@@ -345,6 +345,28 @@ Option B konsumiert sie nicht. Bestehender Korpus/Vault/Drafts bleiben unberühr
 `02_pipeline_output/ingest_report.md` (pro neuem Doc: vorgeschlagene `category` +
 `tags` mit Flag neu-vs-bestehend). Vollständiger Workflow: `docs/FUTURE_RUN.md`.
 
+### Semantische Re-Strukturierung (`restructure`, WP3c — review-Tier)
+
+Erzeugt für **genau ein** Quell-File einen re-strukturierten **Draft** via Qwen.
+Engine: `pipeline/restructure.py`. **review-Tier** (`pipeline.transforms.TIER_REVIEW`):
+niemals Auto-Apply, niemals Safe-Tier, **nie ein Vault-Write** — Output ist
+ausschließlich ein Draft in `drafts/` (Default `_paths.DRAFTS`); das Quell-File
+bleibt unberührt. Kein Batch, kein Cross-Doc-Merge (Option B), kein `--execute`-Pfad.
+
+```bash
+pkm restructure --file <path> [--out drafts/]
+# reuse der kanonischen v1-Prompts: Stage 3 (Body) + Stage 4 (Frontmatter/confidence)
+```
+
+Ablauf: Stage 3 re-strukturiert den Body (`RestructureReviewTransform`, der
+review-Tier-Transform), Stage 4 liefert das Frontmatter inkl. `confidence`. Der
+Draft-Frontmatter-Kontrakt: `review_status: ai_drafted` · `confidence:
+<low|medium|high>` (Vault-SSoT-Enum, `CLAUDE.md` §6 — kein Float) · `provenance`
+(Quelle-Slug, Modell, Prompt-Version, Timestamp). Liefert Stage 4 keine valide
+confidence → konservativ `low` + `confidence_fallback: true`. Der Qwen-Client ist
+injizierbar (`_call_qwen_api(client, …)`) → deterministisch mockbar. Die
+Draft→Vault-Promotion ist ein separater, gegateter D4-Task (nicht in dieser CLI).
+
 ---
 
 ## 5. Logging
@@ -872,3 +894,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-06-21 — Phase-1 S3 (G4, Audit-on-Build): Phase 9 (`build-vault`/`pkm run`) führt **nach** repair+format einen **read-only** Audit-Pass über das gebaute `output/` aus (neu `vault_audit.audit_build_output`, reuse `build_index`/`repair_text`/`check_wikilinks`, **kein** Doc-Count-Reconcile). Verifiziert den sauberen Build: Summary-Felder `audit_safe_tier_rest` (erwartet **0** bei repair-on-build), `audit_parse_errors`, `audit_dangling` + `audit_on_build`. **Mutiert nichts** (weder `output/` noch Live-Vault). Config-Toggle `vault.audit_on_build` (default **true**, §3); `build-vault` druckt die Befund-Zeile. Two-stage additiv (`vault-audit`-Modus unverändert). 7 neue Tests. Engine `pipeline/vault_audit.py` + `pipeline/phase_9_vault_build.py`
 - 2026-06-21 — Phase-1 S4 (Composability-Kern, Transform-Registry): neues Modul `pipeline/transforms.py` — gemeinsames `Transform`-Protokoll (Body → `TransformResult(text, changed, report)`) + Registry. **Code-only, non-mutating, kein `--apply`.** Adaptiert (kein Re-Implement) die Bestands-Engines als Transforms: `repair-safe` (`repair_text`, tier=safe, mutating), `format-safe` (`format_body_safe`, tier=safe, mutating), `audit-readonly` (index-freie `check_headings`/`check_fences`/`check_corruption`, tier=audit, read-only). Metadaten `tier`/`mutating` + `DEFAULT_CHAIN=("repair-safe","format-safe")` (Entscheidung 2A) legen die Schnittstelle **chain-ready** (S5) und **apply-ready** (S6/D4) aus, ohne sie zu implementieren. 15 neue Tests (Listing, Metadaten, Adapter-Äquivalenz == Direkt-Funktion, Non-Mutation). Two-stage additiv (bestehende CLI-Tools unverändert).
 - 2026-06-21 — Phase-1 S5+S6 (Chain-Driver + D4-`--apply`-Driver): neues Modul `pipeline/driver.py`. **S5 `run_chain(text, chain=DEFAULT_CHAIN)`** — non-mutating, verkettet Transforms (Output→Input, Reports gemerged), konfigurierbare Reihenfolge (2A). **S6 `apply_to_vault(target_dir, chain, execute=False)`** — Entscheidung 1A: **Default dry-run** (Diff + Audit-Vorschau, kein Write); `execute=True` löst vollständiges **D4** aus: auto-`snapshot_vault` → Canary (1 Write + Idempotenz-Verify) → bei grün Mass-Write → Verify (`audit_build_output`); Canary rot → Stop + `restore_snapshot`-Hinweis (kein Mass-Write). **tier-Gate:** nur `safe`-Transforms sind auto-write-fähig; `review`/`audit`-mutierend → `writable=False`, kein Write (nur Diff). Frontmatter + fm↔body-Separator byte-stabil (Body-only-Transform). **Kein CLI-Command** (Library-API; Live-Vault-Anbindung später mit Owner-Gate). 12 neue Tests auf `tmp_path`/Test-Vault (Chain-Äquivalenz/custom/idempotent/audit-readonly; dry-run schreibt nichts, execute schreibt+verifiziert+snapshot, fm byte-stabil, tier-Gate, Rollback). `transforms.unregister` ergänzt. Two-stage additiv.
+- 2026-06-21 — WP3c-1 (restructure-review Scaffold): §4 CLI `pkm restructure --file <path> [--out drafts/]` (review-only, **nie** Vault-Write, kein `--execute`). Neues Modul `pipeline/restructure.py`: `RestructureReviewTransform` (tier=**review**, mutating, registry-fähig → `driver._chain_writable` blockt Auto-Write) + `restructure_file()` Single-File-Orchestrator. **Reuse** der kanonischen v1-Prompts Stage 3 (Body) + Stage 4 (Frontmatter) und der injizierbaren Call-Layer (`_load_prompt`/`_run_text_stage`/`_run_json_stage` aus `phase_8_synthesis`) — kein neuer Prompt. Draft-Frontmatter: `review_status: ai_drafted` · `confidence: <low|medium|high>` (Vault-SSoT-Enum, kein Float; Stage-4-Wert auf Enum normalisiert) · `provenance` (Quelle-Slug/Modell/Prompt-Version/Timestamp); fehlende/ungültige confidence → `low` + `confidence_fallback: true`. Quell-File read-only, Output nur `drafts/`. Draft→Vault-Promotion = separater D4-Task (Folge-Inkrement). Keine `schemas.py`-Änderung (Draft-Frontmatter als dict→YAML, kein Pydantic → §7 n/a). 10 neue Tests (LLM gemockt: byte-stabiler Draft, Frontmatter-Kontrakt, confidence-Enum+Fallback, Quell-File-Snapshot, Driver-Invariante review→kein Write). Engine `pipeline/restructure.py`.

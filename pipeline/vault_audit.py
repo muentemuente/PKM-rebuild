@@ -602,6 +602,14 @@ def check_alias_collisions(index: VaultIndex) -> list[Finding]:
 # === Regel 6: Doc-Count-Metrik ================================================
 
 
+# Genehmigte Doc-Count-Baseline (G6) — die *einzige* Quelle dieser Zahlen.
+# Semantik: (content, attic) = (Audit-Content-Menge `len(index.audit_files)`,
+# `_attic`-Artikel). Verifiziert gegen den Live-Vault am 2026-06-21 (165 / 6).
+# Die Audit-Content-Menge schließt _index.md/00_Meta/_assets/_attic + funktionale
+# Templates aus (s. build_index). Erweiterung des Vaults = bewusste Baseline-Pflege hier.
+DOC_COUNT_BASELINE: tuple[int, int] = (165, 6)
+
+
 def doc_count(index: VaultIndex, vault_dir: Path) -> dict[str, int]:
     """Regel 6 — gültige Content-.md (Audit-Menge) + ``_attic``-Zähler."""
     attic = vault_dir / "_attic"
@@ -611,25 +619,56 @@ def doc_count(index: VaultIndex, vault_dir: Path) -> dict[str, int]:
     return {"content": len(index.audit_files), "attic": attic_count}
 
 
-def reconcile_doc_count(counts: dict[str, int], baseline: tuple[int, int]) -> list[Finding]:
-    """Vergleicht ``content``/``attic`` gegen eine Handover-Baseline (z. B. 194/6)."""
+def content_by_cluster(index: VaultIndex) -> dict[str, int]:
+    """Audit-Content-Files je Top-Level-Cluster — lokalisiert Count-Drift im Reconcile."""
+    out: dict[str, int] = {}
+    for rel in index.audit_files:
+        cluster = rel.split("/", 1)[0] if "/" in rel else "(root)"
+        out[cluster] = out.get(cluster, 0) + 1
+    return out
+
+
+def reconcile_doc_count(
+    counts: dict[str, int],
+    baseline: tuple[int, int] = DOC_COUNT_BASELINE,
+    *,
+    by_cluster: dict[str, int] | None = None,
+) -> list[Finding]:
+    """Reconcile ``content``/``attic`` gegen die :data:`DOC_COUNT_BASELINE`.
+
+    Liefert ein ``PASS``-Finding bei exakter Übereinstimmung, sonst je Abweichung ein
+    ``warning``-Finding mit Delta. Weicht ``content`` ab und ist ``by_cluster`` gegeben,
+    wird die Pro-Cluster-Verteilung zur Lokalisierung angehängt.
+    """
     base_content, base_attic = baseline
+    dc, da = counts["content"], counts["attic"]
+    if dc == base_content and da == base_attic:
+        return [
+            Finding(
+                "doc-count",
+                "info",
+                "",
+                None,
+                f"PASS: content {dc}/{base_content}, _attic {da}/{base_attic}",
+            )
+        ]
     out: list[Finding] = []
-    if counts["attic"] != base_attic:
+    if dc != base_content:
+        msg = f"Abweichung content: {dc} ≠ Baseline {base_content} (Δ{dc - base_content:+d})"
+        if by_cluster:
+            dist = ", ".join(f"{k}:{v}" for k, v in sorted(by_cluster.items()))
+            msg += f" — Cluster: {dist}"
+        out.append(Finding("doc-count", "warning", "", None, msg))
+    if da != base_attic:
         out.append(
             Finding(
-                "doc-count", "info", "", None, f"_attic {counts['attic']} ≠ Baseline {base_attic}"
+                "doc-count",
+                "warning",
+                "",
+                None,
+                f"Abweichung _attic: {da} ≠ Baseline {base_attic} (Δ{da - base_attic:+d})",
             )
         )
-    out.append(
-        Finding(
-            "doc-count",
-            "info",
-            "",
-            None,
-            f"Content-Files (Audit-Menge): {counts['content']} (Baseline-Main {base_content} inkl. _index/Meta)",
-        )
-    )
     return out
 
 
@@ -697,7 +736,7 @@ def _aliases_of(fm: dict[str, Any] | None) -> list[str]:
 def audit_vault(
     vault_dir: Path,
     *,
-    baseline: tuple[int, int] = (194, 6),
+    baseline: tuple[int, int] = DOC_COUNT_BASELINE,
     candidates_md: Path | None = None,
 ) -> list[Finding]:
     """Führt alle neun Detektionsregeln read-only über den Vault aus.
@@ -724,7 +763,9 @@ def audit_vault(
         if rel not in index.audit_files:
             out.append(Finding("quarantine", "error", rel, None, f"nicht parsebar: {err}"))
     out += check_alias_collisions(index)
-    out += reconcile_doc_count(doc_count(index, vault_dir), baseline)
+    out += reconcile_doc_count(
+        doc_count(index, vault_dir), baseline, by_cluster=content_by_cluster(index)
+    )
     if candidates_md is not None:
         out += read_cross_link_candidates(candidates_md)
     return out

@@ -1419,5 +1419,64 @@ def frontmatter_audit(vault_dir: str | None, out_dir: str | None, want_xlsx: boo
         console.print(f"  Sheet: {xlsx_path}")
 
 
+@cli.command()
+@click.option(
+    "--source",
+    "source",
+    required=True,
+    type=click.Path(exists=True, file_okay=False),
+    help="Quell-Ordner — ALLE *.md werden erfasst (kein Filter).",
+)
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Live-Vault (read-only, promote_mode-Check). Default: Brain-Vault.",
+)
+@click.option(
+    "--resume",
+    "do_resume",
+    is_flag=True,
+    help="Am letzten State fortsetzen + gescheiterte Files erneut versuchen.",
+)
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def process(source: str, vault_dir: str | None, do_resume: bool, config: str) -> None:
+    """Universelle Erstverarbeitung: jedes File → vault-ready bis review_ready. Kein Vault-Write."""
+    import openai
+
+    from pipeline import _paths
+    from pipeline.process_orchestrator import run_process
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    cfg = load_config(Path(config))
+    client = openai.OpenAI(
+        base_url=cfg.qwen.endpoint, api_key="local", timeout=cfg.qwen.timeout_seconds
+    )
+    console.print(
+        f"[cyan]Process:[/cyan] {source} → Stage-Kette bis review_ready "
+        "(alle Files, kein Filter; kein Vault-Write)"
+    )
+    result = run_process(
+        Path(source), client=client, qwen=cfg.qwen, vault_dir=vault, resume=do_resume
+    )
+    console.print(
+        f"[green]✓[/green] {len(result.review_ready)} review_ready · {len(result.failures)} needs_human"
+    )
+    if result.sheet_path:
+        console.print(f"  Review-Sheet: {result.sheet_path}")
+    for src, stage, err in result.failures:
+        console.print(f"  [yellow]needs_human:[/yellow] {Path(src).name} (@{stage}) — {err}")
+    if result.review_ready:
+        console.print(
+            "  → Review-Sheet ausfüllen, dann: pkm review-ingest / pkm promote (Owner-Gate)"
+        )
+
+
 if __name__ == "__main__":
     cli()

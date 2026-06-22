@@ -1258,5 +1258,117 @@ def promote(draft_path: str, vault_dir: str | None, on_collision: str, do_execut
     )
 
 
+@cli.command(name="restructure-batch")
+@click.option(
+    "--file",
+    "files",
+    multiple=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Quell-File (mehrfach angebbar). Alternativ --cluster.",
+)
+@click.option(
+    "--cluster",
+    "cluster",
+    default=None,
+    help="Vault-Kategorie (Ordner-SSoT) — alle Artikel des Clusters. Opt-in.",
+)
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Live-Vault (read-only, promote_mode-Check). Default: Brain-Vault.",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Draft-Zielordner (Default: drafts/_wp3c6/).",
+)
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def restructure_batch(
+    files: tuple[str, ...],
+    cluster: str | None,
+    vault_dir: str | None,
+    out_dir: str | None,
+    config: str,
+) -> None:
+    """Batch-restructure (review-Tier): erzeugt Drafts + Review-Sheet. KEIN Vault-Write."""
+    from datetime import UTC, datetime
+
+    import openai
+
+    from pipeline import _paths, taxonomy
+    from pipeline.batch_restructure import run_batch_restructure, write_review_sheet
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    out = Path(out_dir) if out_dir else (_paths.DRAFTS / "_wp3c6")
+
+    # Opt-in-Selektion: genau eine Quelle (Files ODER Cluster), kein All-Vault.
+    if bool(files) == bool(cluster):
+        console.print("[red]✗[/red] Genau eine Quelle angeben: --file (mehrfach) ODER --cluster.")
+        raise SystemExit(1)
+    if files:
+        selected = [Path(f) for f in files]
+    else:
+        folder = taxonomy.load_category_to_folder().get(str(cluster))
+        if not folder:
+            console.print(f"[red]✗[/red] Unbekannte Kategorie/Cluster: {cluster!r}")
+            raise SystemExit(1)
+        selected = sorted(p for p in (vault / folder).glob("*.md") if p.name != "_index.md")
+    if not selected:
+        console.print("[yellow]Keine Files selektiert.[/yellow]")
+        return
+
+    cfg = load_config(Path(config))
+    client = openai.OpenAI(
+        base_url=cfg.qwen.endpoint, api_key="local", timeout=cfg.qwen.timeout_seconds
+    )
+    console.print(
+        f"[cyan]Batch:[/cyan] {len(selected)} File(s) → {out} (review-Tier, kein Vault-Write)"
+    )
+    result = run_batch_restructure(
+        selected, client=client, qwen=cfg.qwen, vault_dir=vault, out_dir=out
+    )
+
+    ts = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
+    sheet = write_review_sheet(result, out / f"review_sheet_{ts}.xlsx")
+    console.print(f"[green]✓[/green] {len(result.rows)} Draft(s), {len(result.failures)} Fehler.")
+    console.print(f"  Review-Sheet: {sheet}")
+    for src, reason in result.failures:
+        console.print(f"  [yellow]needs_human:[/yellow] {Path(src).name} — {reason}")
+
+
+@cli.command(name="review-ingest")
+@click.option(
+    "--sheet",
+    "sheet_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Ausgefülltes Review-Sheet (.xlsx) mit Owner-Entscheidungen.",
+)
+def review_ingest(sheet_path: str) -> None:
+    """Liest Owner-Entscheidungen: accept→human_reviewed, reject→archive, edit→Flag. Kein Vault-Write."""
+    from pipeline.batch_restructure import ingest_review_sheet
+
+    result = ingest_review_sheet(Path(sheet_path))
+    console.print(
+        f"[green]✓ Ingest:[/green] {len(result.ready)} promotion-bereit · "
+        f"{len(result.edits)} edit · {len(result.rejected)} rejected"
+    )
+    for p in result.ready:
+        console.print(f"  [green]ready:[/green] {p}")
+    for slug in result.edits:
+        console.print(f"  [yellow]edit:[/yellow] {slug}")
+    if result.ready:
+        console.print("  → promotieren mit: pkm promote --draft <path> (WP3c-5, Owner-Gate)")
+
+
 if __name__ == "__main__":
     cli()

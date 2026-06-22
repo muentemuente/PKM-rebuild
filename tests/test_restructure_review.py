@@ -48,11 +48,14 @@ def _mock_response(content: str) -> MagicMock:
     return resp
 
 
-def _mock_client(stage4_fm: dict[str, Any] | None = None) -> MagicMock:
-    """Client mit fixer Stage-3- (Body) + Stage-4- (JSON) Antwort."""
+def _mock_client(
+    stage4_fm: dict[str, Any] | None = None, classify: str = "knowledge-article"
+) -> MagicMock:
+    """Client mit fixer Klassifikator- + Stage-3- (Body) + Stage-4- (JSON) Antwort."""
     fm = _STAGE4_FM if stage4_fm is None else stage4_fm
     client = MagicMock()
     client.chat.completions.create.side_effect = [
+        _mock_response(classify),
         _mock_response(f"```markdown\n{_STAGE3_BODY}\n```"),
         _mock_response(f"```json\n{json.dumps(fm)}\n```"),
     ]
@@ -72,6 +75,7 @@ def _qwen_cfg() -> QwenConfig:
         temperature=QwenTemperatureConfig(stage3_synthesis=0.3, stage4_frontmatter=0.1),
         max_tokens=QwenMaxTokensConfig(stage3=2000, stage4=800),
         restructure=QwenRestructureConfig(
+            prompt_version="v2",
             reasoning_effort="none",
             temperature=0.7,
             top_p=0.8,
@@ -83,11 +87,11 @@ def _qwen_cfg() -> QwenConfig:
 
 
 def _prompts_dir(tmp_path: Path) -> Path:
-    """Minimale Prompt-Stubs (Stage 3 + Stage 4)."""
-    v1 = tmp_path / "prompts" / "v1"
-    v1.mkdir(parents=True)
-    (v1 / "stage3_synthesis.md").write_text("Stage-3 System-Prompt.\n", encoding="utf-8")
-    (v1 / "stage4_frontmatter_json.md").write_text("Stage-4 System-Prompt.\n", encoding="utf-8")
+    """Minimale Prompt-Stubs (Stage 3 + Stage 4) unter v2."""
+    v2 = tmp_path / "prompts" / "v2"
+    v2.mkdir(parents=True)
+    (v2 / "stage3_synthesis.md").write_text("Stage-3 System-Prompt.\n", encoding="utf-8")
+    (v2 / "stage4_frontmatter_json.md").write_text("Stage-4 System-Prompt.\n", encoding="utf-8")
     return tmp_path / "prompts"
 
 
@@ -155,11 +159,12 @@ def test_frontmatter_contract(tmp_path: Path) -> None:
 
     assert fm["review_status"] == "ai_drafted"
     assert fm["confidence"] == "high"
-    assert fm["prompt_version"] == "v1"
+    assert fm["prompt_version"] == "v2"
     prov = fm["provenance"]
     assert prov["source"] == "quell-artikel"
     assert prov["model"] == "qwen/qwen3.6-27b"
-    assert prov["prompt_version"] == "v1"
+    assert prov["prompt_version"] == "v2"
+    assert prov["type_source"] == "classified"  # Quelle ohne type → klassifiziert
     assert prov["generated_at"] == _FIXED_TS
     assert "confidence_fallback" not in fm  # high ist valide → kein Flag
 

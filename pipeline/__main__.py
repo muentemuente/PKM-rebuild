@@ -1370,5 +1370,54 @@ def review_ingest(sheet_path: str) -> None:
         console.print("  → promotieren mit: pkm promote --draft <path> (WP3c-5, Owner-Gate)")
 
 
+@cli.command(name="frontmatter-audit")
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Zu auditierender Vault (read-only). Default: Brain-Vault.",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Report-Zielordner (Default: work/audit/).",
+)
+@click.option("--xlsx", "want_xlsx", is_flag=True, help="Zusätzlich .xlsx schreiben.")
+def frontmatter_audit(vault_dir: str | None, out_dir: str | None, want_xlsx: bool) -> None:
+    """Read-only Frontmatter-Lücken-Audit (deterministisch, kein LLM, kein Vault-Write)."""
+    from datetime import UTC, datetime
+
+    from pipeline import _paths
+    from pipeline.frontmatter_audit import audit_vault, render_report, write_audit_xlsx
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    out = Path(out_dir) if out_dir else (_paths.WORK / "audit")
+    out.mkdir(parents=True, exist_ok=True)
+
+    result = audit_vault(vault)
+    ts = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
+    report_path = out / f"frontmatter_audit_{ts}.md"
+    report_path.write_text(render_report(result, vault), encoding="utf-8")
+
+    totals = result.gap_class_totals()
+    console.print(
+        f"[green]✓ Audit:[/green] {len(result.files)} Files · "
+        f"complete={len(result.by_recommendation('complete'))} · "
+        f"restructure={len(result.by_recommendation('restructure'))} · "
+        f"mechanical-fix={len(result.by_recommendation('mechanical-fix'))} · "
+        f"owner={len(result.by_recommendation('owner'))}"
+    )
+    console.print(
+        f"  Lücken: mechanical={totals['mechanical']} llm={totals['llm']} owner={totals['owner']}"
+    )
+    console.print(f"  Report: {report_path}")
+    if want_xlsx:
+        xlsx_path = write_audit_xlsx(result, out / f"frontmatter_audit_{ts}.xlsx")
+        console.print(f"  Sheet: {xlsx_path}")
+
+
 if __name__ == "__main__":
     cli()

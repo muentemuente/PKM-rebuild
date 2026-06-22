@@ -119,6 +119,7 @@ class QwenRestructureConfig(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
+    prompt_version: str
     reasoning_effort: str
     temperature: float
     top_p: float

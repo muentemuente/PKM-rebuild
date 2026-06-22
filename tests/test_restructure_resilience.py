@@ -40,8 +40,9 @@ def _mock_response(content: str) -> MagicMock:
 def _ok_client() -> MagicMock:
     client = MagicMock()
     client.chat.completions.create.side_effect = [
-        _mock_response(f"```markdown\n{_STAGE3_BODY}\n```"),
-        _mock_response(f"```json\n{json.dumps(_STAGE4_FM)}\n```"),
+        _mock_response("knowledge-article"),  # Klassifikator
+        _mock_response(f"```markdown\n{_STAGE3_BODY}\n```"),  # Stage 3
+        _mock_response(f"```json\n{json.dumps(_STAGE4_FM)}\n```"),  # Stage 4
     ]
     return client
 
@@ -67,6 +68,7 @@ def _qwen_cfg() -> QwenConfig:
         temperature=QwenTemperatureConfig(stage3_synthesis=0.4, stage4_frontmatter=0.1),
         max_tokens=QwenMaxTokensConfig(stage3=16000, stage4=10000),
         restructure=QwenRestructureConfig(
+            prompt_version="v2",
             reasoning_effort="none",
             temperature=0.7,
             top_p=0.8,
@@ -78,10 +80,10 @@ def _qwen_cfg() -> QwenConfig:
 
 
 def _prompts_dir(tmp_path: Path) -> Path:
-    v1 = tmp_path / "prompts" / "v1"
-    v1.mkdir(parents=True)
-    (v1 / "stage3_synthesis.md").write_text("Stage-3 Prompt.\n", encoding="utf-8")
-    (v1 / "stage4_frontmatter_json.md").write_text("Stage-4 Prompt.\n", encoding="utf-8")
+    v2 = tmp_path / "prompts" / "v2"
+    v2.mkdir(parents=True)
+    (v2 / "stage3_synthesis.md").write_text("Stage-3 Prompt.\n", encoding="utf-8")
+    (v2 / "stage4_frontmatter_json.md").write_text("Stage-4 Prompt.\n", encoding="utf-8")
     return tmp_path / "prompts"
 
 
@@ -110,7 +112,7 @@ def test_timeout_no_draft_source_untouched(tmp_path: Path) -> None:
             timestamp=_FIXED_TS,
         )
 
-    assert "Stage 3" in str(excinfo.value)
+    assert "fehlgeschlagen" in str(excinfo.value)
     assert "Kein Draft" in str(excinfo.value)
     assert src.read_bytes() == before  # Quelle unberührt
     assert not out.exists() or list(out.glob("*.md")) == []  # kein Draft
@@ -149,7 +151,7 @@ def test_reasoning_disabled_and_sampler_passed(tmp_path: Path) -> None:
     )
 
     calls = client.chat.completions.create.call_args_list
-    assert len(calls) == 2  # Stage 3 + Stage 4
+    assert len(calls) == 3  # Klassifikator + Stage 3 + Stage 4
     for call in calls:
         kw = call.kwargs
         assert kw["reasoning_effort"] == "none"
@@ -170,8 +172,9 @@ def test_max_tokens_lowered_for_restructure(tmp_path: Path) -> None:
         timestamp=_FIXED_TS,
     )
     calls = client.chat.completions.create.call_args_list
-    assert calls[0].kwargs["max_tokens"] == 4000  # Stage 3
-    assert calls[1].kwargs["max_tokens"] == 2000  # Stage 4
+    assert calls[0].kwargs["max_tokens"] == 64  # Klassifikator
+    assert calls[1].kwargs["max_tokens"] == 4000  # Stage 3
+    assert calls[2].kwargs["max_tokens"] == 2000  # Stage 4
 
 
 def test_phase8_call_unchanged_without_sampler() -> None:

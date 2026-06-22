@@ -1193,5 +1193,70 @@ def restructure(file_path: str, out_dir: str | None, config: str) -> None:
     console.print("  review-Tier: kein Vault-Write, Quell-File unberührt.")
 
 
+@cli.command()
+@click.option(
+    "--draft",
+    "draft_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Promotions-Quelle (Draft mit review_status: human_reviewed/verified).",
+)
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Ziel-Vault (Default: Brain-Vault _paths.BRAIN_VAULT).",
+)
+@click.option(
+    "--on-collision",
+    type=click.Choice(["abort", "replace", "suffix"]),
+    default="abort",
+    help="Kollisions-Auflösung wenn Ziel existiert (Default: abort = STOP).",
+)
+@click.option("--execute", "do_execute", is_flag=True, help="D4-Live-Write (Owner-Gate!).")
+def promote(draft_path: str, vault_dir: str | None, on_collision: str, do_execute: bool) -> None:
+    """Promotet einen human_reviewed Draft in den Live-Vault. Default = dry-run."""
+    from pipeline import _paths
+    from pipeline.promotion import PromotionError, execute_promotion, plan_promotion
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    try:
+        plan = plan_promotion(Path(draft_path), vault, on_collision=on_collision)
+    except PromotionError as exc:
+        console.print(f"[red]✗ Promotion abgebrochen:[/red] {exc}")
+        raise SystemExit(1) from exc
+
+    console.print(
+        f"[cyan]Plan:[/cyan] {plan.slug} → {plan.target_path} "
+        f"(category={plan.category}, folder={plan.folder}, "
+        f"{'UPDATE' if plan.is_update else 'NEU'}, doc_count +{plan.doc_count_delta})"
+    )
+    if plan.collision:
+        console.print(
+            "[yellow]⚠ Kollision:[/yellow] Ziel existiert. Kein Blind-Overwrite — "
+            "Auflösung: --on-collision replace | suffix | abort."
+        )
+        if plan.diff:
+            console.print("[dim]--- Diff (Bestand → promotet) ---[/dim]")
+            console.print(plan.diff)
+        raise SystemExit(2)
+
+    if not do_execute:
+        console.print("[cyan]--dry-run:[/cyan] nichts geschrieben. `--execute` für D4-Write.")
+        if plan.diff:
+            console.print("[dim]--- Diff (Bestand → promotet) ---[/dim]")
+            console.print(plan.diff)
+        return
+
+    report = execute_promotion(plan, vault)
+    console.print(
+        f"[green]✓ Promotet:[/green] {report.target_path} ({report.resolution})\n"
+        f"  Index regeneriert: {report.folder}/_index.md ({report.index_article_count} Artikel)\n"
+        f"  Draft archiviert: {report.archived_draft}\n"
+        f"  Snapshot (Rollback): {report.snapshot}"
+    )
+
+
 if __name__ == "__main__":
     cli()

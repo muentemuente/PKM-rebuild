@@ -36,6 +36,7 @@ dependencies = [
     "sentence-transformers>=3.0",
     "scikit-learn>=1.5",
     "pyarrow>=17.0",        # für Parquet-Output
+    "openpyxl>=3.1",        # Review-Sheet (xlsx) für Batch-restructure (WP3c-6)
 
     # === LLM-Client ===
     "openai>=1.40",         # OpenAI-kompatibler Client für LM Studio
@@ -126,6 +127,8 @@ module = [
     "mdformat",
     "mdformat.*",
     "mistune",
+    "openpyxl",
+    "openpyxl.*",
 ]
 ignore_missing_imports = true
 

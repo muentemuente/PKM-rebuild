@@ -1187,6 +1187,9 @@ def restructure(file_path: str, out_dir: str | None, config: str) -> None:
     console.print(
         f"[green]✓ Draft:[/green] {draft.draft_path} (confidence={draft.confidence}){flag}"
     )
+    console.print(
+        f"  type={draft.type} (source={draft.type_source}) · action={draft.restructure_action}"
+    )
     console.print("  review-Tier: kein Vault-Write, Quell-File unberührt.")
 
 

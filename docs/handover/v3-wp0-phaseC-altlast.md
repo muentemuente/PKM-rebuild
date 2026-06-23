@@ -77,4 +77,9 @@ Kein aktiver Workflow nutzt es; es ist der archivierte Vollkorpus-Erstlauf (Phas
 | `corpus-run` | **behalten** + Docstring „Legacy" | ggf. Vollentfernung |
 | `viz`-Extra | `umap-learn`+`plotly`+`umap.*`-Override **trimmen**, `hdbscan` behalten | Freigabe des Trim (pyproject-Edit) |
 
-**Status:** keine Datei entfernt/archiviert. Warte auf Freigabe für (a) Kandidat-1-Richtung und (b) den `viz`-Trim.
+**Status (2026-06-23, Freigabe erteilt — Option 1 umgesetzt, Commit `88c0adc`):**
+- `viz`-Extra getrimmt: `umap-learn` + `plotly` + `umap.*`-mypy-Override entfernt; `hdbscan` bleibt.
+- `corpus-run`-Docstring als bewusst behaltener Legacy-Pfad geschärft.
+- `ingest_md_download.py` **behalten** (Audit-D12-Verdikt widerlegt).
+- Audit-Label-Korrektur D12/D16 in `audit-report_phase-4-drift.md` vermerkt.
+- **Keine Datei gelöscht/archiviert.** Gates nach Umsetzung: 738 Tests grün, ruff clean, mypy `pipeline/` clean.

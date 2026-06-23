@@ -1,12 +1,16 @@
 ---
 title: Projektplan pkm-pipeline v2 — File- & Vault-Qualität + Anpassbarkeit
 slug: projektplan-pipeline-v2-quality
-status: draft
+status: superseded
+superseded_by: Projektplan_pipeline-v3.md
 created: 2026-06-15
-updated: 2026-06-15
+updated: 2026-06-23
 zweck: Optimierung der bestehenden Pipeline. Primär P1 (Taxonomie-SSoT) + P5 (Redundanz/Synthese-Erkennung); danach P2 (Formatierung) + P3 (Vault-Audit/Repair); P4 konditional; P6 gestrichen.
 scope_basis: erweitert die bestehende pkm-pipeline (Option B), kein From-Scratch-Rebuild
 ---
+
+> [!warning] Archiviert — superseded
+> Dieser Plan ist **abgelöst durch `docs/Projektplan_pipeline-v3.md`** (2026-06-23). v3 übernimmt die offenen v2-Aufgaben und ergänzt additive Synthese (D6) + Bestands-Remediation. **Nur v3 ist aktiv.** Dieses Dokument bleibt als Historie erhalten.
 
 # Projektplan pkm-pipeline v2
 

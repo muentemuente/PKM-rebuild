@@ -617,7 +617,9 @@ Embedding-Clustering ist verworfen (siehe Sektion 4). `category` entsteht in **z
 | 08 | `cheatsheets` | 16 | `kunst-kultur` |
 | 00 | `meta` (00_Meta) | 17 | `unsortiert` (17_unsortiert) |
 
-### Resultierende Verteilung (180 aktive Drafts, nach Mapping)
+### Resultierende Verteilung (Erstlauf-Stand: 180 Drafts, nach Mapping)
+
+> Historische Ableitungsbasis des Mappings. **Aktueller Live-Vault-Count: 181** (Stand 2026-06-23); die Verteilung unten ist der Erstlauf-Snapshot, nicht der laufend aktualisierte Stand.
 
 `automatisierung-scripting-und-pipelines` 42 · `grundlagen` 37 · `visualisierung-reporting-und-design-systeme` 17 · `ki-und-semantische-systeme` 16 · `datenarchitektur-und-datenbanken` 12 · `webentwicklung` 8 · `kunst-kultur` 8 · `betriebssysteme` 8 · `unsortiert` 8 · `methoden-und-prozesse` 7 · `dokumentenverarbeitung-und-extraktion` 5 · `dateitypen-und-konfiguration` 5 · `wissensmodellierung-und-knowledge-graphs` 4 · `protokolle-und-standards` 2 · `meta` 1.
 

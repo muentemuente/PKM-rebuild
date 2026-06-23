@@ -32,6 +32,11 @@
 | D15 | 9-Regel-Audit + repair/review-Patches (`vault_audit.py` 1165 LOC) | **Komplexität** | moderat | Wucherung | **Grenzfall** — verstärkt technische Ebene massiv (Phase-3 B); nährt Formatter-Drift (siehe §4) |
 | D16 | `corpus-run` Legacy + `viz`-Extra (UMAP/HDBSCAN) | Komplexität | kosmetisch | Wucherung | **Altlast** — Reste verworfener Phasen, im Code belassen; aufräumbar |
 
+> [!note] Label-Korrektur (WP0, 2026-06-23 — Referenz-Checks)
+> Die folgenden Audit-Verdikte sind durch die WP0-Phase-C-Referenz-Checks (`docs/handover/v3-wp0-phaseC-altlast.md`) **korrigiert**:
+> - **D12 `ingest_md_download.py` — NICHT „toter Code".** Eigenständiger Modul-CLI (`python -m pipeline.ingest_md_download`), dokumentierter **Schritt 1** des go-forward-Runbooks (`RUNBOOK_new_files.md`), mit Tests. Das Audit beruhte allein auf dem Import-Graph (nicht in `__main__.py` registriert) und übersah die Modul-CLI-Nutzung. **Bewusst behalten.**
+> - **D16 `corpus-run` — nicht „Altlast/aufräumbar", sondern bewusst behaltener Legacy-Pfad** (Docstring-„Legacy", in aktiver Doku als Legacy markiert). `viz`-Extra: `umap-learn` + `plotly` waren ungenutzt → entfernt; `hdbscan` bleibt (vom Lern-Artefakt `clustering_analysis.py` genutzt).
+
 ## 3. Klassifikation — Teilerfüllungen (Phase-3 A, Kriterien 4/7/9)
 
 | # | Abweichung | Typ | Schwere | Richtung | Problem oder legitime Evolution? |

@@ -406,7 +406,12 @@ def corpus_run(
     filter_files: tuple[str, ...],
     config: str,
 ) -> None:
-    """Legacy-Erstlauf über den Gesamtkorpus (Phasen 1-10, Archiv/Alt-Lauf)."""
+    """Legacy-Erstlauf über den Gesamtkorpus (Phasen 1-10, Archiv/Alt-Lauf).
+
+    Im go-forward-Flow NICHT genutzt (dort: `run`/`ingest`/`process`). Bewusst
+    behalten als archivierter Vollkorpus-Erstlauf — kein toter Code (WP0-Befund,
+    Audit-D16-Label „Altlast" durch Referenz-Check korrigiert).
+    """
     if filter_files and phase != 8:
         console.print("[yellow]Hinweis:[/yellow] --file wird nur für --phase 8 ausgewertet.")
     cfg = load_config(Path(config))

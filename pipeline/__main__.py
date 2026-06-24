@@ -1498,5 +1498,96 @@ def process(source: str, vault_dir: str | None, do_resume: bool, config: str) ->
         )
 
 
+@cli.command(name="synthesize-moc")
+@click.option(
+    "--approved",
+    "approved_path",
+    type=click.Path(exists=True, dir_okay=False),
+    default="docs/reports/moc_approved.yaml",
+    help="YAML mit Gate-A-freigegebenen Clustern (default: docs/reports/moc_approved.yaml)",
+)
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(),
+    default=None,
+    help="Quell-Vault, read-only (default: Brain-Vault aus _paths)",
+)
+@click.option(
+    "--out-dir",
+    "out_dir",
+    type=click.Path(),
+    default=None,
+    help="Staging-Ziel der MOC-Drafts (default: drafts/_moc aus _paths)",
+)
+@click.option("--no-qwen", "no_qwen", is_flag=True, help="Ohne Qwen — deterministische Rahmung")
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def synthesize_moc(
+    approved_path: str, vault_dir: str | None, out_dir: str | None, no_qwen: bool, config: str
+) -> None:
+    """WP3b: additive MOC-Drafts aus freigegebenen Clustern → Staging (D6, kein Vault-Write)."""
+    from datetime import UTC, datetime
+
+    import yaml
+
+    from pipeline import _paths
+    from pipeline.synthesis_moc import ApprovedCluster, generate_mocs, make_qwen_framer
+
+    cfg = load_config(Path(config))
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    out = Path(out_dir) if out_dir else (_paths.DRAFTS / "_moc")
+    if not vault.is_dir():
+        console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
+        raise SystemExit(2)
+
+    raw = yaml.safe_load(Path(approved_path).read_text(encoding="utf-8"))
+    clusters = [
+        ApprovedCluster(
+            title=c["title"],
+            candidate_id=c["candidate_id"],
+            member_slugs=list(c["member_slugs"]),
+            mean_similarity=float(c["mean_similarity"]),
+            redundancy_note=str(c.get("redundancy_note", "")).strip(),
+        )
+        for c in raw["clusters"]
+    ]
+
+    framer = None
+    if not no_qwen:
+        framer = make_qwen_framer(
+            endpoint=cfg.qwen.endpoint,
+            model=cfg.qwen.model,
+            temperature=cfg.qwen.temperature.stage3_synthesis,
+            timeout=cfg.qwen.timeout_seconds,
+        )
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    console.print(
+        f"[cyan]synthesize-moc:[/cyan] {len(clusters)} Cluster → {out} "
+        f"(qwen={'aus' if no_qwen else 'an'}, Vault read-only)"
+    )
+    results = generate_mocs(clusters, vault, out, framer=framer, today=today)
+
+    table = Table(title=f"MOC-Drafts ({len(results)})")
+    table.add_column("Slug")
+    table.add_column("Confidence")
+    table.add_column("Review-Status")
+    table.add_column("Rahmung")
+    for r in results:
+        rs_style = "yellow" if r.review_status == "needs_human" else "green"
+        table.add_row(
+            r.slug, r.confidence, f"[{rs_style}]{r.review_status}[/{rs_style}]", r.framing_source
+        )
+    console.print(table)
+    needs = [r.slug for r in results if r.review_status == "needs_human"]
+    if needs:
+        console.print(f"[yellow]needs_human:[/yellow] {', '.join(needs)}")
+    console.print("[dim]Staging — kein Vault-Export. Gate 3b: Owner prüft jedes MOC einzeln.[/dim]")
+
+
 if __name__ == "__main__":
     cli()

@@ -1,0 +1,53 @@
+# WP3b — Gate-A-freigegebene Cluster für additive MOC-Generierung.
+# Owner-Adjudikation (2026-06-24, Option 1): 5 bestätigte Cluster aus dem
+# gefilterten Re-Scan (docs/reports/synthesis_candidates.md). Git verworfen
+# (Members lagen in _attic → keine Komponente); SC_000/003/004/006/007 = kein MOC.
+# Member-Slugs aus dem Re-Scan; Titel = kanonische Owner-Adjudikation.
+clusters:
+  - title: Gestaltgesetze
+    candidate_id: SC_001
+    mean_similarity: 0.667
+    member_slugs:
+      - gestaltgesetze-design-kommunikation-kunst
+      - gestaltgesetze-in-der-kunst
+      - gestaltgesetze-in-der-typografie
+      - gestaltgesetze-ui-ux
+      - typografie-schriftbild-design
+
+  - title: API & Protokolle
+    candidate_id: SC_002
+    mean_similarity: 0.683
+    member_slugs:
+      - api-grundlagen
+      - api-usage-guide
+      - network-protocols-apis-advanced
+      - weitere-api-protokolle-architekturen
+
+  - title: Visuelle Kommunikation
+    candidate_id: SC_003
+    mean_similarity: 0.717
+    member_slugs:
+      - diagrams-flowcharts-reference
+      - image-formats-reference
+      - text-based-diagramming-visual-languages
+      - visual-communication-fundamentals
+
+  - title: NLP-Grundlagen
+    candidate_id: SC_008
+    mean_similarity: 0.823
+    redundancy_note: >-
+      Bekannte Dublette `nlp-grundlagen-und-named-entity-recognition` ↔
+      `nlp-pkm-grundlagen` (Embedding-Cosine 0.93, semantic-dup) — zu
+      konsolidieren (→ WP4). Hier NICHT aufgelöst (D6: additiv, kein Merge).
+    member_slugs:
+      - natural-language-generation-nlg
+      - nlp-grundlagen-und-named-entity-recognition
+      - nlp-pkm-grundlagen
+
+  - title: Arbeitsumgebung & Tools
+    candidate_id: SC_005
+    mean_similarity: 0.672
+    member_slugs:
+      - arbeitsumgebung-und-tools
+      - cli-grundlagen-und-philosophie
+      - macos-python-workflow-project-structure

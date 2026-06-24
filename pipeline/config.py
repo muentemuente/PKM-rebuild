@@ -172,6 +172,11 @@ class RedundancyScanConfig(BaseModel):
     synthesis_min_members: int  # Synthese-Kandidat: Komponente >= N Docs
     use_embeddings: bool  # False = nur Hash + TF-IDF (Fallback ohne mpnet)
     qwen_evaluate: bool  # optionale Qwen-Paar-Bewertung (Default aus)
+    # Synthese-Korpus-Filter (WP3b): Nicht-Wissensdokumente vor dem Scan ausschließen.
+    # Leer = kein Filter (Default, rückwärtskompatibel). Ausschluss via Ordner/Kategorie,
+    # NICHT per Slug-Liste.
+    exclude_folders: list[str] = []  # Top-Level-Vault-Ordner (z. B. _attic, 00_Meta)
+    exclude_categories: list[str] = []  # Frontmatter-category (z. B. meta)
 
 
 class StructureConfig(BaseModel):

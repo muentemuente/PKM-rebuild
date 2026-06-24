@@ -1059,6 +1059,8 @@ def redundancy_scan(
         max_features=cfg.redundancy.tfidf.max_features,
         min_df=cfg.redundancy.tfidf.min_df,
         qwen_evaluator=evaluator,
+        exclude_folders=tuple(rs.exclude_folders),
+        exclude_categories=tuple(rs.exclude_categories),
     )
     red_path, syn_path = write_reports(result, out)
 

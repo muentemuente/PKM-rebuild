@@ -32,7 +32,7 @@ Orientierung pro Ort: `WAYFINDING.md` (im jeweiligen Root). Schreibzugriff von C
 | **A. Vorbereitung (Python)** | Inventar, Normalisierung, Strukturextraktion, Segmentierung, Redundanz-Erkennung (Hash → TF-IDF → Embeddings) |
 | **B. Veredelung (Qwen 3.6 27B lokal, Option B)** | **Pro-Doc** statt Cross-Doc-Merge. Routing je Doc: `passthrough` (Code/Tabellen/Headings → Body 1:1 + Frontmatter) · `stage3` (Prosa → LLM-Veredelung + Frontmatter) · `gedanken` (Sonderpfad, Minimal-Frontmatter). Kein Cluster-Merge, `merged_from` immer leer. |
 | **C. Vault-Aufbau** | bereinigte Artikel in Obsidian-Vault; `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 thematische Ordner (+ `17_unsortiert` Catch-all), Wikilinks, Tag-Vokabular |
-| **D. Inkrementell** | neue `.md` → `pkm-pipeline/input/` → `pipeline process` (universelle Erstverarbeitung) bzw. `pipeline ingest` (Phasen 1–4 + 8, Option B) → Review → `build-vault`. Vokabular-Pflege über `scripts/manage_vocab.py`. |
+| **D. Inkrementell** | neue `.md` → `pkm-pipeline/input/` → **`pipeline process`** (universelle Erstverarbeitung, **kanonischer go-forward-Pfad**) → Review → `build-vault`. `pipeline ingest`/`run` (Phasen 1–4 + 8, Option B) = Synthese-Linie; `ingest_md_download` = §3-Vorverarbeitung; `corpus-run` = Legacy/Batch. Pfad-Begründung: [`docs/handover/v3-entrypoints.md`](docs/handover/v3-entrypoints.md). Vokabular-Pflege über `scripts/manage_vocab.py`. |
 
 ---
 

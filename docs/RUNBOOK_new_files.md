@@ -11,6 +11,14 @@ updated: 2026-06-07
 go-forward-Flow (Option B) für neue Markdown-Files. Ein Befehl (`pkm run`) fährt von
 `input/` bis `output/` und hält an den Review-Gates an. Idempotent, resume-fähig.
 
+> **Kanonischer go-forward-Pfad (v3, O1 ratifiziert):** `pkm process` — universelle
+> Erstverarbeitung, durch die **jedes** md-File läuft (normalize → restructure → tags →
+> assets → links → `review_ready`), resilient + resumable. Die hier beschriebene
+> Option-B-Synthese-Linie (`pkm run`/`ingest`) bleibt für Synthese/Build/Publish gültig;
+> `ingest_md_download` = §3-Vorverarbeitung (`_ingest/` → `input/`), `corpus-run` =
+> Legacy/Batch-Erstlauf. Begründung + Konsequenzen: [`docs/handover/v3-entrypoints.md`](handover/v3-entrypoints.md).
+> Ein vollständiger Re-Cut dieses Runbooks auf `pkm process` ist ein eigener Folge-Task.
+
 > **Erststart:** `make setup` (Editable-Install inkl. dev-Tools — danach sind `pytest`/`ruff`/`mypy` und die Console-Scripts verfügbar).
 >
 > **Pfade:** zentral in `pipeline/_paths.py`. Daten-Root überschreibbar per

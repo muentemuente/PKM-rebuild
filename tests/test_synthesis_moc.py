@@ -46,10 +46,14 @@ def test_build_moc_with_qwen_framing_is_ai_drafted() -> None:
     assert r.review_status == "ai_drafted"
     assert r.confidence in ("high", "medium")
     assert r.framing_source == "qwen"
-    # Frontmatter-Pflichtfelder (D6)
+    # Frontmatter-Pflichtfelder (D6) + Vault-Pflichtfelder (promotierbar)
     assert "doc_type: moc" in r.text
     assert "merged_from: []" in r.text
     assert "status: draft" in r.text
+    assert "summary: " in r.text
+    assert "doc_role:" in r.text
+    assert "sources_docs: []" in r.text
+    assert "source_chunks: []" in r.text
     # Wikilinks + Descriptor aus echtem summary (RV13)
     assert "[[api-grundlagen|Was sind APIs?]] — APIs sind Schnittstellen." in r.text
     assert "Diese Artikel verbinden API-Konzepte." in r.text

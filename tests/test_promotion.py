@@ -85,6 +85,35 @@ def test_gate_ai_drafted_aborts_no_write(tmp_path: Path) -> None:
     assert list(vault.rglob("*.md")) == []  # nichts geschrieben
 
 
+# === doc_type-Override (MOC → 00_Maps, status bleibt draft) ===================
+
+
+def test_moc_doc_type_routes_to_maps_and_keeps_draft(tmp_path: Path) -> None:
+    """doc_type: moc → 00_Maps (Override vor category), status bleibt draft."""
+    vault = _vault(tmp_path)
+    fm = _complete_fm(
+        slug="moc-test",
+        doc_type="moc",
+        category="grundlagen",  # würde sonst nach 01_Grundlagen routen
+        moc_members=["a", "b", "c"],
+    )
+    draft = _write_md(tmp_path / "drafts" / "moc-test.md", fm)
+    plan = plan_promotion(draft, vault, today=_TODAY)
+
+    # Override greift VOR dem category-Mapping
+    assert plan.folder == "00_Maps"
+    assert plan.target_path == vault / "00_Maps" / "moc-test.md"
+    assert plan.collision is False
+    assert plan.is_update is False
+
+    report = execute_promotion(plan, vault, archive_dir=tmp_path / "archive")
+    out = _parse(report.target_path)
+    assert out["status"] == "draft"  # NICHT auf review gehoben (PRESERVE_STATUS_DOC_TYPES)
+    assert out["doc_type"] == "moc"
+    assert out["category"] == "grundlagen"  # category bleibt Metadatum
+    assert report.folder == "00_Maps"
+
+
 # === Neu-Anlage + Finalisierung ===============================================
 
 

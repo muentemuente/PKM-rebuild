@@ -4,12 +4,13 @@ import re, sys, unicodedata
 from collections import Counter
 from datetime import date
 from pathlib import Path
+from typing import Any
 import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline import _paths  # noqa: E402
 VAULT = _paths.OUTPUT
 FM = re.compile(r"^---\s*\n(.*?\n)---\s*\n", re.DOTALL)
-def fm(p):
+def fm(p: Path) -> dict[str, Any]:
     m = FM.match(p.read_text(encoding="utf-8"))
     if not m: return {}
     try: return yaml.safe_load(m.group(1)) or {}
@@ -19,7 +20,7 @@ for d in sorted(VAULT.iterdir()):
     if not d.is_dir() or d.name=="00_Meta": continue
     arts=[p for p in sorted(d.glob("*.md")) if p.name!="_index.md"]
     if not arts: continue
-    tagc=Counter(); rows=[]
+    tagc: Counter[str] = Counter(); rows=[]
     for p in arts:
         f=fm(p)
         rows.append((f.get("title",p.stem), f.get("slug",p.stem), f.get("status","draft")))

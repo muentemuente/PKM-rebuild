@@ -8,7 +8,7 @@ Dieses Dokument ist der primäre Projekt-Kontext für Claude Code. Es wird zu Be
 
 PKM-rebuild ist eine Pipeline und ein Workflow zur Bereinigung einer bestehenden Markdown-Wissenssammlung (~200 Dateien). Das Ergebnis ist ein strukturierter Obsidian-Vault mit konsistentem Frontmatter, ohne Redundanzen, in einer kuratierten 16-Ordner-Struktur.
 
-**Aktueller Stand (2026-06-04):** Phase 8 (Qwen-Veredelung, **Option B** — Pro-Doc, kein Cross-Doc-Merge) abgeschlossen → 180 vault-ready Drafts, 19 `_hold`, 3 `_excluded`. **Phase 9 (Vault-Aufbau) als Nächstes.** Embedding-Clustering wurde verworfen (Korpus ohne inhärente Cluster-Struktur). Details: `docs/PROJECT_STATUS.md`.
+**Aktueller Stand (2026-06-23):** Basis-Pipeline (Phasen 0–12, **Option B** — Pro-Doc, kein Cross-Doc-Merge) **abgeschlossen** → **181 Vault-Artikel** (Live-Messung) im Brain-Vault. Embedding-Clustering wurde verworfen (Korpus ohne inhärente Cluster-Struktur). **Aktiver Zyklus: v3** (Wissensqualität — additive Synthese/MOC, Tag-/Format-Remediation, Stabilisierung); Plan: `docs/Projektplan_pipeline-v3.md`, Realstand: `docs/handover/v3-startstand.md`. Details: `docs/PROJECT_STATUS.md`.
 
 Vollständiger Kontext: `README.md`, `docs/01_strategy.md`.
 
@@ -154,7 +154,7 @@ PKM-rebuild/                    ← Git, public
 
 **Kanonischer Produktiv-Vault (#3, außerhalb Git):** `~/Zentrale/09_Brain-Vault`
 (`pipeline._paths.BRAIN_VAULT`, überschreibbar per `PKM_BRAIN_VAULT`). Dort liegen
-die ~186 finalen Artikel; `pkm redundancy-scan` (WP2) und der manuelle Asset-Merge
+die 181 finalen Artikel (Live-Messung 2026-06-23); `pkm redundancy-scan` (WP2) und der manuelle Asset-Merge
 (WP3) zeigen standardmäßig hierhin. Das Legacy-Layout `~/projects/aktiv/PKM_rebuild/data/0X`
 (Option A, inkl. `04_vault/`) ist verworfen und existiert nicht mehr.
 
@@ -218,3 +218,4 @@ Die Tilde außerhalb von Assignments (etwa als Command-Argument, `ls ~/foo`) ist
 - 2026-06-02 — Sektion 12 ergänzt: $HOME statt ~ in Bash-Assignments (Security-Wrapper)
 - 2026-06-04 — Ist-Stand: Phase 8 abgeschlossen (Option B), Phase 9 next; §1 Stand-Block; §6 type-Enum (4 Werte, gedanke); §7 Phasen + Review-Gates auf Option B + Clustering-Verwurf
 - 2026-06-07 — §11 Quick-Reference auf go-forward (`pkm run`/`review`, Gates A–D, Legacy `corpus-run`); Pipeline-Umbau zur Inkrement-Pipeline (Branch `rebuild-pipeline-*`, `_paths.py`, `config/`, `run_flow`/`review`/`orchestrator`)
+- 2026-06-23 — §1 Stand-Block auf v3: Basis-Pipeline abgeschlossen, **181 Vault-Artikel** (Live), aktiver Zyklus v3; Artikel-Count 180/~186→181 vereinheitlicht (WP0)

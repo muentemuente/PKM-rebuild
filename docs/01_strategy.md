@@ -43,6 +43,8 @@ Aus ~200 unstrukturierten Markdown-Dateien einen kuratierten, deduplizierten Obs
 
 > **Scope-Notiz (2026-06-15, pipeline-v2 / R12):** P5 ist ein **Teil-Reversal von Option B**: paarweise Redundanz- und Synthese-**ERKENNUNG + Report** (`redundancy_report.md`, `synthesis_candidates.md`) sind ab pipeline-v2 **in Scope**. **Out of Scope bleibt** das automatische Merging/Löschen — `merged_from` bleibt leer, jeder Kandidat nur als gescorter, provenance-tragender Vorschlag. Die Erkennung ≠ das verworfene Auto-Clustering (das 96,5-%-Unsortiert-Finding entkräftet die Erkennung nicht). Referenz: `docs/Projektplan_pkm-pipeline-v2` D2, Risiko R12 (Scope-Creep-Kontrolle via Strategie-Doc-Update).
 
+> **Scope-Update (2026-06-23, pipeline-v3 / D6 — additive Synthese):** Über die Erkennung hinaus ist ab v3 die **additive Synthese in Scope**: aus freigegebenen Kandidaten entstehen **NEUE** Übersichts-/MOC-Artikel (`doc_type: moc`/`synthesis`, `status: draft`, `review_status: ai_drafted`, `confidence` Pflicht), die **ausschließlich auf Quell-Artikel verlinken** (kein Inhalts-Merge). **Weiterhin Out of Scope:** Quell-Artikel verändern/löschen, `merged_from` befüllen, Auto-Promotion `draft→stable`. Dies ist ein **bewusst akzeptiertes, dokumentiertes Teil-Reversal von Option B** — es hebt die wissensorganisatorische Ebene (Audit Phase 4 R-A), ohne die Gründe anzutasten, aus denen Cross-Doc-Merge verworfen wurde (Halluzination R1, 50K-Hardware, Solo-Review). Referenz: `docs/Projektplan_pipeline-v3.md` D6, Risiko R12/RV13.
+
 ---
 
 ## 3. Definition of Done
@@ -50,7 +52,7 @@ Aus ~200 unstrukturierten Markdown-Dateien einen kuratierten, deduplizierten Obs
 Alle Kriterien müssen erfüllt sein:
 
 ### Primary
-- [x] `~/projects/aktiv/PKM_rebuild/data/04_vault/` enthält strukturierten Obsidian-Vault (180 Artikel)
+- [x] Brain-Vault enthält strukturierten Obsidian-Vault (181 Artikel, Live-Messung 2026-06-23)
 - [x] Jede `.md` im Vault hat valides Frontmatter nach `docs/03_vault_standard.md` (0 Pydantic-Fails)
 - [x] Keine SHA-256-Duplikate im Vault
 - [x] `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner (kein Embedding-Cluster); `17_unsortiert/` als regulärer Catch-all-Cluster für schwache Zuordnungen
@@ -210,3 +212,4 @@ Dieses Doc wird gepflegt bei:
 - 2026-05-29 — Option-B-Anpassung: In-Scope Phase 8 auf Stage 3+4 pro Doc; Out-of-Scope Cross-Doc-Synthese ergänzt; DoD Cluster-Kriterium entschärft + merged_from-Kriterium neu; Annahme Kontext-Window 128K→50K korrigiert; R1 Gegenmaßnahme auf Pro-Doc-Kontext; Phase-8-Zeitschätzung angepasst; Abbruchkriterium Cluster→Doc
 - 2026-06-04 — Clustering-Verwurf (R9 realisiert + aufgelöst): Embedding-/HDBSCAN-Clustering verworfen, `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner; Annahmen §6 (bottom-up, mpnet-Cluster) revidiert; Stakeholder-Tabelle + DoD + Phasen-Tabelle (6/7/7b) auf Ist-Stand; Phase 8 abgeschlossen
 - 2026-06-05 — Phase 12: DoD auf Ist-Stand (Primary erfüllt außer menschl. Qualitätsstufe-2); `17_unsortiert` als regulärer Cluster; Phasen-Tabelle um 11/12 + inkrementellen Betrieb (`ingest`/`manage_vocab`)
+- 2026-06-23 — pipeline-v3: D6 additive Synthese als dokumentiertes Teil-Reversal Option B (Scope-Update §2); Artikel-Count 180→181 (Live-Messung); DoD-Pfad auf Brain-Vault

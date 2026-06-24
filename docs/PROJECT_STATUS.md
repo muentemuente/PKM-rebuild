@@ -3,27 +3,29 @@ title: PKM-rebuild — Projektstand
 slug: project-status
 status: stable
 created: 2026-05-28
-updated: 2026-06-05
+updated: 2026-06-23
 ---
 
-# PKM-rebuild — Projektstand (2026-06-05)
+# PKM-rebuild — Projektstand (2026-06-23)
 
 Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus und offenen Punkte.
 
+> **Aktiver Zyklus: v3** (Wissensqualität — additive Synthese/MOC, Tag-/Format-Remediation, Stabilisierung). Die unten dokumentierte **Basis-Pipeline (Phasen 0–12) ist abgeschlossen** und bildet die Grundlage. Plan: `Projektplan_pipeline-v3.md`; verifizierter Realstand: `handover/v3-startstand.md`.
+
 ---
 
-## 0. Aktueller Stand (2026-06-05)
+## 0. Aktueller Stand (2026-06-23)
 
-**Projekt abgeschlossen — Phasen 1–10 implementiert, Phase 11 (Cleanup) + Phase 12 (Finalisierung) erledigt; inkrementeller Modus live. Verbleibend: nur menschliche Qualitätsstufe-2-Review + Backup 2. Medium.**
+**Basis-Pipeline abgeschlossen — Phasen 1–10 implementiert, Phase 11 (Cleanup) + Phase 12 (Finalisierung) erledigt; inkrementeller Modus live. v2 teil-umgesetzt (Taxonomie-SSoT, restructure, process-Orchestrator). Aktiver Zyklus: v3. Menschlich verbleibend: Qualitätsstufe-2-Review + Backup 2. Medium.**
 
 | Größe | Wert |
 |---|---|
-| Vault-Artikel (`04_vault/`) | **180** in 15 genutzten Ordnern, 0 Pydantic-Fails, 0 SHA-Dups |
+| Vault-Artikel (Brain-Vault) | **181** in 14 genutzten Ordnern, 0 Pydantic-Fails, 0 SHA-Dups (Live-Messung 2026-06-23) |
 | `_index.md` | 14 (genutzte Ordner − `00_Meta`) |
 | Kontroll-Berichte | corpus / duplicate / cluster (Vault-Ground-Truth) + `DOD_CHECK.md` |
 | `17_unsortiert/` | 8 Artikel — vollwertiger nummerierter Cluster (AP2; vormals `unsortiert/`); Diagnose `unsortiert_diagnose.md` |
 | Reconcile | 199 Korpus-Slugs (180 ready + 19 hold) + 3 excluded = 202 |
-| Test-Suite | **399** grün, ruff-Gate sauber, `mypy pipeline/ scripts/` clean |
+| Test-Suite | **738** grün (Stand 2026-06-23), ruff-Gate sauber, `mypy pipeline/` clean; `scripts/` 8 pre-existing mypy-Fehler (WP1-Backlog) |
 | Architektur | Option B (Pro-Doc, kein Merge); Embedding-Clustering **verworfen** (R9) |
 | Inkrementell | `pipeline ingest` (Inbox → Phasen 1–4 + 8) + `scripts/manage_vocab.py` (Vokabular-Pflege) — Phase 12 |
 | Cleanup (Phase 11) | AP1 `_pkm_common` (Drift weg) · AP2 Config-Prune · AP3 mypy-clean · AP4 unsortiert-Diagnose · AP5 Intermediates als Provenance behalten |
@@ -31,7 +33,7 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 
 **DoD (`scripts/dod_check.py`):** 9 ✅ / 1 ⚠️ (dokumentierte Kleinordner-Ausnahme) automatisch; 2 offen (Backup 2. Medium, Qualitätsstufe-2-Review) = menschlich.
 
-> **Befund (Phase 12, `manage_vocab validate`):** der Vault enthält viele Tags außerhalb des kontrollierten 47er-Kern-Vokabulars (Stage 8 lief mit `strict_vocabulary: false`). Das ist Teil der offenen Qualitätsstufe-2-Review, kein Blocker.
+> **Befund (Phase 12, `manage_vocab validate`):** der Vault enthält Tags außerhalb des kontrollierten 149-Tag-Vokabulars (`config/tag_vocabulary.yaml`; Stage 8 lief mit `strict_vocabulary: false`). Das ist Gegenstand der v3-Tag-Remediation (WP4) bzw. der offenen Qualitätsstufe-2-Review, kein Blocker.
 
 Details: `docs/learnings/PHASE_09_vault-build.md`, `PHASE_10_reports.md`, `PHASE_11_cleanup.md`.
 
@@ -445,3 +447,6 @@ Option B (Pro-Doc-Veredelung) — Stand 2026-06-04:
 
 ## 2026-06-06 — ABGESCHLOSSEN
 Vault gebaut + tag-bereinigt (149er Vokabular), Doku final, Repo aufgeraeumt, Re-Run-Runbook vorhanden. DoD erfuellt.
+
+## 2026-06-23 — v3-Zyklus-Start (WP0)
+Realstand verifiziert (`handover/v3-startstand.md`): Vault-Count **180→181** (Live-Messung), Test-Suite 399→**738** grün, `mypy pipeline/` clean (scripts/ 8 pre-existing → WP1). Doku-Drift bereinigt: EIN Artikel-Count (181) + EIN Vokabular-Stand (149) repo-weit; v2-Plan nach `_archive/` (superseded by v3); Legacy-`data/0X`-Pfade in `02_pipeline_spec` als deprecated markiert; `01_strategy` D6 (additive Synthese, Teil-Reversal Option B). Aktiver Zyklus: v3.

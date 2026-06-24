@@ -18,6 +18,17 @@ Technische Referenz: Architektur, Phasen, Schemas, Konfiguration, CLI, Tests.
 > go-forward** (Alt/verworfen, nur noch `corpus-run`). Layout + Pfade: `pipeline/_paths.py`.
 > Ablauf: `docs/RUNBOOK_new_files.md`. Umbau-Doku: `docs/learnings/REBUILD_pipeline_2026-06-07.md`.
 
+> [!warning] Legacy-Pfad-Layout (deprecated)
+> **Alle `data/0X`-Pfade in diesem Dokument** (`data/01_corpus_input/`,
+> `data/02_pipeline_output/`, `data/03_drafts/`, `data/04_vault/`, `data_root:
+> ~/projects/aktiv/PKM_rebuild/data`) beschreiben den **verworfenen Option-A-Vollkorpus-Erstlauf**
+> und **existieren nicht mehr**. Kanonisch gilt ausschließlich das go-forward-Layout
+> unter `~/projects/aktiv/pkm-pipeline/` (`_ingest/ input/ work/ drafts/ review/
+> output/ archive/`, aufgelöst über `pipeline/_paths.py`, überschreibbar per
+> `PKM_PIPELINE_ROOT`) **plus** der produktive Brain-Vault `~/Zentrale/09_Brain-Vault`
+> (`BRAIN_VAULT`). Die Phasen-Beschreibungen unten bleiben als technische Historie
+> erhalten; für aktuelle Pfade siehe `pipeline/_paths.py` + `docs/RUNBOOK_new_files.md`.
+
 ---
 
 ## 1. Architektur-Überblick
@@ -706,13 +717,13 @@ Pro Doc durchlaufen Stage 3 und Stage 4. Failure in einer Stage → Retry oder F
   getrennt**, Verarbeitungs-Status (ready/hold/excluded) aus Vault + `_excluded/`.
 - `duplicate_report`: exakte Gruppen + near-dup-Kanten; **Option B**: `merged_from` überall leer →
   „keine Konsolidierungen" explizit vermerkt.
-- `cluster_report`: Artikel-Verteilung pro Vault-Ordner (Build-Plan gegen Vault gecheckt, Summe == 180),
+- `cluster_report`: Artikel-Verteilung pro Vault-Ordner (Build-Plan gegen Vault gecheckt, Summe == aktueller Live-Count, z. B. 181),
   `17_unsortiert/`-Sektion (Mapping-Lücke gekennzeichnet, nicht verschoben), Tag-Häufigkeiten gesamt + pro Ordner.
 - Idempotent via Input-Hash; mensch-lesbares Markdown (keine JSON-Dumps).
 
 **Akzeptanzkriterien:**
 - [ ] 3× `*_report.md` vorhanden + mensch-lesbar
-- [ ] Counts gegen Ground Truth verifiziert (Ordner-Summe 180, manifest 202)
+- [ ] Counts gegen Ground Truth verifiziert (Ordner-Summe = Live-Count, aktuell 181; manifest 202 aus Korpus-Erstlauf)
 - [ ] segment- vs doc-Counts getrennt; `merged_from`-leer vermerkt
 - [ ] Reports idempotent (2. Lauf byte-identisch)
 - [ ] `docs/DOD_CHECK.md` erzeugt (`scripts/dod_check.py`)

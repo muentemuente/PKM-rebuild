@@ -54,11 +54,11 @@ dev = [
     "ipython>=8.27",        # für interaktives Debugging
 ]
 
-# Phase 7b (optional, UMAP + HDBSCAN)
+# Phase 7b (verworfen, R9) — hdbscan nur noch für das Lern-Artefakt
+# scripts/clustering_analysis.py. umap-learn + plotly entfernt (nirgends
+# importiert; WP0-Trim 2026-06-23). Siehe docs/handover/v3-wp0-phaseC-altlast.md.
 viz = [
-    "umap-learn>=0.5",
     "hdbscan>=0.8",
-    "plotly>=5.24",
 ]
 
 [project.scripts]
@@ -121,7 +121,6 @@ module = [
     "sentence_transformers.*",
     "sklearn.*",
     "scipy.*",
-    "umap.*",
     "hdbscan.*",
     "yaml",
     "mdformat",

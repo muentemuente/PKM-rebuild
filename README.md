@@ -2,15 +2,12 @@
 
 Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung. Ziel: aus ~200 unstrukturierten Markdown-Dateien einen sauber strukturierten Obsidian-Vault mit konsistentem Frontmatter, deduplizierten Inhalten und thematischer Ordner-Struktur generieren.
 
-## Status
-
-- **Phase:** abgeschlossen (2026-06-06)
-- **Stand:** 2026-06-05
-- **Vault:** 180 Artikel in 15 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups), inkl. `17_unsortiert` (8)
-- **Deferred:** 19 `_hold` (Gedanken) · 3 `_excluded` (denkschulen + 2 Hangs) — über Inbox nachziehbar
+- **Basis-Pipeline:** abgeschlossen (Phasen 0–12, 2026-06-06)
+- **Aktiver Zyklus:** v3 — Wissensqualität (additive Synthese · Tag-/Format-Remediation · Stabilisierung), siehe [`docs/Projektplan_pipeline-v3.md`](docs/Projektplan_pipeline-v3.md)
+- **Vault:** 181 Artikel in 14 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups); `17_unsortiert` aktuell leer (Stand 2026-06-23, Live-Messung)
 - **Charakter:** Lernprojekt mit produktivem Output
 - **Laufender Betrieb:** [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md) (inkrementeller Standard-Workflow)
-- **Verbleibend:** nur menschliche Qualitätsstufe-2-Review + Backup 2. Medium ([`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md))
+- **Verbleibend:** menschliche Qualitätsstufe-2-Review + Backup 2. Medium ([`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md))
 
 ---
 
@@ -35,7 +32,7 @@ Orientierung pro Ort: `WAYFINDING.md` (im jeweiligen Root). Schreibzugriff von C
 | **A. Vorbereitung (Python)** | Inventar, Normalisierung, Strukturextraktion, Segmentierung, Redundanz-Erkennung (Hash → TF-IDF → Embeddings) |
 | **B. Veredelung (Qwen 3.6 27B lokal, Option B)** | **Pro-Doc** statt Cross-Doc-Merge. Routing je Doc: `passthrough` (Code/Tabellen/Headings → Body 1:1 + Frontmatter) · `stage3` (Prosa → LLM-Veredelung + Frontmatter) · `gedanken` (Sonderpfad, Minimal-Frontmatter). Kein Cluster-Merge, `merged_from` immer leer. |
 | **C. Vault-Aufbau** | bereinigte Artikel in Obsidian-Vault; `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 thematische Ordner (+ `17_unsortiert` Catch-all), Wikilinks, Tag-Vokabular |
-| **D. Inkrementell** | neue `.md` → `data/00_inbox/` → `pipeline ingest` (Phasen 1–4 + 8, Option B) → Review → `build-vault`. Vokabular-Pflege über `scripts/manage_vocab.py`. |
+| **D. Inkrementell** | neue `.md` → `pkm-pipeline/input/` → `pipeline process` (universelle Erstverarbeitung) bzw. `pipeline ingest` (Phasen 1–4 + 8, Option B) → Review → `build-vault`. Vokabular-Pflege über `scripts/manage_vocab.py`. |
 
 ---
 
@@ -87,9 +84,11 @@ python -m pipeline run --phase 1 --sample 10
 # Ab Phase 5 weiterlaufen
 python -m pipeline run --from-phase 5
 
-# Inkrementell: neue .md aus data/00_inbox/ verarbeiten (Option B)
+# Inkrementell: neue .md aus pkm-pipeline/input/ verarbeiten (Option B)
 python -m pipeline ingest --dry-run     # Plan zeigen, nichts schreiben
 python -m pipeline ingest               # verarbeiten (braucht laufendes LM Studio)
+# Universelle Erstverarbeitung (jedes File → vault-ready, resume-fähig)
+python -m pipeline process --source <dir>
 
 # Vault bauen + Vokabular pflegen
 python -m pipeline build-vault

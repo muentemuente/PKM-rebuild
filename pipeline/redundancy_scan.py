@@ -443,6 +443,61 @@ def render_redundancy_report(result: ScanResult) -> str:
     return "\n".join(lines) + "\n"
 
 
+# Generische Slug-Tokens, die als MOC-Thema nichts beitragen (deterministische Heuristik).
+_MOC_STOPWORDS = frozenset(
+    {
+        "der",
+        "die",
+        "das",
+        "und",
+        "in",
+        "im",
+        "the",
+        "a",
+        "an",
+        "of",
+        "to",
+        "for",
+        "reference",
+        "basics",
+        "intro",
+        "introduction",
+        "overview",
+        "guide",
+        "fundamentals",
+        "standard",
+        "template",
+        "notes",
+        "note",
+    }
+)
+
+
+def suggest_moc_title(slugs: list[str]) -> str:
+    """Deterministischer MOC-Titel-**Vorschlag** aus den Mitglieds-Slugs (kein LLM).
+
+    Heuristik: Tokens (``-``-getrennt) zählen, generische Stopwords verwerfen, die
+    in ≥2 Slugs geteilten Tokens nach Häufigkeit (dann alphabetisch) wählen, max. 3,
+    Title-Case. Fällt auf das erste gemeinsame bzw. das erste Slug-Token zurück.
+    Reiner Vorschlag für 3b — bindet nichts.
+    """
+    from collections import Counter
+
+    counts: Counter[str] = Counter()
+    for slug in slugs:
+        for tok in set(slug.split("-")):
+            tok = tok.strip().lower()
+            if len(tok) > 2 and tok not in _MOC_STOPWORDS and not tok.isdigit():
+                counts[tok] += 1
+    shared = sorted(((-n, t) for t, n in counts.items() if n >= 2))
+    chosen = [t for _, t in shared[:3]]
+    if not chosen:  # keine geteilten Tokens → erstes nicht-generisches Token
+        chosen = [t for _, t in sorted((-n, t) for t, n in counts.items())][:1]
+    if not chosen:
+        return "MOC: (Thema manuell vergeben)"
+    return "MOC: " + " ".join(t.capitalize() for t in chosen)
+
+
 def render_synthesis_report(result: ScanResult) -> str:
     """``synthesis_candidates.md`` — thematische Komponenten (≥ N) als Synthese-Vorschläge."""
     th = result.thresholds
@@ -467,6 +522,8 @@ def render_synthesis_report(result: ScanResult) -> str:
         lines += [
             f"## {cand.candidate_id} — {len(cand.slugs)} Docs "
             f"(Ø-Sim {cand.mean_similarity:.3f}, {cand.pair_count} Kanten)",
+            "",
+            f"**Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** {suggest_moc_title(cand.slugs)}",
             "",
             "**Mitglieder:** " + ", ".join(f"`{s}`" for s in cand.slugs),
             "",

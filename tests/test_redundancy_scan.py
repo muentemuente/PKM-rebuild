@@ -190,6 +190,28 @@ def test_redundancy_report_contains_bands_and_provenance(vault: Path) -> None:
     assert "kein Wall-Clock" in text  # Idempotenz-Hinweis
 
 
+# === MOC-Titel-Vorschlag (deterministische Heuristik) =========================
+
+
+def test_suggest_moc_title_shared_tokens() -> None:
+    """Geteilte, nicht-generische Tokens bilden den Titel (Häufigkeit, dann alpha)."""
+    title = rs.suggest_moc_title(
+        ["gestaltgesetze-ui-ux", "gestaltgesetze-typografie", "gestaltgesetze-kunst"]
+    )
+    assert title == "MOC: Gestaltgesetze"
+
+
+def test_suggest_moc_title_drops_stopwords_and_is_deterministic() -> None:
+    slugs = ["docker-basics-reference", "docker-networking", "docker-volumes"]
+    assert rs.suggest_moc_title(slugs) == "MOC: Docker"
+    assert rs.suggest_moc_title(slugs) == rs.suggest_moc_title(list(reversed(slugs)))
+
+
+def test_suggest_moc_title_no_shared_falls_back() -> None:
+    """Keine geteilten Tokens → kein Crash, liefert einen Vorschlag-String."""
+    assert rs.suggest_moc_title(["alpha", "beta", "gamma"]).startswith("MOC: ")
+
+
 # === Qwen (injiziert / Parser) ================================================
 
 

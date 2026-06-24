@@ -5,11 +5,13 @@ from pathlib import Path
 from typing import Any
 
 import click
+import structlog
 from rich.console import Console
 from rich.table import Table
 
 from pipeline.config import PipelineConfig, load_config
 from pipeline.ingest import run_ingest
+from pipeline.logging_setup import configure_logging
 from pipeline.orchestrator import run_pipeline
 from pipeline.phase_1_inventory import run_phase_1
 from pipeline.phase_2_normalize import run_phase_2
@@ -333,8 +335,19 @@ _PHASE_DISPATCH: dict[int, Any] = {
 
 @click.group()
 @click.version_option(package_name="pkm-rebuild")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """PKM-rebuild Pipeline."""
+    # Zentraler Logging-Bootstrap: genau EINE structlog.configure-Stelle (D19).
+    # File-Sink + Level kommen aus der Default-Config. Best-effort — ein
+    # Config-Fehler darf den CLI-Start nicht blockieren; die Commands laden die
+    # Config erneut und melden Fehler dann laut.
+    try:
+        cfg = load_config(Path(_DEFAULT_CONFIG))
+        configure_logging(cfg.logging)
+        structlog.get_logger().info("cli_invoked", command=ctx.invoked_subcommand)
+    except (FileNotFoundError, ValueError):
+        pass
 
 
 @cli.command()

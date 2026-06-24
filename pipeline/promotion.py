@@ -41,6 +41,12 @@ from pipeline.vault_audit import parse_frontmatter, split_frontmatter
 
 #: review_status-Werte, die eine Promotion erlauben.
 PROMOTABLE_REVIEW = frozenset({"human_reviewed", "verified"})
+#: doc_type-Override des Ziel-Ordners (greift VOR dem category→Ordner-Mapping).
+#: MOCs (additive Synthese, D6) landen unabhängig von ihrer category in 00_Maps/.
+FOLDER_BY_DOC_TYPE = {"moc": "00_Maps"}
+#: doc_types, deren ``status`` bei der Promotion NICHT auf ``review`` gehoben wird
+#: (additive Synthese-Artefakte bleiben ``draft`` bis zur separaten Owner-Reife).
+PRESERVE_STATUS_DOC_TYPES = frozenset({"moc"})
 #: Felder, die — falls im Draft vorhanden — beim Update über das Bestands-Frontmatter
 #: gelegt werden (Content-/Restructure-Felder; Taxonomie/Verlinkung bleibt vom Bestand).
 _DRAFT_OVERLAY_FIELDS = (
@@ -107,6 +113,8 @@ def _finalize_frontmatter(
     draft_fm: dict[str, Any],
     existing_fm: dict[str, Any] | None,
     today: str,
+    *,
+    preserve_status: bool = False,
 ) -> dict[str, Any]:
     """Baut das finale Vault-Frontmatter (Update-Merge bzw. vollständiger Draft).
 
@@ -122,7 +130,9 @@ def _finalize_frontmatter(
                 fm[key] = draft_fm[key]
 
     # Finalisierung (in beiden Pfaden): Promotion-Stempel, nie auto-stable.
-    fm["status"] = "review"
+    # preserve_status: additive Synthese-Artefakte (MOCs) bleiben draft (Owner-Wunsch).
+    if not preserve_status:
+        fm["status"] = "review"
     fm["updated"] = today
     prov = fm.get("provenance")
     generated = prov.get("generated_at") if isinstance(prov, dict) else None
@@ -193,12 +203,14 @@ def plan_promotion(
 
     slug = str(draft_fm.get("slug") or draft_path.stem)
 
-    # Ziel-Ordner aus category (SSoT); Catch-all unsortiert bei unbekannter Kategorie.
+    # Ziel-Ordner: doc_type-Override (z. B. moc → 00_Maps) greift VOR dem category-Mapping.
     cat_to_folder = taxonomy.load_category_to_folder()
     category = draft_fm.get("category")
+    doc_type = str(draft_fm.get("doc_type") or "")
+    override_folder = FOLDER_BY_DOC_TYPE.get(doc_type)
 
-    # natürlicher Ziel-Pfad (vor Kollisions-Auflösung): aus category bzw. Bestand.
-    natural_folder = _folder_for(category, cat_to_folder) if category else None
+    # natürlicher Ziel-Pfad (vor Kollisions-Auflösung): Override > category > Bestand.
+    natural_folder = override_folder or (_folder_for(category, cat_to_folder) if category else None)
     existing_path = (
         _find_existing(vault_dir, slug)
         if natural_folder is None
@@ -216,9 +228,11 @@ def plan_promotion(
             f"category fehlt — weder im Draft '{slug}' noch im Bestands-File. "
             "Der human_reviewed Draft muss eine category tragen (Ziel-Ordner-SSoT)."
         )
-    folder = _folder_for(category, cat_to_folder)
+    folder = override_folder or _folder_for(category, cat_to_folder)
 
-    final_fm = _finalize_frontmatter(draft_fm, existing_fm, day)
+    final_fm = _finalize_frontmatter(
+        draft_fm, existing_fm, day, preserve_status=doc_type in PRESERVE_STATUS_DOC_TYPES
+    )
     final_fm["category"] = category
     final_fm["slug"] = slug
     _validate_complete(final_fm, slug)

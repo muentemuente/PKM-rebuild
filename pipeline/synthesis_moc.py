@@ -201,13 +201,22 @@ def build_moc(
     # dominante category der Mitglieder (Mehrheit), nur informativ
     cats = [m.category for m in members if m.category]
     category = max(set(cats), key=cats.count) if cats else ""
+    n_found = sum(1 for m in members if m.found)
+    # Deterministische MOC-Summary (Metadaten, kein LLM): beschreibt die Map, nicht den Inhalt.
+    summary = (
+        f"Themen-Übersicht (MOC) zu {cluster.title}: verlinkt {n_found} "
+        "thematisch verwandte Artikel."
+    )
 
     fm = [
         "---",
         f"title: {cluster.title}",
         f"slug: {slug}",
+        f"summary: {summary}",
         "doc_type: moc",
         "type: knowledge-article",
+        "doc_role:",
+        "  - index",
         "status: draft",
         f"review_status: {review_status}",
         f"confidence: {confidence}",
@@ -217,6 +226,9 @@ def build_moc(
         f"mean_similarity: {cluster.mean_similarity}",
         "moc_members:",
         *[f"  - {m.slug}" for m in members],
+        # MOC referenziert via moc_members/Wikilinks, nicht via Korpus-Quellen → leer.
+        "sources_docs: []",
+        "source_chunks: []",
         "merged_from: []",
         f"created: '{today}'",
         f"updated: '{today}'",

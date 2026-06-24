@@ -107,6 +107,11 @@ redundancy_scan:
   synthesis_min_members: 3        # Synthese-Kandidat: Komponente >= N Docs
   use_embeddings: true            # False = nur Hash + TF-IDF (kein mpnet nötig)
   qwen_evaluate: false            # optionale Qwen-Paar-Bewertung (Default aus — teuer/Hang-Risiko)
+  # Synthese-Korpus-Filter (WP3b): nur Wissensartikel scannen. Ausschluss via
+  # Ordner/Kategorie (NICHT Slug-Liste). _attic = aussortierte Dubletten,
+  # 00_Meta = Templates/Standards/Vokabular/System-Meta (category: meta).
+  exclude_folders: ["_attic", "00_Meta"]
+  exclude_categories: ["meta"]
 
 
 # === Embeddings (Phase 6) =====================================================

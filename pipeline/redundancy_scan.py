@@ -58,6 +58,8 @@ class VaultDoc:
     body: str
     sources_docs: list[str] = field(default_factory=list)
     source_chunks: list[str] = field(default_factory=list)
+    folder: str = ""  # Top-Level-Vault-Ordner (für Korpus-Filter)
+    category: str = ""  # Frontmatter-category (für Korpus-Filter)
 
 
 @dataclass
@@ -80,6 +82,7 @@ class ScanResult:
     thresholds: Thresholds
     used_embeddings: bool
     input_hash: str
+    excluded: list[tuple[str, str]] = field(default_factory=list)  # (slug, grund), Korpus-Filter
 
     def counts(self) -> dict[str, int]:
         """Anzahl Paare je Band + Synthese-Kandidaten."""
@@ -118,15 +121,49 @@ def load_vault_docs(vault_dir: Path) -> list[VaultDoc]:
         fm, body = _split_frontmatter(p.read_text(encoding="utf-8"))
         fm = fm or {}
         slug = str(fm.get("slug") or p.stem)
+        rel = p.relative_to(vault_dir).parts
         docs.append(
             VaultDoc(
                 slug=slug,
                 body=body,
                 sources_docs=_str_list(fm.get("sources_docs")),
                 source_chunks=_str_list(fm.get("source_chunks")),
+                folder=rel[0] if len(rel) > 1 else "",
+                category=str(fm.get("category") or ""),
             )
         )
     return docs
+
+
+def filter_synthesis_corpus(
+    docs: list[VaultDoc],
+    *,
+    exclude_folders: tuple[str, ...] = (),
+    exclude_categories: tuple[str, ...] = (),
+) -> tuple[list[VaultDoc], list[tuple[str, str]]]:
+    """Trennt Wissensartikel von Nicht-Wissensdokumenten (config-getrieben, kein Slug-Filter).
+
+    Args:
+        docs: alle geladenen Vault-Docs.
+        exclude_folders: Top-Level-Ordner, die ausgeschlossen werden (z. B. ``_attic``).
+        exclude_categories: Frontmatter-``category``-Werte, die ausgeschlossen werden.
+
+    Returns:
+        ``(kept, excluded)`` — ``excluded`` ist ``[(slug, grund)]`` zur Transparenz.
+    """
+    folders = set(exclude_folders)
+    categories = set(exclude_categories)
+    kept: list[VaultDoc] = []
+    excluded: list[tuple[str, str]] = []
+    for d in docs:
+        if d.folder in folders:
+            excluded.append((d.slug, f"Ordner {d.folder}"))
+        elif d.category in categories:
+            excluded.append((d.slug, f"category {d.category}"))
+        else:
+            kept.append(d)
+    excluded.sort()
+    return kept, excluded
 
 
 def _str_list(value: object) -> list[str]:
@@ -302,11 +339,21 @@ def run_redundancy_scan(
     max_features: int = 20000,
     min_df: int = 2,
     qwen_evaluator: QwenEvaluator | None = None,
+    exclude_folders: tuple[str, ...] = (),
+    exclude_categories: tuple[str, ...] = (),
 ) -> ScanResult:
-    """Vollständiger Scan eines Vaults (read-only). Schreibt nichts — nur Erkennung."""
-    docs = load_vault_docs(vault_dir)
-    if not docs:
+    """Vollständiger Scan eines Vaults (read-only). Schreibt nichts — nur Erkennung.
+
+    ``exclude_folders``/``exclude_categories`` begrenzen den Synthese-Korpus auf
+    Wissensartikel (config-getrieben); ausgeschlossene Docs werden im Ergebnis als
+    ``excluded`` zur Transparenz geführt.
+    """
+    all_docs = load_vault_docs(vault_dir)
+    if not all_docs:
         raise FileNotFoundError(f"Keine Artikel-.md in {vault_dir} gefunden")
+    docs, excluded = filter_synthesis_corpus(
+        all_docs, exclude_folders=exclude_folders, exclude_categories=exclude_categories
+    )
 
     texts = [d.body for d in docs]
     hashes = _body_hashes(docs)
@@ -342,6 +389,7 @@ def run_redundancy_scan(
         thresholds=thresholds,
         used_embeddings=use_embeddings,
         input_hash=input_hash,
+        excluded=excluded,
     )
 
 
@@ -405,7 +453,8 @@ def render_redundancy_report(result: ScanResult) -> str:
         "",
         f"<!-- input_hash: {result.input_hash} · reproduzierbar, kein Wall-Clock im Body -->",
         "",
-        f"- Docs gescannt: **{result.n_docs}**",
+        f"- Docs gescannt: **{result.n_docs}**"
+        + (f" (Korpus-Filter: {len(result.excluded)} ausgeschlossen)" if result.excluded else ""),
         f"- Embeddings: **{'ja (mpnet)' if result.used_embeddings else 'nein (nur Hash + TF-IDF)'}**",
         f"- Schwellen: TF-IDF≥{th.tfidf_near} · emb-dup≥{th.embedding_dup} · "
         f"thematic∈[{th.embedding_thematic_low}, {th.embedding_dup})",
@@ -439,6 +488,15 @@ def render_redundancy_report(result: ScanResult) -> str:
                 f"| {p.band} | `{p.slug_a}` | `{p.slug_b}` | {p.tfidf:.3f} | "
                 f"{p.embedding:.3f} | {prov} | {qwen} |"
             )
+        lines.append("")
+    if result.excluded:
+        lines += [
+            f"## Korpus-Filter — {len(result.excluded)} Docs ausgeschlossen (Nicht-Wissensartikel)",
+            "",
+            "| Slug | Grund |",
+            "|---|---|",
+        ]
+        lines += [f"| `{slug}` | {grund} |" for slug, grund in result.excluded]
         lines.append("")
     return "\n".join(lines) + "\n"
 

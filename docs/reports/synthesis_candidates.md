@@ -1,21 +1,11 @@
 # Synthesis-Candidates (WP2 — Vorschläge, KEIN Auto-Merge)
 
-<!-- input_hash: 3838696a9cfb358c -->
+<!-- input_hash: 6215598fa4da788b -->
 
-- thematische Paare (Mittelband): **52**
-- Synthese-Kandidaten (Komponenten ≥ 3): **10**
+- thematische Paare (Mittelband): **39**
+- Synthese-Kandidaten (Komponenten ≥ 3): **9**
 
-## SC_000 — 7 Docs (Ø-Sim 0.609, 7 Kanten)
-
-**Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Metadata Pipeline
-
-**Mitglieder:** `artikel-template-prozessdokument`, `dokumentationsstandard`, `frontmatter-standard`, `metadata-pipeline-project-summary`, `metadata-processor-pipeline`, `metadaten-toolkit-komplette-anleitung`, `taxonomie`
-
-**sources_docs (vereinigt):** D_docs-03-vault-standard, D-docs-03-vault-standard, D_befriffssammlung-tags-taxonomie-referenz, D_metadaten-pipeline-projektentwurf, D_metadaten-pipeline-readme-final, D_metadaten-pipeline-projektzusammenfassung
-
-**Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
-
-## SC_001 — 6 Docs (Ø-Sim 0.635, 5 Kanten)
+## SC_000 — 6 Docs (Ø-Sim 0.635, 5 Kanten)
 
 **Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Structure
 
@@ -25,7 +15,7 @@
 
 **Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
 
-## SC_002 — 5 Docs (Ø-Sim 0.667, 6 Kanten)
+## SC_001 — 5 Docs (Ø-Sim 0.667, 6 Kanten)
 
 **Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Gestaltgesetze Design Kunst
 
@@ -35,17 +25,7 @@
 
 **Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
 
-## SC_003 — 5 Docs (Ø-Sim 0.636, 4 Kanten)
-
-**Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Architekturgeschichte
-
-**Mitglieder:** `epochen-der-architekturgeschichte`, `erweiterte-tag-sammlung`, `kunstepochen-europa-international`, `quotes-idioms-expressions`, `themenstraenge-debatten`
-
-**sources_docs (vereinigt):** D_sprichworte-und-zitate-sammlung, D_architektur-epochen-wiki, D_erweiterte-tag-sammlung, D_kunstepochen-europa-international-wiki, D_wissen-macht-sense-making-infrastrukturen
-
-**Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
-
-## SC_004 — 4 Docs (Ø-Sim 0.683, 3 Kanten)
+## SC_002 — 4 Docs (Ø-Sim 0.683, 3 Kanten)
 
 **Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Api
 
@@ -55,17 +35,7 @@
 
 **Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
 
-## SC_005 — 4 Docs (Ø-Sim 0.783, 5 Kanten)
-
-**Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Git
-
-**Mitglieder:** `git-github-introduction`, `git-referenz`, `git-setup-and-concepts`, `git-workflow-im-alltag`
-
-**sources_docs (vereinigt):** D_github-einrichten, D_software-projekt-04-git-konzept-und-setup, D_software-projekt-05-git-workflow
-
-**Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
-
-## SC_006 — 4 Docs (Ø-Sim 0.717, 4 Kanten)
+## SC_003 — 4 Docs (Ø-Sim 0.717, 4 Kanten)
 
 **Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Visual
 
@@ -75,7 +45,17 @@
 
 **Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
 
-## SC_007 — 3 Docs (Ø-Sim 0.672, 2 Kanten)
+## SC_004 — 4 Docs (Ø-Sim 0.650, 3 Kanten)
+
+**Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Architekturgeschichte
+
+**Mitglieder:** `epochen-der-architekturgeschichte`, `erweiterte-tag-sammlung`, `kunstepochen-europa-international`, `quotes-idioms-expressions`
+
+**sources_docs (vereinigt):** D_sprichworte-und-zitate-sammlung, D_architektur-epochen-wiki, D_erweiterte-tag-sammlung, D_kunstepochen-europa-international-wiki
+
+**Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
+
+## SC_005 — 3 Docs (Ø-Sim 0.672, 2 Kanten)
 
 **Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Arbeitsumgebung
 
@@ -85,7 +65,7 @@
 
 **Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
 
-## SC_008 — 3 Docs (Ø-Sim 0.734, 2 Kanten)
+## SC_006 — 3 Docs (Ø-Sim 0.734, 2 Kanten)
 
 **Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Analyzer Metadata Projektauftrag
 
@@ -95,7 +75,17 @@
 
 **Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
 
-## SC_009 — 3 Docs (Ø-Sim 0.823, 2 Kanten)
+## SC_007 — 3 Docs (Ø-Sim 0.697, 2 Kanten)
+
+**Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Metadata Pipeline
+
+**Mitglieder:** `metadata-pipeline-project-summary`, `metadata-processor-pipeline`, `metadaten-toolkit-komplette-anleitung`
+
+**sources_docs (vereinigt):** D_metadaten-pipeline-projektentwurf, D_metadaten-pipeline-readme-final, D_metadaten-pipeline-projektzusammenfassung
+
+**Status:** `detected` — manuelle Kuratierung nötig (Cross-Link oder Synthese), `merged_from` bleibt leer.
+
+## SC_008 — 3 Docs (Ø-Sim 0.823, 2 Kanten)
 
 **Vorgeschlagener MOC-Titel (Heuristik, nur Vorschlag):** MOC: Grundlagen Nlp
 

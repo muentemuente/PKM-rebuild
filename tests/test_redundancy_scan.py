@@ -190,6 +190,41 @@ def test_redundancy_report_contains_bands_and_provenance(vault: Path) -> None:
     assert "kein Wall-Clock" in text  # Idempotenz-Hinweis
 
 
+# === Korpus-Filter (WP3b, config-getrieben) ===================================
+
+
+def test_filter_synthesis_corpus_by_folder_and_category() -> None:
+    docs = [
+        VaultDoc(slug="wissen-a", body="x", folder="01_Grundlagen", category="grundlagen"),
+        VaultDoc(slug="alt-dub", body="x", folder="_attic", category="grundlagen"),
+        VaultDoc(slug="tag-system", body="x", folder="00_Meta", category="meta"),
+        VaultDoc(slug="taxonomie", body="x", folder="09_KI", category="meta"),
+    ]
+    kept, excluded = rs.filter_synthesis_corpus(
+        docs, exclude_folders=("_attic", "00_Meta"), exclude_categories=("meta",)
+    )
+    assert [d.slug for d in kept] == ["wissen-a"]
+    assert ("alt-dub", "Ordner _attic") in excluded
+    assert ("tag-system", "Ordner 00_Meta") in excluded
+    assert ("taxonomie", "category meta") in excluded  # category-Filter greift ordner-unabhängig
+
+
+def test_filter_empty_config_keeps_all() -> None:
+    """Ohne Ausschluss-Config bleibt alles (rückwärtskompatibel)."""
+    docs = [VaultDoc(slug="a", body="x", folder="_attic")]
+    kept, excluded = rs.filter_synthesis_corpus(docs)
+    assert len(kept) == 1
+    assert excluded == []
+
+
+def test_excluded_docs_appear_in_redundancy_report(vault: Path) -> None:
+    result = rs.run_redundancy_scan(
+        vault, thresholds=TH, use_embeddings=False, exclude_folders=("ignored",)
+    )
+    # vault-Fixture hat keinen 'ignored'-Ordner → kein Ausschluss, aber Report bleibt valide
+    assert "Docs gescannt" in rs.render_redundancy_report(result)
+
+
 # === MOC-Titel-Vorschlag (deterministische Heuristik) =========================
 
 

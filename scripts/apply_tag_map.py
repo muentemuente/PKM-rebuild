@@ -36,8 +36,10 @@ import sys
 import tarfile
 import unicodedata
 from collections import Counter
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 try:
     import yaml
@@ -99,7 +101,9 @@ def extract_tags(fm_text: str) -> list[str] | None:
     return None
 
 
-def transform(tags: list[str], vocab, remap, drop) -> tuple[list[str], list[str]]:
+def transform(
+    tags: list[str], vocab: set[str], remap: dict[str, str], drop: set[str]
+) -> tuple[list[str], list[str]]:
     """Returnt (neue_tags, verworfene_unbekannte)."""
     out: list[str] = []
     unknown: list[str] = []
@@ -126,7 +130,9 @@ def render_tags_block(tags: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def process_file(path: Path, vocab, remap, drop):
+def process_file(
+    path: Path, vocab: set[str], remap: dict[str, str], drop: set[str]
+) -> dict[str, Any]:
     """Returnt dict mit before/after/unknown/changed/error."""
     text = path.read_text(encoding="utf-8")
     m = FM_RE.match(text)
@@ -153,7 +159,7 @@ def process_file(path: Path, vocab, remap, drop):
     }
 
 
-def iter_targets(target_dir: Path):
+def iter_targets(target_dir: Path) -> Iterator[Path]:
     for p in sorted(target_dir.rglob("*.md")):
         if p.name == "_index.md":
             continue
@@ -206,7 +212,7 @@ def main() -> int:
     else:
         print(f"WARNUNG: {vocab_md_path} fehlt, nutze map.vocabulary als Whitelist.", file=sys.stderr)
 
-    changed_files: list[tuple[Path, dict]] = []
+    changed_files: list[tuple[Path, dict[str, Any]]] = []
     unknown_counter: Counter[str] = Counter()
     errors: list[tuple[Path, str]] = []
     n = 0

@@ -59,12 +59,10 @@ cp "/Users/muente/Zentrale/09_Brain-Vault/.obsidian/app.json" \
 
 ---
 
-## ⚠ Offener Befund — Backup deckt Vault #3 NICHT ab
+## Backup-Abdeckung (Stand 2026-06-25)
 
-Bei der Verifikation (WP1, Scope OUT) festgestellt:
+- Produktiver Vault **#3** (`/Users/muente/Zentrale/09_Brain-Vault/`) ist **per Time Machine täglich gesichert** (Off-Volume). Damit ist die O4-Backup-Vorbedingung erfüllt.
+- Zusätzlich expliziter Vault-Snapshot über `scripts/backup_vault.sh` / `make backup-vault` (tar+SHA, restore-getestet 2026-06-14) — schließt die frühere #3-Lücke.
+- Repo-Skripte `scripts/snapshot.sh` / `restore.sh` sichern gezielt den Pipeline-Daten-Ort #2 (`PKM_PIPELINE_ROOT`). Details: `docs/07_backup_strategy.md`.
 
-- `scripts/backup_vault.sh` **existiert nicht** (nur als Skelett in `docs/07_backup_strategy.md`).
-- `scripts/snapshot.sh` und `scripts/restore.sh` sichern ausschließlich `PKM_PIPELINE_ROOT` (= `~/projects/aktiv/pkm-pipeline`, Ort #2).
-- Der **produktive Vault #3 (`/Users/muente/Zentrale/09_Brain-Vault/`) ist von keinem Backup-Skript erfasst.**
-
-**Entscheidung erforderlich (nicht geraten):** Soll #3 in die Backup-Strategie aufgenommen werden (Time Machine prüfen + Snapshot-Quelle erweitern)? → eigenes WP, nicht Teil von WP1.
+> Offener Owner-Check (niedrige Prio): optionale Off-Site-Kopie (Ebene 3, Diebstahl/Feuer) noch nicht etabliert.

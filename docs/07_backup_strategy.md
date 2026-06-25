@@ -3,14 +3,14 @@ title: PKM-rebuild Backup-Strategie
 slug: 07-backup-strategy
 status: stable
 created: 2026-05-25
-updated: 2026-06-14
+updated: 2026-06-25
 ---
 
 # Backup-Strategie
 
 Das Projekt verteilt sich auf **drei Orte**, von denen zwei außerhalb von Git leben und ohne eigenes Backup-Konzept unwiederbringlich wären. Dieses Dokument definiert, was wie gesichert und wie wiederhergestellt wird.
 
-> **Status (2026-06-14):** 3-Orte-Konzept aktiv. `scripts/snapshot.sh` + `scripts/restore.sh` (✅ pkm-pipeline-Recovery) und **neu** `scripts/backup_vault.sh` / `make backup-vault` (✅ expliziter Vault-Snapshot, schließt die #3-Lücke). Recovery-Drill bestanden (Archiv-Hash + Voll-Manifest, Stichproben-`diff`). **Offen (menschlich, kein Pipeline-Blocker):** Time-Machine-Verifikation und Off-Volume-Kopie auf 2. Medium (externe SSD / Cloud) — siehe §6.
+> **Status (2026-06-25):** 3-Orte-Konzept aktiv. `scripts/snapshot.sh` + `scripts/restore.sh` (✅ pkm-pipeline-Recovery) und `scripts/backup_vault.sh` / `make backup-vault` (✅ expliziter Vault-Snapshot, schließt die #3-Lücke). Recovery-Drill bestanden (Archiv-Hash + Voll-Manifest, Stichproben-`diff`). **Time Machine läuft täglich (Off-Volume, Owner bestätigt 2026-06-25)** — O4 erfüllt. **Offen (optional, kein Blocker):** Off-Site-Kopie (Ebene 3, Diebstahl/Feuer) — siehe §6.
 
 ---
 
@@ -119,12 +119,13 @@ ls -lt ~/projects/aktiv/pkm-pipeline/archive/backups/ | head # letzte Snapshots
 du -sh ~/Zentrale/09_Brain-Vault/                            # Vault-Größe (Sanity)
 ```
 
-**Offen (menschlich):**
-- [ ] Time-Machine-Verifikation (früherer Mount-Fehler Code 18)
-- [ ] Off-Volume-Kopie des Vaults auf 2. Medium etablieren (`make backup-vault TARGET=…` oder Cloud), jüngster Snapshot < 7 Tage
+**Offen (optional, kein Blocker):**
+- [x] Time Machine aktiv — täglich, Off-Volume (Owner bestätigt 2026-06-25; früherer Mount-Fehler Code 18 behoben)
+- [x] Off-Volume-Kopie des Vaults (Time-Machine-Ziel = externes Medium)
 - [x] Recovery-Drill #2 (snapshot/restore) erfolgreich
 - [x] Recovery-Drill #3 (Vault) erfolgreich
 - [x] #3-Backup-Lücke geschlossen (`make backup-vault`)
+- [ ] Off-Site-Kopie (Ebene 3, Diebstahl/Feuer) — optional, noch offen
 
 ---
 
@@ -133,3 +134,4 @@ du -sh ~/Zentrale/09_Brain-Vault/                            # Vault-Größe (Sa
 - 2026-05-25 — Initial-Version
 - 2026-06-05 — Status-Vermerk (snapshot/restore + Drill erledigt; Time Machine + 2. Medium offen)
 - 2026-06-14 — Voll-Rewrite auf 3-Orte-Konzept; `make backup-vault` / `scripts/backup_vault.sh` ergänzt (#3-Lücke geschlossen); Pfade auf `pkm-pipeline/`-Layout; veraltete Script-Skelette entfernt (Doku spiegelt jetzt die realen Skripte)
+- 2026-06-25 — Time Machine als täglich aktiv bestätigt (O4 erfüllt); §6 + Status-Note aktualisiert; offen nur noch optionale Off-Site-Kopie (Ebene 3)

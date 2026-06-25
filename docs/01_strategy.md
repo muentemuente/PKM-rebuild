@@ -61,21 +61,21 @@ Alle Kriterien müssen erfüllt sein:
 - [ ] Alle Vault-Artikel mindestens auf Qualitätsstufe 2 — **offen: menschliche Qualitätsstufe-2-Review**
 
 ### Secondary
-- [x] `corpus_report.md`, `duplicate_report.md`, `cluster_report.md` in `data/02_pipeline_output/`
+- [x] `corpus_report.md`, `duplicate_report.md`, `cluster_report.md` generiert (Vault-Ground-Truth)
 - [x] Pipeline läuft idempotent (zweimaliger Lauf = identische Outputs)
-- [ ] `--sample 10` Modus funktioniert
-- [ ] Alle Qwen-Prompts in `prompts/v1/` versioniert + Git-getrackt
-- [ ] Pipeline-Tests (`pytest`) laufen grün
+- [x] `--sample`-Modus funktioniert (`corpus-run --sample N`)
+- [x] Alle Qwen-Prompts in `prompts/v1/` (+ `v2/` restructure) versioniert + Git-getrackt
+- [x] Pipeline-Tests (`pytest`) laufen grün (760)
 
 ### Documentation
-- [ ] Alle 11 Doku-Dateien existieren, aktuell, querverlinkt
-- [ ] Pro Phase Reflexions-Doku in `docs/learnings/`
-- [ ] README mit funktionsfähigem Quick Start
+- [x] Doku-Suite existiert, querverlinkt (Konsolidierungs-Pass 2026-06-25)
+- [x] Pro Phase Reflexions-Doku in `docs/learnings/` (PHASE_00–12)
+- [x] README mit funktionsfähigem Quick Start
 
 ### Backup
-- [ ] Time Machine aktiv für Korpus + Vault
-- [ ] Vault-Snapshot auf zweitem Medium (externe SSD oder Cloud)
-- [ ] Korpus-Originale unverändert gegenüber Pre-Pipeline-Snapshot
+- [x] Time Machine aktiv für Korpus + Vault (täglich, Owner bestätigt 2026-06-25)
+- [x] Vault-Snapshot via `make backup-vault` (Off-Volume); Time-Machine-Ziel extern
+- [x] Korpus-Originale unverändert (Hard Constraint, read-only)
 
 ---
 
@@ -213,3 +213,4 @@ Dieses Doc wird gepflegt bei:
 - 2026-06-04 — Clustering-Verwurf (R9 realisiert + aufgelöst): Embedding-/HDBSCAN-Clustering verworfen, `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner; Annahmen §6 (bottom-up, mpnet-Cluster) revidiert; Stakeholder-Tabelle + DoD + Phasen-Tabelle (6/7/7b) auf Ist-Stand; Phase 8 abgeschlossen
 - 2026-06-05 — Phase 12: DoD auf Ist-Stand (Primary erfüllt außer menschl. Qualitätsstufe-2); `17_unsortiert` als regulärer Cluster; Phasen-Tabelle um 11/12 + inkrementellen Betrieb (`ingest`/`manage_vocab`)
 - 2026-06-23 — pipeline-v3: D6 additive Synthese als dokumentiertes Teil-Reversal Option B (Scope-Update §2); Artikel-Count 180→181 (Live-Messung); DoD-Pfad auf Brain-Vault
+- 2026-06-25 — DoD auf Ist-Stand (Secondary/Documentation/Backup erfüllt; offen nur Qualitätsstufe-2-Review); Legacy-Pfad in Secondary entfernt

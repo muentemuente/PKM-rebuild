@@ -3,45 +3,40 @@ title: PKM-rebuild — Projektstand
 slug: project-status
 status: stable
 created: 2026-05-28
-updated: 2026-06-23
+updated: 2026-06-25
 ---
 
-# PKM-rebuild — Projektstand (2026-06-23)
+# PKM-rebuild — Projektstand (2026-06-25)
 
-Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus und offenen Punkte.
+Aktueller Stand, Architektur, Qualität und offene Punkte. Maßgeblicher Detailstand der letzten Session: `docs/handover/post-wp4-stand.md`.
 
-> **Aktiver Zyklus: v3** (Wissensqualität — additive Synthese/MOC, Tag-/Format-Remediation, Stabilisierung). Die unten dokumentierte **Basis-Pipeline (Phasen 0–12) ist abgeschlossen** und bildet die Grundlage. Plan: `Projektplan_pipeline-v3.md`; verifizierter Realstand: `handover/v3-startstand.md`.
+> **Zyklen:** Basis-Pipeline (Phasen 0–12) **abgeschlossen** (Fundament). Darauf der **v3-Zyklus** (Wissensqualität — Stabilisierung, additive Synthese/MOC, Bestands-Remediation): **WP0–WP4 abgeschlossen + gemergt** (WP2 entfiel). Plan: `Projektplan_pipeline-v3.md`.
 
 ---
 
 ## 0. Aktueller Stand (2026-06-25)
 
-**Basis-Pipeline abgeschlossen — Phasen 1–10 implementiert, Phase 11 (Cleanup) + Phase 12 (Finalisierung) erledigt; inkrementeller Modus live. v2 teil-umgesetzt (Taxonomie-SSoT, restructure, process-Orchestrator). Aktiver Zyklus: v3. WP4 (Bestands-Remediation) **abgeschlossen + gemergt** (PR #39 + Prune #40); Post-WP4-Backlog disponiert (mdformat declined, 00_Meta-Tags closed). Backup 2. Medium (O4) während WP4-T1b vom Owner bestätigt. Menschlich verbleibend: Qualitätsstufe-2-Review (+ Time-Machine-Verifikation, Mount-Fehler).**
-
-**WP4-Ergebnis (2026-06-25):** 7 Frontmatter-Klassifikations-Fixes live (5 → `00_Meta/_projektdoku/`); NLP-Dublette (D) distinkt; Tag-strict = No-op (Content 100 % konform); mdformat deferred (Wikilink-Schutz nötig); 1 Heading-Fix; Index-Regen via neuem `pkm regenerate-indices`. Detail: `handover/wp4-abschluss.md`.
+**Basis-Pipeline (0–12, Option B — Pro-Doc, kein Cross-Doc-Merge) abgeschlossen. v3-Zyklus WP0–WP4 gemergt. Vault produktiv und idempotent. Menschlich verbleibend: Qualitätsstufe-2-Review.**
 
 | Größe | Wert |
 |---|---|
-| Vault-Artikel (Brain-Vault) | **181** in 14 genutzten Ordnern, 0 Pydantic-Fails, 0 SHA-Dups (Live-Messung 2026-06-23) |
-| `_index.md` | 14 (genutzte Ordner − `00_Meta`) |
-| Kontroll-Berichte | corpus / duplicate / cluster (Vault-Ground-Truth) + `DOD_CHECK.md` |
-| `17_unsortiert/` | 8 Artikel — vollwertiger nummerierter Cluster (AP2; vormals `unsortiert/`); Diagnose `unsortiert_diagnose.md` |
-| Reconcile | 199 Korpus-Slugs (180 ready + 19 hold) + 3 excluded = 202 |
-| Test-Suite | **757** grün (Stand 2026-06-25), ruff-Gate sauber, `mypy pipeline/` clean; `scripts/` 8 pre-existing mypy-Fehler (WP1-Backlog) |
+| Vault-Artikel (Brain-Vault #3) | **181 + 5 MOC** in 14 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups) |
+| Ordner-Struktur | 16 thematische + `17_unsortiert` (Catch-all) + `00_Maps/` (MOCs) + `00_Meta/` |
+| Idempotenz | `pkm regenerate-indices` = 0/14 (phase_9-Format, archive-before) |
+| Test-Suite | **760** grün, `ruff` clean, `mypy pipeline/` clean |
+| Code-Schuld | `scripts/` 8 pre-existing mypy-Fehler (WP1-Backlog, kein Blocker) |
 | Architektur | Option B (Pro-Doc, kein Merge); Embedding-Clustering **verworfen** (R9) |
-| Inkrementell | `pipeline ingest` (Inbox → Phasen 1–4 + 8) + `scripts/manage_vocab.py` (Vokabular-Pflege) — Phase 12 |
-| Cleanup (Phase 11) | AP1 `_pkm_common` (Drift weg) · AP2 Config-Prune · AP3 mypy-clean · AP4 unsortiert-Diagnose · AP5 Intermediates als Provenance behalten |
-| Finalisierung (Phase 12) | Workspace clean · `17_unsortiert`-Cluster · `ingest`+`manage_vocab`+Inbox · Docs Ist-Stand · Reflexion |
+| Taxonomie-SSoT | `config/`: `tag_vocabulary.yaml` (149 Tags), `categories.yaml`, `enums.yaml` |
+| Entrypoint (kanonisch) | `pkm process` (O1) — universelle Erstverarbeitung, resume-fähig |
+| Backup | Vault #3 per Time Machine täglich gesichert (O4 erfüllt) |
 
-**DoD (`scripts/dod_check.py`):** 9 ✅ / 1 ⚠️ (dokumentierte Kleinordner-Ausnahme) automatisch; 2 offen (Backup 2. Medium → O4 in WP4-T1b vom Owner bestätigt; Qualitätsstufe-2-Review) = menschlich.
+**DoD (`scripts/dod_check.py`):** automatisch 9 ✅ / 1 ⚠️ (dokumentierte Kleinordner-Ausnahme); menschlich verbleibend: Qualitätsstufe-2-Review (Backup 2. Medium ist über Time Machine erfüllt).
 
-> **Befund (Phase 12, `manage_vocab validate`):** der Vault enthält Tags außerhalb des kontrollierten 149-Tag-Vokabulars (`config/tag_vocabulary.yaml`; Stage 8 lief mit `strict_vocabulary: false`). Das ist Gegenstand der v3-Tag-Remediation (WP4) bzw. der offenen Qualitätsstufe-2-Review, kein Blocker.
-
-Details: `docs/learnings/PHASE_09_vault-build.md`, `PHASE_10_reports.md`, `PHASE_11_cleanup.md`.
+> **Tag-Befund (WP4):** Content-Tags sind 100 % konform zum 149er-Vokabular (0 OOV). Die 12 OOV-Tags in `00_Meta` (changelog/naming/review/…) sind kohärentes Meta-Vokabular **by design** außerhalb des Content-Vokabulars — kein Blocker (Disposition CLOSED, `post-wp4-stand.md`).
 
 ---
 
-## 1. Phasen-Übersicht
+## 1. Phasen-Übersicht (Basis-Pipeline)
 
 | Phase | Name | Status | Commit |
 |---|---|---|---|
@@ -50,405 +45,172 @@ Details: `docs/learnings/PHASE_09_vault-build.md`, `PHASE_10_reports.md`, `PHASE
 | 2 | Normalisierung | ✅ done | `7fd4ee3` |
 | 3 | Strukturextraktion | ✅ done | `7af5c95` |
 | 4 | Segmentierung | ✅ done | `87e7311` |
-| 5 | Redundanz-Erkennung | ✅ done | `d9cb420` |
-| 6 | Embeddings (Cluster-Prep verworfen, R9) | ✅ done | `74de985` |
+| 5 | Redundanz-Erkennung (Hash + TF-IDF) | ✅ done | `d9cb420` |
+| 6 | Embeddings (mpnet; Cluster-Prep verworfen, R9) | ✅ done | `74de985` |
 | 7 | LLM-Batch-Bildung (Token-Budget-Splits) | ✅ done | `231a2ff` |
-| 8 | Qwen-Veredelung (Option B: Stage 3+4 pro Doc) | ✅ done — 180 Drafts | (mehrere) |
-| 9 | Vault-Aufbau (180 Artikel, 15 Ordner, _index) | ✅ done | `493b2f0` |
-| 10 | Kontroll-Berichte (Vault-Ground-Truth) + DoD-Check | ✅ done | `03ecaaf` |
+| 8 | Qwen-Veredelung (Option B: Routing + Stage 3/4 pro Doc) | ✅ done | (mehrere) |
+| 9 | Vault-Aufbau (Ordner, `_index.md`, Wikilinks) | ✅ done | `493b2f0` |
+| 10 | Kontroll-Berichte + DoD-Check | ✅ done | `03ecaaf` |
 | 11 | Cleanup (AP1–5) | ✅ done | (feature/cleanup) |
-| 12 | Finalisierung (Workspace, 17_unsortiert, ingest/manage_vocab, Docs) | ✅ done | (feature/finalize) |
+| 12 | Finalisierung (Workspace, `17_unsortiert`, ingest/manage_vocab, Docs) | ✅ done | (feature/finalize) |
 
 ---
 
-## 2. Implementierungsdetails je Phase
+## 2. v3-Zyklus (Wissensqualität)
 
-### Phase 0 — Setup
+Aufgesetzt auf der abgeschlossenen Basis-Pipeline. Fokus: Stabilität, additive Synthese, kontrollierte Bestands-Remediation — alles unter den Gates D4/D6/D7.
 
-**Blöcke:**
-
-| Block | Inhalt | Status |
+| WP | Inhalt | Stand |
 |---|---|---|
-| 0.A | Git, pyproject.toml, mise, pytest, ruff, mypy | ✅ |
-| 0.B | GitHub (Repo public, LICENSE) | ✅ |
-| 0.C | Backup: snapshot.sh, restore.sh, Recovery-Drill | ✅ technisch; Backup-DoD offen |
-| 0.D | Hardware-Test: Qwen/LM-Studio, RAM, Tokens/sek | ✅ inkl. Korrekturbedarf-Docs |
-| 0.E | Doku-Korrekturen + schemas.py + phase_1_inventory Stub | ✅ |
-| 0.J | Phase-4-Fix + Book-Sonderbehandlung + Re-Run Phasen 3–7 | ✅ |
-| 0.K | denkschulen_ueberblick aus Mainstream-Pipeline exkludiert | ✅ |
-| 0.M | Reports-Generator-Bug: cluster_report zählt Docs korrekt | ✅ |
-| 0.N | CC-Autonomie-Setup (Permissions, Hooks, Arbeitsvereinbarung) | ✅ |
+| **WP0** Ist-Stand-Bereinigung | Doku-/Pfad-Drift weg; **EIN** Artikel-Count (181), **EIN** Vokabular-Stand (149); v2-Plan nach `_archive/` (superseded) | ✅ |
+| **WP1** Stabilisierung | `structlog` verdrahtet (`work/pipeline.log`); Entrypoint kanonisch `pkm process` (O1); `scripts/` mypy-Rest als Backlog dokumentiert | ✅ |
+| **WP2** Taxonomie-SSoT | **entfällt** — D1 (single canonical taxonomy) bereits durch `config/` erfüllt | n/a |
+| **WP3** Synthese | 5 additive MOCs in `00_Maps/` (`status: draft`), gemergt; Korpus-Filter via `doc_type`/Ordner (`_attic`/`00_Meta` raus) | ✅ |
+| **WP4** Bestands-Remediation | gemergt (PR #39 + Prune #40 + Post-WP4-Pass) | ✅ |
 
-**Hardware-Befunde aus Block 0.D (permanent relevant):**
-- Effektives Kontext-Window: ~50K Tokens (nicht 128K)
-- `json_mode=True` inkompatibel mit Reasoning-Modell → `json_mode=False`
-- Reasoning-Overhead ~91–93% — max_tokens = ~10× erwarteter Content
+**WP4-Bilanz (gegateter, snapshot-gesicherter Vault-weiter Einmal-Pass, D7):**
 
----
-
-### Phase 1 — Inventar
-
-**Modul:** `pipeline/phase_1_inventory.py` (292 Zeilen)  
-**Input:** `data/01_corpus_input/**/*.md`  
-**Output:** `data/02_pipeline_output/files_manifest.jsonl`
-
-**Kernlogik:**
-- Rekursive Suche mit konfiguriertem `exclude_patterns` + `include_extensions`
-- `doc_id` = `D_<slug>` aus Dateiname (slugifiziert, Kollision → `_2`, `_3`)
-- SHA-256 pro File
-- Idempotenz via `files_manifest.jsonl.meta.json`
-
-**Schema:** `DocumentRecord` (doc_id, path, sha256, size_bytes, word_count, …)  
-**Tests:** 24 Tests — Slug-Kollision, SHA-256-Stabilität, Idempotenz, exclude_patterns, leeres Verzeichnis
-
----
-
-### Phase 2 — Normalisierung
-
-**Modul:** `pipeline/phase_2_normalize.py` (320 Zeilen)  
-**Input:** `files_manifest.jsonl` + Korpus-Files  
-**Output:** `data/02_pipeline_output/cleaned_documents.jsonl`
-
-**Kernlogik:**
-- CRLF → LF, Tabs → 4 Spaces (außer Code-Blöcke)
-- Trailing Whitespace entfernen (außer Code-Blöcke)
-- Max. 3 aufeinanderfolgende Leerzeilen
-- YAML-Frontmatter extrahieren (Fallback: leeres Dict)
-- Code-Blöcke werden hash-identisch bewahrt
-
-**Schema:** `CleanedDocument` (doc_id, body, frontmatter, normalized_sha256)  
-**Tests:** 25 Tests — Code-Block-Preservation, CRLF, Frontmatter-Extraktion, Idempotenz
-
----
-
-### Phase 3 — Strukturextraktion
-
-**Modul:** `pipeline/phase_3_structure.py` (488 Zeilen)  
-**Input:** `cleaned_documents.jsonl`  
-**Output:** `data/02_pipeline_output/documents_structured.jsonl`
-
-**Kernlogik:**
-- Heading-Extraktion (H1–H6) mit `mistune`
-- Code-Blöcke mit Sprach-Tag (Fallback: `unknown`)
-- Tabellen-Count, Links, Image-Referenzen
-- `doc_type_guess`: heuristischer Typ-Guess (`knowledge-article`, `process-document`, `compact-reference`, …) mit Confidence-Score + Signals
-
-**Schema:** `StructuredDocumentRecord` + `DocTypeGuess`  
-**Tests:** 36 Tests — alle Extraktions-Felder, Typ-Guess-Signals, H1-Fallback, Idempotenz  
-**Mypy:** 8 pre-existing Fehler (type-arg + 1 no-any-return + 1 arg-type) — bekannt, nicht regressions-verursacht
-
----
-
-### Phase 4 — Segmentierung
-
-**Modul:** `pipeline/phase_4_segment.py` (396 Zeilen)  
-**Input:** `cleaned_documents.jsonl` + `files_manifest.jsonl`  
-**Output:** `data/02_pipeline_output/segments.jsonl`
-
-**Kernlogik:**
-- Split nach Headings (konfigurierbar: `split_by_headings`)
-- Segment-Grenzen respektieren Code-Blöcke, Tabellen, Listen (keine Risse)
-- Segment-ID: `<doc_id>-S<index:04d>`
-- `heading_path`: Breadcrumb-Pfad zu übergeordneten Headings
-- Zu kurze Segmente werden mit Nachbar gemergt (min_words Threshold)
-- Zu lange Segmente werden gesplittet (max_words Threshold)
-
-**Schema:** `SegmentRecord` (segment_id, doc_id, text, word_count, heading_path, contains_code, …)  
-**Tests:** 34 Tests — Code-Block-Integrität, Heading-Pfad, min/max_words, Idempotenz
-
-**Block-0.J-Update (2026-05-29):**
-- `407a610` — Heading-only und undersized Segmente werden korrekt mit Nachbar gemergt
-- `16ba455` — `min_words_per_segment: 50 → 150`
-- `7af5c95` — Phase 3: `doc_type_guess`-Label `book` für Files > 8000 Wörter
-- `596137a` — Phase 4: Book-Sonderbehandlung: H1/H2-Split (statt H2/H3), größere Segmente
-- `87e7311` — Book-Parameter korrekt an Phase 3 + 4 durchgereicht
-- Re-Run ab Phase 3: **5.368 → 1.581 Segmente**, Ø Wörter ~60 → ~203
-
-**Block-0.K + Threshold-Iteration (2026-05-29):**
-- `denkschulen_ueberblick_und_einfuehrung.md` (15.770 Wörter, 394 H2-Headings) als Survey-Doc aus Mainstream-Pipeline exkludiert (`_excluded/`-Subfolder, `5155340`)
-- Nach Exklusion Re-Run: **1.581 → 1.187 Segmente**
-- `similarity_threshold` iterativ getestet: 0.85 → 0 echte Cluster, 0.65 → Mega-Cluster C_cluster-0000 (168 Docs), 0.75 → 85.9 % unsortiert, zurück auf 0.65
-- Stand: 0.65 als Fallback, Mega-Cluster bleibt bekanntes Problem → Block 0.L (Clustering-Strategie)
-- Reports-Generator zeigte „Top-Cluster 8 Docs" statt tatsächlich 168 — Diskrepanz per Direct-Query aufgelöst → Bug-Fix in Block 0.M
-
----
-
-### Phase 5 — Redundanz-Erkennung
-
-**Modul:** `pipeline/phase_5_redundancy.py` (331 Zeilen)  
-**Input:** `cleaned_documents.jsonl` + `segments.jsonl`  
-**Output:** `exact_duplicates.json` + `near_duplicate_edges.jsonl`
-
-**Kernlogik:**
-- Exakte Duplikate: SHA-256-Vergleich auf `normalized_sha256`
-- TF-IDF-Ähnlichkeit: `sklearn.TfidfVectorizer` auf Segment-Texten
-  - n-gram Range konfigurierbar (Default: `[1, 2]`)
-  - Threshold konfigurierbar (Default: 0.85)
-  - Upper-Triangle only (Symmetrie-Invarianz)
-- Beide Methoden unabhängig, Ergebnisse werden in Phase 7 zusammengeführt
-
-**Tests:** 19 Tests — SHA-Duplikate, TF-IDF-Threshold, Symmetrie, Performance-Bound, Idempotenz  
-**Mypy:** clean
-
----
-
-### Phase 6 — Embeddings + Cluster-Vorbereitung
-
-**Modul:** `pipeline/phase_6_embeddings.py` (393 Zeilen)  
-**Input:** `segments.jsonl`  
-**Output:** `embeddings.parquet` + `cluster_proposals.json`
-
-**Kernlogik:**
-- Embedding-Modell: `sentence-transformers/paraphrase-multilingual-mpnet-base-v2`
-- Batch-Verarbeitung (konfigurierbar, Device: CPU/CUDA/MPS)
-- Speicherformat: Parquet (kompakt, schnell nachladbar)
-- Clustering: Cosine-Similarity-Matrix → agglomeratives Clustering (initiale Strategie konfigurierbar)
-- Mikrocluster (`< min_cluster_size`) → Label `unsortiert`
-- `cluster_proposals.json` enthält Cluster-ID, Label-Guess, Segment-IDs
-
-**Tests:** 23 Tests — Embedding-Dimensionen, Parquet-Roundtrip, Mikrocluster-Handling, Idempotenz  
-**Mypy:** 5 Fehler (scipy-Stubs, pyarrow-untyped-calls) — pre-existing, kein Regressionsrisiko
-
----
-
-### Phase 7 — LLM-Batch-Bildung
-
-**Modul:** `pipeline/phase_7_batches.py` (447 Zeilen)  
-**Input:** `segments.jsonl` + `cluster_proposals.json` + `near_duplicate_edges.jsonl`  
-**Output:** `data/02_pipeline_output/batches/batch_NNN_<slug>.md`
-
-**Kernlogik:**
-- Pro Cluster ein oder mehrere Batch-Files (Token-Budget: `max_input_tokens` aus Config)
-- Cluster mit vielen Segmenten → aufgeteilt in Sub-Batches (`split_oversized_clusters`)
-- Token-Schätzung: Zeichen / 4 (heuristisch für Qwen)
-- Batch-File ist valides Markdown mit YAML-Frontmatter (batch_id, cluster_id, segment_count, token_estimate)
-- Redundanz-Kanten aus Phase 5 werden als Hinweis-Block in jeden Batch eingebettet
-- Nummerierung: `batch_001_`, `batch_002_`, … (lexikographisch stabil)
-
-**Tests:** 24 Tests — Batch-Splitting, Token-Budget, Frontmatter-Validation, Redundanz-Einbettung, Idempotenz  
-**Mypy:** clean
-
----
-
-### Phase 8 — Qwen-Synthese (4-Stage) — *historisch (Option A)*
-
-> Die folgende 4-Stage-Beschreibung dokumentiert den ursprünglichen Option-A-Entwurf. **Umgesetzt wurde Option B** (Pro-Doc, nur Stage 3+4, Routing). Siehe Update-Hinweis unten und `docs/learnings/PHASE_08_synthesis.md`.
-
-**Modul:** `pipeline/phase_8_synthesis.py` (770 Zeilen)  
-**Input:** `batches/*.md` + `segments.jsonl`  
-**Output:** `data/02_pipeline_output/qwen/{batch_id}/stage1_analysis.json`  
-         `data/02_pipeline_output/qwen/{batch_id}/stage2_merges.json`  
-         `data/03_drafts/CK_{slug}.body.md`  
-         `data/03_drafts/CK_{slug}.frontmatter.json`  
-         `data/03_drafts/CK_{slug}.md` (kombiniert)  
-         `data/02_pipeline_output/qwen/needs_human.jsonl`
-
-**4-Stage-Logik:**
-
-| Stage | Input | Output | Temp |
-|---|---|---|---|
-| 1 | Batch-Markdown | `stage1_analysis.json` — Themen, Cluster-Struktur, Kandidaten | 0.3 |
-| 2 | Stage-1-JSON | `stage2_merges.json` — Konzept-Vorschläge, discarded_segments | 0.2 |
-| 3 | Stage-2-Konzept + Quell-Segmente | `CK_slug.body.md` — Markdown-Artikel | 0.4 |
-| 4 | Stage-3-Body + Stage-2-Metadaten | `CK_slug.frontmatter.json` — Pydantic-validiert | 0.1 |
-
-**Besonderheiten:**
-- `json_mode=False` (Reasoning-Modell-Constraint aus Block 0.D)
-- JSON-Extraktion aus Freitext: `_extract_json()` — sucht `\`\`\`json`-Block, Fallback: äußerstes `{…}`
-- Thinking-Tags (`<think>…</think>`) werden vor Parsing entfernt
-- Retry bei JSON-Parse-Fehler (max_retries aus Config)
-- Pflichtfelder (`status: draft`, `review_status: ai_drafted`, `last_synthesized`) werden nach Qwen-Antwort erzwungen
-- Validation-Fehler → `confidence: low` setzen + `needs_human.jsonl`
-- Review-Gate: `merge_decisions.json` überschreibt Stage-2-Output wenn vorhanden
-- Slug-Kollisionsschutz: `_unique_slug()` mit `_2`, `_3`-Suffix
-- Idempotenz: Hash-Cache pro Stage + `force`-Flag
-
-**Prompts:** `prompts/v1/` — 4 Dateien mit YAML-Frontmatter (prompt_id, prompt_version, created)
-
-**Tests:** 32 Tests — JSON-Extraktion (Sonderfälle), Slugify-Umlaute, Idempotenz, force-Re-Run, bad-Response-Handling, Pydantic-Validation, kombiniertes Draft-File
-
-> **Update (2026-06-04):** Phase 8 ist **gegen den echten Korpus gelaufen** und abgeschlossen — 180 vault-ready Drafts. Umgesetzt als **Option B** (Pro-Doc, Routing passthrough/stage3/gedanken), nicht als 4-Stage-Merge. Die 4-Stage-Beschreibung oben ist historisch (Option A); Stage 1/2 sind deprecated. Mechanik: Triage (`pkm_triage.py`) + `phase8_runner.py`. Siehe `docs/learnings/PHASE_08_synthesis.md`.
-
----
-
-## 3. Schemas (`pipeline/schemas.py`)
-
-| Schema | Verwendet in | Pflichtfelder |
-|---|---|---|
-| `DocumentRecord` | Phase 1 Output | doc_id, path, sha256, size_bytes, word_count |
-| `CleanedDocument` | Phase 2 Output | doc_id, body, frontmatter, normalized_sha256 |
-| `DocTypeGuess` | Phase 3 Output | label (Literal), confidence, signals |
-| `StructuredDocumentRecord` | Phase 3 Output | doc_id, title, headings, code_blocks, doc_type_guess |
-| `SegmentRecord` | Phase 4 Output | segment_id, doc_id, text, word_count, heading_path |
-| `FrontmatterDraft` | Phase 8 Output | title, slug, summary, type, doc_role, category, sources_docs, source_chunks, status, review_status, confidence, doc_version, created, updated, last_synthesized, prompt_version |
-
-**Mypy:** 3 pre-existing `type-arg`-Fehler (`dict` ohne Parameter) — aus initialer Implementierung, kein Regressionsrisiko
-
----
-
-## 4. Code-Qualität
-
-| Tool | Status | Details |
-|---|---|---|
-| `ruff check` | ✅ clean | alle Phasen + Tests |
-| `ruff format` | ✅ clean | |
-| `mypy pipeline/` | ⚠️ 17 Fehler in 4 Dateien | Phase 8: 0 Fehler |
-| Tests gesamt | ✅ 359/359 grün | inkl. Runner-, NFD-Slug-, gedanke-Type-Tests (Pre-Phase-9-Hardening) |
-
-### Mypy-Fehler nach Datei
-
-| Datei | Fehler | Typ | Bewertung |
-|---|---|---|---|
-| `schemas.py` | 3 | `type-arg` (dict ohne Params) | pre-existing, kein Laufzeitrisiko |
-| `phase_2_normalize.py` | 1 | `type-arg` | pre-existing |
-| `phase_3_structure.py` | 8 | `type-arg`, `no-any-return`, `arg-type` | pre-existing |
-| `phase_6_embeddings.py` | 5 | scipy/pyarrow Stubs, `no-any-return` | pre-existing, Stubs nicht verfügbar |
-
-Alle 17 Fehler sind in Phasen 2, 3, 6 aus den ersten Implementierungsläufen. Phase 8 ist mypy-clean. Behebung der restlichen Fehler ist kein Blocker, aber Schulden.
-
-### Tests pro Phase
-
-| Test-File | Tests |
+| Tier | Ergebnis |
 |---|---|
-| `test_config.py` | 5 |
-| `test_phase_10_reports.py` | 11 |
-| `test_phase_1_inventory.py` | 24 |
-| `test_phase_2_normalize.py` | 25 |
-| `test_phase_3_structure.py` | 42 |
-| `test_phase_4_segment.py` | 60 |
-| `test_phase_5_redundancy.py` | 19 |
-| `test_phase_6_embeddings.py` | 23 |
-| `test_phase_7_batches.py` | 24 |
-| `test_phase_8_synthesis.py` | 37 |
-| `test_sanity.py` | 5 |
-| **Gesamt** | **282** |
+| T0 Verifikation | Audit/Plan als Hypothese geprüft (verify-first) |
+| T1 Klassifikation | 7 Frontmatter-Reklassifikationen live; 5 → `00_Meta/_projektdoku/`; Body byte-identisch |
+| T2 Dubletten | NLP-Paar verifiziert **distinkt** (D) → 0 Mutationen |
+| T3 Tags/Format | Tags **No-op** (Content 100 % konform); Format **deferred/declined** (mdformat bricht Alias-Wikilinks) |
+| T4 restructure | **1** echter Fix (`datenaufnahme`, 6× H1→H2) |
+| T5 Indizes | regeneriert via `pkm regenerate-indices` |
+
+**Kernlearning:** Verify-first hat den halben Backlog als stale entlarvt (Dubletten 6→0, Fehlklass. ~8→7, „12 OOV"-Content-Tags→0, restructure-Roh 26→1). Größte Hebelwirkung lag im Prüfen, nicht im Mutieren.
+
+**Post-WP4-Dispositionen:** mdformat-wikilink-safe **DECLINED** (Vault bleibt unformatiert, funktional ok); 00_Meta-Governance-Tags **CLOSED** (niedriger Wert); Monolith-B → nlp-Serie **deferred** (eigenes Synthese-WP, `docs/handover/ideen-backlog.md`).
 
 ---
 
-## 5. Konfigurations-Schlüsselwerte (`pipeline.config.yaml`)
+## 3. Phasen-Implementierung (Referenz)
 
-| Schlüssel | Wert | Begründung |
+Vollständig: `docs/02_pipeline_spec.md`. Logik je Phase (deterministisch, idempotent via Input-Hash, `--force` ignoriert Cache):
+
+| Phase | Modul | Input → Output | Kernlogik |
+|---|---|---|---|
+| 1 Inventar | `phase_1_inventory.py` | Korpus → `files_manifest.jsonl` | `doc_id = D_<slug>` (Kollision → `_2`), SHA-256, `exclude_patterns` |
+| 2 Normalisierung | `phase_2_normalize.py` | Manifest → `cleaned_documents.jsonl` | CRLF→LF, Tab→4 Spaces, max 3 Leerzeilen, Frontmatter-Extraktion; Code-Blöcke hash-identisch bewahrt |
+| 3 Struktur | `phase_3_structure.py` | cleaned → `documents_structured.jsonl` | Headings/Code/Tabellen/Links/Images via `mistune`; heuristischer `doc_type_guess` (+ `book`-Label ab 8000 W) |
+| 4 Segmentierung | `phase_4_segment.py` | cleaned + manifest → `segments.jsonl` | Split nach Headings; Code/Tabellen/Listen nie zerrissen; min 150 / target 900 / max 1500 Wörter; `heading_path`-Breadcrumb |
+| 5 Redundanz | `phase_5_redundancy.py` | cleaned + segments → `exact_duplicates` + `near_duplicate_edges` | SHA-256-Exact + TF-IDF (Threshold **0.72**, n-gram [1,2]); Upper-Triangle |
+| 6 Embeddings | `phase_6_embeddings.py` | segments → `embeddings.parquet` | mpnet-base (768-dim, MPS); nur Redundanz; **Clustering verworfen** (R9), nur `min_cluster_size`→`unsortiert` |
+| 7 Batches | `phase_7_batches.py` | segments + edges → `batches/*.md` | Token-Budget-Splits (`max_input_tokens` 35000); kein Cluster-Merge |
+| 8 Qwen (Option B) | `phase_8_synthesis.py`, `phase8_runner.py`, `pkm_triage.py` | batches/Doc → Drafts `CK_<slug>.*` | Pro-Doc-Routing `passthrough`/`stage3`/`gedanken` → Stage 4 Frontmatter; `json_mode=false`, Thinking-Strip, Pydantic-Validation; `merged_from` immer leer |
+| 9 Vault-Aufbau | `phase_9_vault_build.py` | Drafts → Vault | `category` (Stage 4) + deterministisches Mapping auf 16 Ordner + `17_unsortiert`; `_index.md`; Wikilink-Validierung; Build-Tier repair→format→audit (nur `output/`, nie Live-Vault) |
+| 10 Berichte | `phase_10_reports.py` | Vault → corpus/duplicate/cluster-Reports + `DOD_CHECK.md` | Vault-Ground-Truth-Zählung (distinct `doc_id`) |
+
+**v3-Module (über Basis hinaus):** `process_orchestrator.py` (kanonischer `pkm process`), `orchestrator.py`/`run_flow.py`/`driver.py`, `restructure.py` + `batch_restructure.py` (typ-bewusst, Reasoning aus, v2-Prompts), `review.py`/`promotion.py` (Gates A–D, kein Auto-Promote), `redundancy_scan.py` + `synthesis_moc.py` (WP2/WP3), `taxonomy.py`/`vocab.py` (SSoT), `vault_audit.py`/`frontmatter_audit.py` (read-only), `regenerate_indices.py` (ersetzt `scripts/_deprecated/rebuild_indices.py`), `format_vault.py`/`fence_indented.py`, `ingest.py`/`ingest_md_download.py`.
+
+---
+
+## 4. Schemas (`pipeline/schemas.py`)
+
+| Schema | Phase | Pflichtfelder (Auszug) |
 |---|---|---|
-| `qwen.endpoint` | `http://localhost:1234/v1` | LM-Studio Default |
-| `qwen.model` | `qwen/qwen3.6-27b` | gemessen Block 0.D |
-| `qwen.context_window` | `49152` (~50K) | Hard Limit auf 32 GB RAM |
-| `qwen.json_mode` | `false` | Reasoning-Modell inkompatibel |
-| `qwen.prompt_version` | `v1` | aktive Prompt-Version |
-| `embeddings.model` | `paraphrase-multilingual-mpnet-base-v2` | multilingual, 768-dim |
+| `DocumentRecord` | 1 | doc_id, path, sha256, size_bytes, word_count |
+| `CleanedDocument` | 2 | doc_id, body, frontmatter, normalized_sha256 |
+| `DocTypeGuess` / `StructuredDocumentRecord` | 3 | label (Literal), confidence, signals / title, headings, code_blocks |
+| `SegmentRecord` | 4 | segment_id, doc_id, text, word_count, heading_path |
+| `FrontmatterDraft` | 8 | title, slug, summary, type, doc_role, category, sources_docs, status, review_status, confidence, doc_version, created, updated, last_synthesized, prompt_version |
+
+**Type-Enum (4 Werte):** `process-document | knowledge-article | compact-reference | gedanke`.
+**Status:** `draft → review → stable → deprecated` · **Review-Status:** `ai_drafted → human_reviewed → verified`.
+
+---
+
+## 5. Konfiguration (verifiziert gegen `pipeline/pipeline.config.yaml`)
+
+Pfade leben zentral in `pipeline/_paths.py` (nicht in der YAML). Override: `PKM_PIPELINE_ROOT`, `PKM_REPO_ROOT`, `PKM_BRAIN_VAULT`.
+
+| Schlüssel | Wert |
+|---|---|
+| `qwen.model` / `context_window` | `qwen/qwen3.6-27b` / `49152` (~50K, Hard Limit 32 GB) |
+| `qwen.json_mode` | `false` (Reasoning-Modell-Constraint, Block 0.D) |
+| `qwen.prompt_version` | `v1` (Phase 8); `restructure.prompt_version` `v2` (typ-bewusst, `reasoning_effort: none`) |
+| `embeddings.model` / `device` | `paraphrase-multilingual-mpnet-base-v2` / `mps` |
+| `embeddings.similarity_threshold` | `0.65` |
+| `redundancy.tfidf.threshold` | `0.72` |
+| `redundancy_scan` (WP2) | `tfidf 0.72`, `embedding_dup 0.85`, `thematic_low 0.70`, `synthesis_min_members 3`; exclude `_attic`/`00_Meta` |
+| `batching.max_input_tokens` | `35000` |
+| `vault` Build-Tier | `repair_on_build` / `format_on_build` / `audit_on_build` = `true` (nur `output/`, nie Live-Vault) |
+| `tags` | Vokabular `config/tag_vocabulary.yaml`; `strict_vocabulary: false`; 2–10 Tags/Artikel |
 
 ---
 
 ## 6. Datei-Layout (aktuell)
 
 ```
-PKM-rebuild/
-├── pipeline/
-│   ├── __main__.py              ← CLI entry point
-│   ├── config.py                ← Pydantic-Config-Loader
-│   ├── schemas.py               ← alle Pydantic-Schemas
-│   ├── phase_1_inventory.py
-│   ├── phase_2_normalize.py
-│   ├── phase_3_structure.py
-│   ├── phase_4_segment.py
-│   ├── phase_5_redundancy.py
-│   ├── phase_6_embeddings.py
-│   ├── phase_7_batches.py
-│   └── phase_8_synthesis.py
-├── prompts/
-│   └── v1/
-│       ├── stage1_cluster_analysis.md
-│       ├── stage2_merge_proposal.md
-│       ├── stage3_synthesis.md
-│       ├── stage4_frontmatter_json.md
-│       └── schemas/
-│           ├── stage1_output.schema.json
-│           ├── stage2_output.schema.json
-│           └── stage4_output.schema.json
-├── tests/
-│   ├── conftest.py
-│   ├── test_phase_1_inventory.py
-│   ├── …
-│   ├── test_phase_8_synthesis.py
-│   └── test_sanity.py
-└── docs/
-    ├── 00_persona_muente.md
-    ├── 01_strategy.md
-    ├── 02_pipeline_spec.md
-    ├── 03_vault_standard.md
-    ├── 04_qwen_prompts.md
-    ├── 06_claude_code_workflow.md
-    └── learnings/
-        └── PHASE_00_setup.md    ← einzige fertige Phase-Reflexion
+PKM-rebuild/                    ← Git, public (Ort #1)
+├── README.md  CLAUDE.md  WAYFINDING.md  MANUAL_STEPS.md
+├── Makefile  mise.toml  pyproject.toml
+├── config/                     ← Taxonomie-SSoT (categories/enums/tag_vocabulary.yaml, tag_merge_map.json)
+├── pipeline/                   ← Code + CLAUDE.md + pipeline.config.yaml
+│   ├── phase_1..10_*.py        ← Basis-Pipeline
+│   ├── process_orchestrator / orchestrator / run_flow / driver
+│   ├── restructure / batch_restructure / review / promotion
+│   ├── redundancy_scan / synthesis_moc / taxonomy / vocab
+│   ├── vault_audit / frontmatter_audit / regenerate_indices / format_vault
+│   └── _paths.py  schemas.py  config.py
+├── prompts/                    ← v1 (Phase 8) + v2 (restructure) + schemas/, CLAUDE.md
+├── scripts/                    ← manage_vocab, pkm_triage, dod_check, snapshot/restore.sh, … (_deprecated/rebuild_indices.py)
+├── tests/                      ← 760 Tests (+ fixtures/)
+└── docs/                       ← Projekt-Doku (s.u.)
+    ├── 00_persona / 00b_arbeitsvereinbarung / 01_strategy / 02_pipeline_spec
+    ├── 03_vault_standard / 04_qwen_prompts / 05_glossary / 06_claude_code_workflow / 06b_tool_routing / 07_backup_strategy
+    ├── PROJECT_STATUS / Projektplan_pipeline-v3 / FUTURE_RUN / RUNBOOK_new_files
+    ├── handover/   ← aktuell: post-wp4-stand.md, ideen-backlog.md (Rest = Historie)
+    ├── learnings/  ← Phasen-Reflexionen (Historie)
+    ├── vault_meta/ wayfinding/ reports/
+    └── _archive/   ← superseded Artefakte
 ```
+
+**Daten (außerhalb Git, Ort #2):** `~/projects/aktiv/pkm-pipeline/{input,work,drafts,review,output,archive}`.
+**Produktiv-Vault (außerhalb Git, Ort #3):** `~/Zentrale/09_Brain-Vault/` (`pipeline._paths.BRAIN_VAULT`).
 
 ---
 
-## 7. Offene Punkte
+## 7. Code-Qualität
 
-### 7.1 Backup-DoD (kein Phase-9-Blocker, aber Pflicht vor Produktivlauf)
+| Tool | Status |
+|---|---|
+| `pytest` | ✅ **760** grün |
+| `ruff check` / `ruff format` | ✅ clean |
+| `mypy pipeline/` | ✅ clean |
+| `mypy scripts/` | ⚠️ 8 pre-existing Fehler (WP1-Backlog, kein Laufzeitrisiko) |
+
+---
+
+## 8. Offene Punkte
 
 | Punkt | Status |
 |---|---|
-| Time Machine aktiv für Korpus + Vault | ❌ Mount-Fehler Code 18 (Volume nicht eingehängt) |
-| Vault-Snapshot auf zweitem Medium | ❌ Medium noch nicht entschieden (ext. SSD / iCloud / Backblaze) |
-
-### 7.2 Code-Qualität (Schulden, kein Blocker)
-
-| Datei | Problem |
-|---|---|
-| `schemas.py` | 3× `dict` ohne Type-Parameter → `dict[str, Any]` |
-| `phase_2_normalize.py` | 1× `dict` ohne Type-Parameter |
-| `phase_3_structure.py` | 8 mypy-Fehler, davon 1 echter (`arg-type` bei `DocTypeGuess`) |
-| `phase_6_embeddings.py` | scipy/pyarrow Stubs fehlen; `ignore_missing_imports` nachrüsten |
-
-### 7.3 Phase-Reflexionen fehlen (Phases 1–8)
-
-Gemäß CLAUDE.md Sektion 8 sollte jede Phase mit `docs/learnings/PHASE_NN_<slug>.md` abschließen. Bisher nur `PHASE_00_setup.md` vorhanden.
-
-### 7.4 ✅ Phase 8 CLI-Integration (behoben)
-
-Phase 8 ist in der CLI registriert und gelaufen (`--phase 8`, `--file` für Einzel-Korpus-Files). Produktiv über `phase8_runner.py`.
-
-### 7.5 ✅ Clustering-Mega-Cluster (aufgelöst durch Verwurf, R9)
-
-`C_cluster-0000` enthielt 168 Docs (83 %) bei `similarity_threshold=0.65`; 0.75 → 85.9 % unsortiert, 0.85 → 0 Cluster. **Befund:** der Korpus hat keine inhärente Cluster-Struktur. **Entscheidung:** Embedding-/HDBSCAN-Clustering als Vault-Strukturprinzip **verworfen**. `category` kommt aus Qwen-Stage-4 + deterministischem Mapping auf 16 Vault-Ordner (`apply_category_mapping.py`, `03_vault_standard.md` Appendix A). Embeddings dienen nur noch der Redundanz-Erkennung.
-
-### 7.6 ✅ Reports-Generator-Bug Cluster-Größen (Block 0.M — behoben)
-
-`cluster_report.md` zeigte „Top-Cluster 8 Docs" statt tatsächlich 168. Ursache: Doc-Count wurde via Segment-Count berechnet statt via distinct `doc_id`s. Behoben in `fa9669c` — Doc-Count via `s.rsplit('-S', 1)[0]` + 2 Regressions-Tests (`test_cluster_report_doc_count`, `test_cluster_report_excludes_unsortiert_from_stats`).
+| **Qualitätsstufe-2-Review** der Artikel (`draft → review/stable`) | offen, menschlich — **kein** Auto-Promote durch CC |
+| `scripts/` mypy (8 pre-existing) | Backlog, kein Blocker |
+| Time-Machine-Restore-Verifikation (Vault #3) | niedrige Prio, Owner-Check (früherer Mount-Fehler Code 18) |
+| Backup 2. Medium (O4) | erfüllt — Vault #3 per Time Machine täglich gesichert |
 
 ---
 
-## 8. Nächste Schritte
+## 9. Nächste Schritte
 
-Option B (Pro-Doc-Veredelung) — Stand 2026-06-04:
+Im WP4-Scope ist **keine** offene Arbeit. Optionen für ein nächstes WP:
 
-```
-✅ 0.L-Impl  Option-B-Routing (passthrough/stage3/gedanken)
-✅ 0.G  Vault-Foundations (Tag-Vokabular, Templates, Gedanken-Pfad)
-✅ 8.A/8.B  Phase-8-Lauf → 180 vault-ready Drafts
-✅ E1–E5  Pre-Phase-9-Hardening (gedanke-Enum, NFC-Slug, Category-Mapping, Runner)
-→  9    Vault-Aufbau (16 Ordner, _index.md, Wikilink-Auflösung)
-→  10   Kontroll-Berichte final + DoD-Check
-↪  FUTURE_RUN  19 _hold-Gedanken + 2 Hangs + neue Files (docs/FUTURE_RUN.md)
-○  0.I  Backup-DoD (Time Machine, 2. Medium) — vor Produktiv-Abschluss
-```
+- **Monolith-B → nlp-Serie zerlegen** (additives Synthese-WP, eigener Plan + Gates; `docs/handover/ideen-backlog.md`). Bewusst NICHT als Cleanup-Nebenbei.
+- **Konditionales WP5** (Klassifikations-Optimierung) — nur falls eine Stichprobe Fehlzuweisungen zeigt.
+
+Vault-Mutationen weiterhin nur per Owner-`!`-Lauf (D-WP4-3), Gates heilig, kein Auto-Merge nach `main`.
 
 ---
 
 ## Änderungs-Log
 
 - 2026-05-28 — Erstellt nach Abschluss Phase 8
-- 2026-05-28 — Korrigiert: Phase 8 Status auf 🟡 (CLI-Wiring offen, kein Echtlauf), Sektion 8 → Verweis auf Master-Plan
-- 2026-05-29 — Block-0.J: Phase-3/4-Commits aktualisiert, Phase-4-Notiz (Book-Sonderbehandlung + Re-Run-Ergebnis)
-- 2026-05-29 — Block-0.K: denkschulen_ueberblick exkludiert; Blöcke 0.J+0.K in Sektion 2 ergänzt; Befund: `C_cluster-0000` Mega-Cluster (similarity_threshold-Problem) bleibt offen
-- 2026-05-29 — Block-0.J.8: Phase-10 done (`fd161be`), Tests 222→275, Threshold-Iteration + Block-0.K in Phase-4-Sektion, Offene Punkte 7.5+7.6 ergänzt
-- 2026-05-30 — Block-0.M abgeschlossen (`fa9669c`): §7.6 als behoben markiert; Block-0.N ergänzt (Autonomie-Setup, Permissions, Hooks); Tests 275→282; §8 Nächste Schritte auf Option-B-Roadmap aktualisiert
-- 2026-06-04 — Phase 8 abgeschlossen (180 Drafts); §0 Aktueller Stand mit Counts (180/19/3); Clustering verworfen (§7.5 aufgelöst, R9); Phase-8-CLI §7.4 behoben; Tests 282→359; Phasen-Tabelle + §8 auf Ist-Stand; Pre-Phase-9-Hardening E1–E5
-- 2026-06-05 — Phase 12 (Finalisierung): §0 auf Projekt-Abschluss; `17_unsortiert` als regulärer Cluster (AP2); inkrementeller Modus (`ingest` + `manage_vocab`, AP3); Phasen-Tabelle 11/12; Tests 377→399; status → stable; Tag-Vokabular-Befund (`strict_vocabulary: false`)
-
-## 2026-06-06 — ABGESCHLOSSEN
-Vault gebaut + tag-bereinigt (149er Vokabular), Doku final, Repo aufgeraeumt, Re-Run-Runbook vorhanden. DoD erfuellt.
-
-## 2026-06-23 — v3-Zyklus-Start (WP0)
-Realstand verifiziert (`handover/v3-startstand.md`): Vault-Count **180→181** (Live-Messung), Test-Suite 399→**738** grün, `mypy pipeline/` clean (scripts/ 8 pre-existing → WP1). Doku-Drift bereinigt: EIN Artikel-Count (181) + EIN Vokabular-Stand (149) repo-weit; v2-Plan nach `_archive/` (superseded by v3); Legacy-`data/0X`-Pfade in `02_pipeline_spec` als deprecated markiert; `01_strategy` D6 (additive Synthese, Teil-Reversal Option B). Aktiver Zyklus: v3.
+- 2026-05-29 — Block 0.J/0.K: Phase-3/4-Updates, Threshold-Iteration, Mega-Cluster-Befund
+- 2026-05-30 — Block 0.M (Reports-Bug behoben), 0.N (Autonomie-Setup)
+- 2026-06-04 — Phase 8 abgeschlossen (Option B, 180 Drafts); Clustering verworfen (R9); Pre-Phase-9-Hardening
+- 2026-06-05/06 — Phase 11/12 (Finalisierung); Vault gebaut + tag-bereinigt (149er Vokabular); Basis-Pipeline ABGESCHLOSSEN
+- 2026-06-23 — v3-Zyklus-Start (WP0): Realstand verifiziert (181 Artikel, Tests grün); Doku-Drift bereinigt; v2-Plan archiviert
+- 2026-06-25 — **Voll-Rewrite** auf Post-WP4-Stand: §0 aktualisiert (181 + 5 MOC, 760 Tests, idempotent); neue §2 v3-Zyklus (WP0–WP4 + WP4-Bilanz + Dispositionen); §3 Phasen-Referenz neu (ohne stale Metriken) + v3-Module; §5 gegen `pipeline.config.yaml` verifiziert (TF-IDF 0.85→**0.72** korrigiert); §6 Layout aktuell; §7 760 Tests / mypy pipeline clean; §8 Backup als erfüllt (Time Machine)

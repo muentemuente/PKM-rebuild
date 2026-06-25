@@ -16,7 +16,7 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 
 ## 0. Aktueller Stand (2026-06-25)
 
-**Basis-Pipeline abgeschlossen — Phasen 1–10 implementiert, Phase 11 (Cleanup) + Phase 12 (Finalisierung) erledigt; inkrementeller Modus live. v2 teil-umgesetzt (Taxonomie-SSoT, restructure, process-Orchestrator). Aktiver Zyklus: v3. WP4 (Bestands-Remediation) abgeschlossen — PR #39 (`feat/wp4-t1-klassifikation`), Owner-Merge offen. Menschlich verbleibend: Qualitätsstufe-2-Review + Backup 2. Medium.**
+**Basis-Pipeline abgeschlossen — Phasen 1–10 implementiert, Phase 11 (Cleanup) + Phase 12 (Finalisierung) erledigt; inkrementeller Modus live. v2 teil-umgesetzt (Taxonomie-SSoT, restructure, process-Orchestrator). Aktiver Zyklus: v3. WP4 (Bestands-Remediation) **abgeschlossen + gemergt** (PR #39 + Prune #40); Post-WP4-Backlog disponiert (mdformat declined, 00_Meta-Tags closed). Backup 2. Medium (O4) während WP4-T1b vom Owner bestätigt. Menschlich verbleibend: Qualitätsstufe-2-Review (+ Time-Machine-Verifikation, Mount-Fehler).**
 
 **WP4-Ergebnis (2026-06-25):** 7 Frontmatter-Klassifikations-Fixes live (5 → `00_Meta/_projektdoku/`); NLP-Dublette (D) distinkt; Tag-strict = No-op (Content 100 % konform); mdformat deferred (Wikilink-Schutz nötig); 1 Heading-Fix; Index-Regen via neuem `pkm regenerate-indices`. Detail: `handover/wp4-abschluss.md`.
 
@@ -33,7 +33,7 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | Cleanup (Phase 11) | AP1 `_pkm_common` (Drift weg) · AP2 Config-Prune · AP3 mypy-clean · AP4 unsortiert-Diagnose · AP5 Intermediates als Provenance behalten |
 | Finalisierung (Phase 12) | Workspace clean · `17_unsortiert`-Cluster · `ingest`+`manage_vocab`+Inbox · Docs Ist-Stand · Reflexion |
 
-**DoD (`scripts/dod_check.py`):** 9 ✅ / 1 ⚠️ (dokumentierte Kleinordner-Ausnahme) automatisch; 2 offen (Backup 2. Medium, Qualitätsstufe-2-Review) = menschlich.
+**DoD (`scripts/dod_check.py`):** 9 ✅ / 1 ⚠️ (dokumentierte Kleinordner-Ausnahme) automatisch; 2 offen (Backup 2. Medium → O4 in WP4-T1b vom Owner bestätigt; Qualitätsstufe-2-Review) = menschlich.
 
 > **Befund (Phase 12, `manage_vocab validate`):** der Vault enthält Tags außerhalb des kontrollierten 149-Tag-Vokabulars (`config/tag_vocabulary.yaml`; Stage 8 lief mit `strict_vocabulary: false`). Das ist Gegenstand der v3-Tag-Remediation (WP4) bzw. der offenen Qualitätsstufe-2-Review, kein Blocker.
 

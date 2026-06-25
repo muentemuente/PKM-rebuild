@@ -80,7 +80,7 @@ Ohne O1/O4/O5 startet CC nur WP0 + WP1 + WP2-Detection (alle nicht vault-mutiere
 
 | Aufgabe | Ergebnis |
 |---|---|
-| **v2-Realstand** | Pro v2-WP feststellen: fertig / teilweise / offen. Belege: `git log --oneline`, gemergte Branches, vorhandene Module (`taxonomy.py`, `restructure.py`, `process_orchestrator.py`). Ergebnis → `docs/handover/v3-startstand.md` |
+| **v2-Realstand** | Pro v2-WP feststellen: fertig / teilweise / offen. Belege: `git log --oneline`, gemergte Branches, vorhandene Module (`taxonomy.py`, `restructure.py`, `process_orchestrator.py`). Ergebnis → `docs/_archive/handover/v3-startstand.md` |
 | **Stand verifizieren** | `pkm_triage.py`, `check_frontmatter.py`, `manage_vocab validate`, `git status` (main clean), `pytest`/`ruff`/`mypy` grün |
 | **Doku-Drift fixen** | EIN verbindlicher Zählstand (180 vs ~186) + EIN Vokabular-Stand (47 vs 149); PROJECT_STATUS/CLAUDE.md/README angleichen |
 | **Pfad-Drift fixen** | Legacy-Layout `PKM_rebuild/data/0X` in `02_pipeline_spec` als „Archiv/deprecated" markieren oder entfernen; nur aktuelles Layout + `BRAIN_VAULT` gilt |
@@ -174,7 +174,7 @@ Ohne O1/O4/O5 startet CC nur WP0 + WP1 + WP2-Detection (alle nicht vault-mutiere
 ### Realstand WP4 (2026-06-25, abgeschlossen — `feat/wp4-t1-klassifikation` / PR #39)
 
 Die obige Tier-Annahme (mdformat-Bulk + Tag-strict über alle) traf so **nicht** zu;
-verifiziert statt unterstellt (T0). Tatsächlicher Verlauf, Detail in `docs/handover/wp4-abschluss.md`:
+verifiziert statt unterstellt (T0). Tatsächlicher Verlauf, Detail in `docs/_archive/handover/wp4-abschluss.md`:
 
 - **T1 (Klassifikation):** 7 Frontmatter-Fixes; 5 Projekt-Artefakte → `00_Meta/_projektdoku/`
   (`process-document`/`meta`), 2 type-only. Synthese-Ausschluss live (166/26), 7/7 Body byte-identisch.

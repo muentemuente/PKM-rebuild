@@ -14,7 +14,7 @@ Commitment, keine Reihenfolge — Owner zieht bei Bedarf in ein eigenes WP.
 
 ## B-Monolith → nlp-Serie zerlegen (additiv, eigenes WP)
 
-**Out of WP4** (Owner-Entscheid 2026-06-24). Herkunft: WP4-T2a (`docs/handover/wp4-t2a-nlp.md`).
+**Out of WP4** (Owner-Entscheid 2026-06-24). Herkunft: WP4-T2a (`docs/_archive/handover/wp4-t2a-nlp.md`).
 
 - **Befund:** `nlp-pkm-grundlagen` (B, 3953 W) ist ein monolithisches End-to-End-How-To,
   das inhaltlich die **gesamte** kuratierte `nlp-*`-Serie überlappt — nicht nur

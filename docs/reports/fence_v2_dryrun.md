@@ -8,6 +8,8 @@ zweck: Read-only Dry-Run der Fence-Regel v2 (unclosed-close + low-conf→det-Tag
 
 # WP4 B-2 — Fence-Regel v2 · Dry-Run
 
+> **generiert/stale (Stand 2026-06-25).** WP4-B-2-Dry-Run-Momentaufnahme (2026-06-19, read-only). Regenerierbar via `pkm vault-audit` / `pkm vault-review` (Fence-Befunde).
+
 **Read-only.** Vorschau der `repair_text`-v2-Änderungen am Live-Brain-Vault (`pipeline.vault_audit`). Nichts geschrieben. Anwendung = späterer Owner-gegateter B-2-safe-Lauf.
 
 ## Aggregat

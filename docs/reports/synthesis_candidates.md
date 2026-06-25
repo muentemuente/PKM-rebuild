@@ -1,5 +1,7 @@
 # Synthesis-Candidates (WP2 — Vorschläge, KEIN Auto-Merge)
 
+> **generiert/stale (Stand 2026-06-25).** Tool-Output, regenerierbar via `pkm redundancy-scan`. Owner-freigegebene Teilmenge → `docs/reports/moc_approved.yaml` (Input für `pkm synthesize-moc`).
+
 <!-- input_hash: 6215598fa4da788b -->
 
 - thematische Paare (Mittelband): **39**

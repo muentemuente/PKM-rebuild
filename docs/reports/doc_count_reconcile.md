@@ -8,6 +8,8 @@ zweck: Phase-0b-Befund (read-only). Klärt die Differenz zwischen der Handover-B
 
 # doc-count-Reconciliation
 
+> **generiert/stale (Stand 2026-06-25).** Phase-0b-Befund-Momentaufnahme (2026-06-20). Live-Count regenerierbar via `pkm vault-audit` (doc-count-reconcile-Regel). Kanonischer Stand: **181 Artikel + 5 MOC** (`docs/PROJECT_STATUS.md`).
+
 Live gemessen am Brain-Vault #3 (`~/Zentrale/09_Brain-Vault`, read-only, `find` + `vault_audit.is_content_md`).
 
 ## 1. Die zwei Zahlen — was sie zählen

@@ -318,6 +318,20 @@ pkm vault-review [--vault-dir DIR] [--work-dir DIR]
 # default vault-dir = Brain-Vault (_paths); baseline-default = vault_audit.DOC_COUNT_BASELINE (165,6)
 ```
 
+### Index-Regen (`regenerate-indices`, WP4 / D-WP4-2)
+
+Regeneriert die per-Ordner `_index.md` aus dem aktuellen Vault-Stand (Engine:
+`pipeline/regenerate_indices.py`, nutzt den phase_9-Generator `_render_index` →
+byte-identisch + idempotent). Frischt **nur existierende** Indizes auf; Schutzbereiche
+(`00_Meta`/`_attic`/`15_Gedanken`) und index-lose Ordner bleiben unberührt. Ersatz für
+das deprecatete `scripts/_deprecated/rebuild_indices.py`. Default = **dry-run**;
+`--apply` schreibt mit archive-before nach `archive/backups/index_regen_<ts>/`.
+
+```bash
+pkm regenerate-indices [--vault-dir DIR] [--apply]
+# default vault-dir = Brain-Vault (_paths); ohne --apply nur Plan-Tabelle
+```
+
 **`audit`** — neun read-only Detektionsregeln, gruppierter Markdown-Report:
 (1) Frontmatter↔SSoT (Pflichtfelder/Enums/`slug`, gegen `pipeline.taxonomy`),
 (2) Wikilink-Auflösbarkeit + Dangling-Klassifikation (intendierte Stub-Links unter

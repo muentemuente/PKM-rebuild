@@ -3,7 +3,7 @@ title: PKM-rebuild Pipeline-Spezifikation
 slug: 02-pipeline-spec
 status: stable
 created: 2026-05-25
-updated: 2026-06-05
+updated: 2026-06-25
 ---
 
 # Pipeline-Spezifikation
@@ -113,15 +113,15 @@ Die `pipeline.config.yaml` hat **keinen** `paths:`-Block mehr; Legacy-Feldnamen
 
 ## 3. Konfiguration (`pipeline/pipeline.config.yaml`)
 
-```yaml
-# === Pfade ===
-paths:
-  data_root: "~/projects/aktiv/PKM_rebuild/data"
-  corpus_input: "${data_root}/01_corpus_input"
-  pipeline_output: "${data_root}/02_pipeline_output"
-  drafts: "${data_root}/03_drafts"
-  vault: "${data_root}/04_vault"
+> **Kein `paths:`-Block mehr.** Pfade werden zentral in `pipeline/_paths.py`
+> aufgelöst (Override `PKM_PIPELINE_ROOT`/`PKM_REPO_ROOT`), nicht in der Config —
+> der unten gezeigte historische `paths:`-Block existiert real **nicht** (s. §2).
+> Reale Top-Level-Keys: `pipeline`, `sample`, `inventory`, `normalization`,
+> `structure`, `segmentation`, `redundancy`, `redundancy_scan`, `embeddings`,
+> `clustering`, `batching`, `qwen`, `vault`, `tags`, `logging`, `idempotency`,
+> `memory_watch`.
 
+```yaml
 # === Segmentierung ===
 segmentation:
   min_words_per_segment: 50
@@ -176,7 +176,7 @@ sample:
 # === Logging ===
 logging:
   level: "INFO"
-  file: "${pipeline_output}/pipeline.log"
+  file: "work/pipeline.log"     # work/ aus pipeline/_paths.py (kein ${pipeline_output} mehr)
   json: true
 ```
 
@@ -1050,3 +1050,4 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-06-24 — WP3b (Synthese-Korpus-Filter + additive MOC): §3 `redundancy_scan.exclude_folders`/`exclude_categories` (Synthese-Korpus = nur Wissensartikel, Ausschluss via Ordner/category, **kein** Slug-Filter, ausgeschlossene Docs transparent im Report). §4 CLI `pkm synthesize-moc [--approved FILE] [--vault-dir DIR] [--out-dir DIR] [--no-qwen]` — neue MOC-Drafts aus Gate-A-freigegebenen Clustern nach `drafts/_moc/` (D6 additiv, kein Vault-Write). Engine `pipeline/synthesis_moc.py`: Frontmatter (`doc_type: moc`, `merged_from: []`, `confidence`, `moc_members`) + 2-3-Satz-Qwen-Rahmung (`/no_think`, gecappt; Fehler → deterministische Fallback + `needs_human`) + Wikilinks; **Link-Descriptor = realer `summary` des Ziel-Docs (RV13, keine Generierung)**, kein Body-Kopieren, Quell-Artikel byte-unverändert. Keine `schemas.py`-Änderung (Draft-Frontmatter dict→YAML). 8 MOC-Tests (LLM injiziert) + 3 Korpus-Filter-Tests. **Gate 3b:** Owner prüft jedes MOC einzeln, Export separat.
 - 2026-06-24 — WP3b-Promote (MOC → Vault): `promotion.py` `FOLDER_BY_DOC_TYPE` (`doc_type: moc` → `00_Maps/`, Override **vor** dem category→Ordner-Mapping) + `PRESERVE_STATUS_DOC_TYPES` (`moc` bleibt `status: draft`, wird NICHT auto-`review`). `synthesis_moc.build_moc` emittiert jetzt zusätzlich die Vault-Pflichtfelder `summary` / `doc_role: [index]` / `sources_docs: []` / `source_chunks: []` → MOCs sind über `pkm promote` FrontmatterDraft-validiert promotierbar. 2 neue Promotion-Tests (Override-Routing 00_Maps + status-Erhalt draft). Keine `schemas.py`-Änderung.
 - 2026-06-21 — WP3c-1 (restructure-review Scaffold): §4 CLI `pkm restructure --file <path> [--out drafts/]` (review-only, **nie** Vault-Write, kein `--execute`). Neues Modul `pipeline/restructure.py`: `RestructureReviewTransform` (tier=**review**, mutating, registry-fähig → `driver._chain_writable` blockt Auto-Write) + `restructure_file()` Single-File-Orchestrator. **Reuse** der kanonischen v1-Prompts Stage 3 (Body) + Stage 4 (Frontmatter) und der injizierbaren Call-Layer (`_load_prompt`/`_run_text_stage`/`_run_json_stage` aus `phase_8_synthesis`) — kein neuer Prompt. Draft-Frontmatter: `review_status: ai_drafted` · `confidence: <low|medium|high>` (Vault-SSoT-Enum, kein Float; Stage-4-Wert auf Enum normalisiert) · `provenance` (Quelle-Slug/Modell/Prompt-Version/Timestamp); fehlende/ungültige confidence → `low` + `confidence_fallback: true`. Quell-File read-only, Output nur `drafts/`. Draft→Vault-Promotion = separater D4-Task (Folge-Inkrement). Keine `schemas.py`-Änderung (Draft-Frontmatter als dict→YAML, kein Pydantic → §7 n/a). 10 neue Tests (LLM gemockt: byte-stabiler Draft, Frontmatter-Kontrakt, confidence-Enum+Fallback, Quell-File-Snapshot, Driver-Invariante review→kein Write). Engine `pipeline/restructure.py`.
+- 2026-06-25 — Konsolidierung (verify-first gegen Repo): §3 toter `paths:`-Block entfernt (reale `pipeline.config.yaml` hat **keinen** `paths:`-Block, vgl. §2; Pfade in `pipeline/_paths.py`) + Hinweis mit realen Top-Level-Keys; `logging.file` `${pipeline_output}/…` → `work/pipeline.log`. **Verifiziert unverändert** (keine Drift): §4 CLI-Liste deckt sich mit `python -m pipeline --help`; §7 Schemas byte-deckungsgleich mit `pipeline/schemas.py` (FrontmatterDraft-Felder, DocTypeGuess-Labels). Die übrigen `data/0X`-Pfade bleiben als technische Historie hinter dem Legacy-Banner (§ Kopf) bewusst erhalten.

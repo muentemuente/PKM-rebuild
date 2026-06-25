@@ -3,7 +3,7 @@ title: PKM-rebuild Claude Code Workflow
 slug: 06-claude-code-workflow
 status: stable
 created: 2026-05-25
-updated: 2026-06-04
+updated: 2026-06-25
 sources_external:
   - https://docs.claude.com/en/docs/claude-code/overview
   - https://code.claude.com/docs/en/hooks
@@ -302,33 +302,37 @@ alias cp8='cd ~/projects/aktiv/PKM-rebuild && claude -n "phase-8-qwen"'
 alias cpkm='cd ~/projects/aktiv/PKM-rebuild && claude --resume'
 
 # Headless-Status-Check
-alias pkm-status='cd ~/projects/aktiv/PKM-rebuild && claude -p "lese data/02_pipeline_output/pipeline_state.json und gib Status"'
+alias pkm-status='cd ~/projects/aktiv/PKM-rebuild && python -m pipeline status'
 ```
 
 ### 7.2 Makefile
 
+Das reale `Makefile` im Projekt-Root ist die SSoT (Targets u.a. `run`, `review`,
+`review-apply`, `ingest`, `publish-check`, `validate`, `test`, `lint`,
+`backup-vault`, `snapshot`). Illustrativ:
+
 ```makefile
 # In Projekt-Root
-.PHONY: status sample run clean test
+.PHONY: status run review test
 
 status:
 	@python -m pipeline status
 
-sample:
-	@python -m pipeline run --sample 10
-
 run:
-	@python -m pipeline run
+	@python -m pipeline run            # input/ → (Review-Gates) → output/
+
+review:
+	@python -m pipeline review
 
 test:
 	@pytest -v
 
 claude-snapshot:
 	@claude -p "erstelle .claude/snapshots/manual-$(shell date +%Y%m%d-%H%M).md mit aktuellem Stand"
-
-backup-vault:
-	@bash scripts/backup_vault.sh
 ```
+
+> `--sample` ist **kein** Flag von `run` (go-forward) — nur der Legacy-Vollkorpus
+> `python -m pipeline corpus-run --sample 10` kennt es.
 
 ### 7.3 Headless-Mode (`claude -p`)
 
@@ -456,3 +460,4 @@ Dieses Doc wird gepflegt bei:
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version, Recherche-Stand Mai 2026 (Limit-Verdoppelung 6. Mai, Peak-Hour-Penalty entfernt)
+- 2026-06-25 — Konsolidierung (verify-first): `pkm-status`-Alias toter `data/02_pipeline_output/pipeline_state.json`-Pfad → `python -m pipeline status`; §7.2 Makefile-Snippet auf reale Targets + Pointer auf SSoT-Makefile, `run --sample` (existiert nur bei `corpus-run`) korrigiert

@@ -51,7 +51,7 @@ Tech-Begriffe werden nicht ohne Not übersetzt: „API-Endpunkt" ja, „Endbenut
 Diese Regeln schützen Schema-Konsistenz und Reproduzierbarkeit. Sie gelten ausnahmslos.
 
 - **Stage-Output-Schemas werden nicht ohne gleichzeitige Anpassung der Pydantic-Modelle in `pipeline/schemas.py` geändert.** Schema-Drift zwischen Prompt und Pipeline produziert ungültige Outputs, die durch die Validation fallen.
-- **`pipeline.config.yaml → qwen.prompt_version` wird erst umgestellt, wenn die neue Version existiert UND gegen alle drei Test-Cluster grün gelaufen ist.**
+- **`pipeline.config.yaml → qwen.prompt_version` wird erst umgestellt, wenn die neue Version existiert UND an echten Docs (`pkm process` / `pkm run`) manuell gegen die erwartete Struktur geprüft wurde.** (Eine automatisierte Test-Cluster-Suite existiert nicht — s. §7.)
 - **Few-Shot-Beispiele zeigen Goldstandard, nicht Low-Confidence-Outputs.** Schwache Beispiele trainieren schwache Antworten.
 - **Output-Format-Beispiele in Prompts sind immer konsistent mit den existierenden `.schema.json`-Files** — nicht „aus dem Bauch" formuliert.
 
@@ -90,26 +90,25 @@ Jeder Stage-Output hat eine zugehörige `.schema.json` in `prompts/v<n>/schemas/
 
 ## 7. Test-Workflow
 
-### 7.1 Vor Aktivierung einer neuen Version
+> **Nicht implementiert (Stand 2026-06-25):** Es gibt **keinen** `pkm test-prompts`-/
+> `test-stage`-Runner, **kein** `tests/test_prompt_schemas.py` und **keine**
+> `tests/fixtures/qwen_clusters/`-Cluster. Diese Sektion beschrieb eine geplante,
+> nie gebaute Regression-Suite. Was real existiert: die allgemeine pytest-Suite
+> (`pytest`) und die Pipeline-seitige Pydantic-Validation jedes Qwen-Outputs
+> (`docs/04_qwen_prompts.md` §8).
+
+### 7.1 Vor Aktivierung einer neuen Version (faktischer Prozess)
 
 ```bash
-# Schema-Test
-pytest tests/test_prompt_schemas.py -v
+# Gesamte Test-Suite grün?
+pytest -q
 
-# Regression-Test gegen alle drei Test-Cluster
-python -m pipeline test-prompts --version v1.1 --cluster small_clear_cluster
-python -m pipeline test-prompts --version v1.1 --cluster large_mixed_cluster
-python -m pipeline test-prompts --version v1.1 --cluster contradictory_cluster
+# Neue Prompt-Version an 1–2 echten Docs erproben
+python -m pipeline process --source <dir>     # bzw. pkm run
 ```
 
-Alle drei müssen grün sein. Zusätzlich erfolgt eine manuelle Inspektion der Outputs.
-
-### 7.2 Test-Cluster
-
-Drei synthetische Cluster in `tests/fixtures/qwen_clusters/`:
-- `small_clear_cluster/` — 3 Segmente, klares Thema
-- `large_mixed_cluster/` — 30 Segmente, gemischte Themen
-- `contradictory_cluster/` — 5 Segmente mit Widersprüchen
+Danach **manuelle Inspektion** der erzeugten Drafts gegen die erwartete Struktur
+(`docs/04_qwen_prompts.md` §7). Erst dann `qwen.prompt_version` umstellen.
 
 ---
 
@@ -118,9 +117,9 @@ Drei synthetische Cluster in `tests/fixtures/qwen_clusters/`:
 Beim Verbessern eines Prompts läuft folgender Zyklus:
 
 1. **Hypothese:** „Output X ist zu unspezifisch — Prompt sagt nicht klar genug, dass …"
-2. **Snapshot:** aktuellen Prompt + Output kopieren nach `tests/fixtures/qwen_clusters/_baselines/`
-3. **Klein-Test:** Prompt anpassen, Re-Run auf einem Test-Cluster
-4. **Diff:** `git diff` Prompt + `diff` der Outputs
+2. **Snapshot:** aktuellen Prompt + erzeugten Draft kopieren (z.B. nach `scratch/`)
+3. **Klein-Test:** Prompt anpassen, Re-Run auf 1–2 echten Docs (`pkm process`)
+4. **Diff:** `git diff` Prompt + `diff` der Drafts
 5. **Entscheidung:** Verbesserung → commit. Verschlechterung → revert.
 6. **Reflexion:** Kurz-Notiz in `docs/learnings/PHASE_08_<datum>.md`
 
@@ -133,8 +132,8 @@ Mehrere Änderungen gleichzeitig machen die Ursache-Wirkung unklar — also pro 
 Reihenfolge:
 
 1. Schema in `prompts/v<n>/schemas/` prüfen
-2. Existierende Beispiele in `prompts/v<n>/examples/` lesen
-3. Pydantic-Modell in `pipeline/schemas.py` checken
+2. Pydantic-Modell in `pipeline/schemas.py` checken (Source of Truth, §6)
+3. Bestehende Prompt-Files derselben Version als Vorlage lesen (kein `examples/`-Verzeichnis vorhanden)
 4. User fragen — kompakt, mit konkreter Optionsliste
 
 Prompts „auf Verdacht" zu ändern oder Schemas eigenmächtig zu erweitern sind keine Optionen.
@@ -150,11 +149,12 @@ grep prompt_version pipeline/pipeline.config.yaml
 # Versions-Vergleich
 diff -r prompts/v1/ prompts/v2/
 
-# Schema gegen Pydantic vergleichen
-python -m pipeline validate-prompt-schemas --version v1
+# Schema gegen Pydantic vergleichen (manuell — kein CLI-Helfer)
+#   prompts/v<n>/schemas/*.schema.json  ↔  pipeline/schemas.py
+#   (es gibt KEIN `pkm validate-prompt-schemas` und KEIN `pkm test-stage`)
 
-# Einzelne Stage manuell testen
-python -m pipeline test-stage --stage 1 --batch <path-to-batch> --version v1
+# Prompt-Version an echtem Doc erproben (es gibt keinen isolierten Stage-Runner)
+python -m pipeline process --source <dir>
 ```
 
 ---
@@ -162,3 +162,4 @@ python -m pipeline test-stage --stage 1 --batch <path-to-batch> --version v1
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version (faktisch-deklarativ, Hard Constraints abgegrenzt)
+- 2026-06-25 — Konsolidierung (verify-first gegen Repo): §7 Test-Workflow als **nicht implementiert** gekennzeichnet (kein `pkm test-prompts`/`test-stage`, kein `tests/test_prompt_schemas.py`, keine `qwen_clusters/`-Fixtures) + auf faktischen Prozess (pytest + manuelle Draft-Inspektion) umgestellt; §4 Aktivierungs-Gate entsprechend; §8/§9 Verweise auf `qwen_clusters/_baselines/` bzw. `examples/` entfernt; §10 Geister-CLIs (`validate-prompt-schemas`, `test-stage`) durch reale Befehle ersetzt

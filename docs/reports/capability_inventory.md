@@ -8,6 +8,8 @@ zweck: Phase-0a-Befund (read-only). Mappt den Code-Stand auf `main` gegen die 7 
 
 # Capability-Inventur (Stand `main`, read-only)
 
+> **generiert/stale (Stand 2026-06-25).** Phase-0a-Befund-Momentaufnahme des Code-Stands (`main` @ `104c4a0`), **nicht laufend gepflegt**. Kein CLI-Regen — aktueller Stand: `docs/PROJECT_STATUS.md`.
+
 Basis: `main` @ `104c4a0` (PRs #11–#15 inkl.). Code-Module aus `pipeline/` + `scripts/`.
 CLI-Oberfläche `python -m pipeline …` (`pipeline/__main__.py`).
 

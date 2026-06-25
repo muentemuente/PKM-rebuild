@@ -1,5 +1,7 @@
 # Redundancy-Report (WP2 — Detection, kein Merge)
 
+> **generiert/stale (Stand 2026-06-25).** Tool-Output, regenerierbar via `pkm redundancy-scan` (Detection-only, kein Vault-Write).
+
 <!-- input_hash: 6215598fa4da788b · reproduzierbar, kein Wall-Clock im Body -->
 
 - Docs gescannt: **166** (Korpus-Filter: 21 ausgeschlossen)

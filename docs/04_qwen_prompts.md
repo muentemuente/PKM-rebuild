@@ -3,7 +3,7 @@ title: PKM-rebuild Qwen-Prompt-Spezifikation
 slug: 04-qwen-prompts
 status: stable
 created: 2026-05-25
-updated: 2026-06-05
+updated: 2026-06-25
 ---
 
 # Qwen-Prompt-Spezifikation
@@ -58,25 +58,28 @@ Gilt für alle Prompts in `prompts/v1/` und nachfolgende Versionen (`v2/`, `v3/`
 ```
 prompts/
 ├── CLAUDE.md                           ← Working Rules für Claude Code
-├── README.md                           ← Version-Übersicht, Wechsel-Anleitung
-├── v1/
-│   ├── stage1_cluster_analysis.md
-│   ├── stage2_merge_proposal.md
+├── Verzeichnis_schemas.txt
+├── v1/                                 ← Phase-8-Synthese (aktiv)
+│   ├── stage1_cluster_analysis.md      ← deprecated (Option A)
+│   ├── stage2_merge_proposal.md        ← deprecated (Option A)
 │   ├── stage3_synthesis.md
 │   ├── stage4_frontmatter_json.md
-│   ├── schemas/
-│   │   ├── stage1_output.schema.json
-│   │   ├── stage2_output.schema.json
-│   │   └── stage4_output.schema.json
-│   └── examples/
-│       ├── stage1_example_input.md
-│       ├── stage1_example_output.json
-│       └── ...
-└── v2/                                 ← bei Major-Iteration
-    └── ...
+│   ├── stage4_frontmatter_gedanken.md  ← Gedanken-Variante (§12)
+│   └── schemas/
+│       ├── stage1_output.schema.json
+│       ├── stage2_output.schema.json
+│       ├── stage4_output.schema.json
+│       └── stage4_gedanken_output.schema.json
+└── v2/                                 ← restructure-Pfad (WP3c-4), NUR `pkm restructure`
+    ├── MIGRATION.md                    ← Diff v1→v2 + Re-Run
+    ├── stage3_synthesis.md             ← type-konditional, non-thinking-Sampler
+    ├── stage4_frontmatter_json.md      ← unverändert aus v1
+    └── schemas/
+        └── stage4_output.schema.json
 ```
 
-**Aktive Version:** Pointer in `pipeline/pipeline.config.yaml` → `qwen.prompt_version: "v1"`.
+**Aktive Version (Phase 8):** Pointer in `pipeline/pipeline.config.yaml` → `qwen.prompt_version: "v1"`.
+**v2** ist **kein** Major-Bump der Synthese, sondern ein **isolierter** Pfad: nur `pkm restructure` nutzt ihn, aktiviert über `qwen.restructure.prompt_version: "v2"` (Phase 8 bleibt v1). Es gibt **kein** `examples/`-Verzeichnis und **kein** `prompts/README.md`.
 
 ---
 
@@ -361,7 +364,7 @@ Pipeline (Phase 8) validiert jeden Qwen-Output:
 4. **ID-Konsistenz:** `sources_docs` und `source_chunks` müssen existieren
 5. **Slug-Konsistenz:** `slug` matched Naming-Conventions aus Vault-Standard
 
-**Bei Failure:** `confidence: low` setzen, in `data/02_pipeline_output/qwen/needs_human.jsonl` flaggen, weiterlaufen mit nächstem Cluster.
+**Bei Failure:** `confidence: low` setzen, in `work/qwen/needs_human.jsonl` flaggen (Pfad zentral über `pipeline/_paths.py`), weiterlaufen mit nächstem Doc.
 
 ---
 
@@ -401,15 +404,18 @@ Pipeline (Phase 8) validiert jeden Qwen-Output:
 
 ## 11. Testing (Prompt-Qualität)
 
-**Test-Cluster:** 3 synthetische Cluster in `tests/fixtures/qwen_clusters/`:
-- `small_clear_cluster/` — 3 Segmente, klares Thema
-- `large_mixed_cluster/` — 30 Segmente, gemischte Themen
-- `contradictory_cluster/` — 5 Segmente mit Widersprüchen
+> **Status: nicht implementiert.** Die ursprünglich geplante synthetische
+> Test-Cluster-Suite (`tests/fixtures/qwen_clusters/` mit `small_clear_cluster/`,
+> `large_mixed_cluster/`, `contradictory_cluster/`) und ein `pkm test-prompts`-Runner
+> wurden **nie gebaut**. Es existiert kein dedizierter Prompt-Schema-Test. Die
+> Prompt-Qualität wird de facto über den realen Lauf + **manuelle Output-Inspektion**
+> an den Review-Gates geprüft, nicht über eine automatisierte Regression-Suite.
 
-**Regression-Test pro Prompt-Iteration:**
-- Lauf gegen alle 3 Test-Cluster
-- Schema-Validation grün
-- Manuelle Bewertung: passt das Output zur erwarteten Struktur?
+**Faktischer Prozess pro Prompt-Iteration:**
+- Prompt-Patch in `prompts/v1/` (eine logische Änderung)
+- Re-Run auf 1–2 echten Docs (`pkm process --source <dir>` / `pkm run`)
+- Manuelle Bewertung des Drafts gegen die erwartete Struktur (§7) am Review-Gate
+- Schema-Konformität sichert die Pipeline-seitige Pydantic-Validation (§8), nicht ein Prompt-Test
 
 ---
 
@@ -439,3 +445,4 @@ Dieses Doc wird gepflegt bei:
 - 2026-05-29 — Option-B-Anpassung: Stage-Übersicht Stage 1/2 als deaktiviert markiert; Stage-1/2-Detailabschnitte mit Status-Note versehen; Review-Gate-2-Verweis gestrichen; Stage 3 zu Pro-Doc-Veredelung umbenannt + Input neu; Stage 4 Input auf Segment-Metadaten, Aliases-Constraint auf Source-Doc-only, merged_from-Kommentar
 - 2026-06-04 — Routing-Modell in Stage 3 (passthrough vs. stage3 vs. gedanken) ergänzt; `max_tokens`-Bezug zur Config (stage3=16000); Intro + Token-Budget auf Ist-Stand
 - 2026-06-05 — Phase 12: Hang-Lehre dokumentiert (Reasoning-Loop bei Meta-/Prompt-Inhalt, Timeout wirkungslos, Mitigation passthrough/cap)
+- 2026-06-25 — Konsolidierung (verify-first gegen Repo): §4 Verzeichnis-Layout auf Ist-Stand (v1 inkl. `stage4_frontmatter_gedanken.md` + 4 Schemas; v2 = realer isolierter restructure-Pfad WP3c-4, nicht Placeholder; kein `examples/`, kein `README.md`); §8 `needs_human`-Pfad `data/02_pipeline_output/` → `work/qwen/`; §11 Testing als **nicht implementiert** gekennzeichnet (qwen_clusters-Fixtures + `test-prompts`-Runner nie gebaut)

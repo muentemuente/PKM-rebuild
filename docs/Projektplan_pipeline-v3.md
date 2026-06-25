@@ -1,9 +1,9 @@
 ---
 title: Projektplan pkm-pipeline v3 — Wissensqualität (Synthese · Tags · Reformatierung) + Stabilisierung
 slug: projektplan-pipeline-v3-knowledge-quality
-status: draft
+status: abgeschlossen
 created: 2026-06-23
-updated: 2026-06-23
+updated: 2026-06-25
 zweck: Optimierungs-Zyklus auf der FERTIGEN Basis-Pipeline. Hebt die wissensorganisatorische Ebene (additive Synthese/MOC), härtet Tags (SSoT-Remediation) und Format (Bestands-Pass), schließt das Audit-Reparatur-Backlog. Ersetzt Projektplan_pipeline-v2.
 scope_basis: Erweiterung des bestehenden Repos (Option B + dokumentiertes Teil-Reversal); kein From-Scratch-Rebuild
 supersedes: Projektplan_pipeline-v2.md (2026-06-15)
@@ -11,7 +11,18 @@ supersedes: Projektplan_pipeline-v2.md (2026-06-15)
 
 # Projektplan pkm-pipeline v3
 
-**Charakter:** Korrektur + Fortführung eines laufenden Optimierungs-Zyklus auf einem **abgeschlossenen** Produkt (Basis-Pipeline Phasen 0–12 done, ~186 Vault-Artikel, 399 Tests grün, mypy clean). Kein Neubau.
+> [!success] Closeout (Stand 2026-06-25) — **Plan erfüllt.**
+> WP0–WP4 abgeschlossen + auf `main` gemergt (WP2 **entfällt** — D1 war bereits
+> erfüllt). **WP5 nicht getriggert** (keine Fehlzuweisung in der Re-Klassifikations-
+> Stichprobe). Kanonischer Stand: **181 Artikel + 5 MOC**, 149 Tags (SSoT), 760 Tests
+> grün, `mypy pipeline/` clean. Owner-Gates O1/O4/O5 ratifiziert; D-Entscheidungen
+> D1/D2/D3/D4/D6/D7 + D-WP4-1/2/3 in Code/Doku verankert.
+> **Dieses Dokument bleibt als Referenz-Plan (Living), wird nicht archiviert.**
+> Folge-Arbeit (**Monolith-B** — `nlp`-Serie zerlegen) ist **nicht** Teil dieses Plans
+> → `docs/handover/ideen-backlog.md`. Aktueller Detailstand: `docs/handover/post-wp4-stand.md`
+> + `docs/PROJECT_STATUS.md`.
+
+**Charakter:** Korrektur + Fortführung eines laufenden Optimierungs-Zyklus auf einem **abgeschlossenen** Produkt (Basis-Pipeline Phasen 0–12 done, **181 Vault-Artikel + 5 MOC**, 760 Tests grün, mypy clean). Kein Neubau.
 **Rollen:** Claude (App) = Architect/PM/Mentor (Plan, Entscheidungen, Reviews, Scope-Warnungen). Claude Code (CC) in Zed = autonome Umsetzung im Repo.
 **Stand-Vorbehalt:** v2 ist teil-umgesetzt (WP3-restructure 21.06., `pkm process`-Orchestrator 22.06.). Welche v2-WPs real fertig sind, ist **nicht verifiziert** → WP0 verifiziert zuerst, bevor irgendetwas Neues startet.
 **Owner-Entscheidungen (fix):** F1 additive Synthese = voll · F2 Bestands-Remediation Tags+Format = voll · F3 ein einziger Plan (dieser).
@@ -34,6 +45,11 @@ supersedes: Projektplan_pipeline-v2.md (2026-06-15)
 
 ## 1. Architektur-Entscheidungen (verbindlich)
 
+> **Stand 2026-06-25:** D1–D7 **ratifiziert + in Code/Doku verankert** (D1 SSoT
+> `config/*.yaml`+`pipeline.taxonomy`; D2 `redundancy_scan.py`; D3 `format_vault.py`;
+> D4 Snapshot/3-State im Build+`promote`; D6 additive MOC live, `merged_from` leer;
+> D7 WP4 als einmaliger gegateter Pass abgeschlossen). Spätere D-WP4-1/2/3 → §7.
+
 | ID | Entscheidung | Begründung |
 |---|---|---|
 | **D1** | **Ein SSoT** → generiert Kategorien, Ordner-Mapping, Tag-Vokabular, Validierung; Pydantic = Runtime-Membership-Check. `category` flach + single, `gedanke`-Type erhalten. | tötet Enum-Drift strukturell; Erweiterung = 1 Edit. **Pfad-Korrektur (WP4-T0):** der realisierte SSoT ist `config/categories.yaml` (18 Kategorien) + `config/tag_vocabulary.yaml` (149 Tags), geladen über das Modul `pipeline.taxonomy` — **nicht** ein einzelnes `pipeline/taxonomy.yaml` (existiert nicht). |
@@ -47,14 +63,16 @@ supersedes: Projektplan_pipeline-v2.md (2026-06-15)
 
 ## 2. Zu bestätigen (Owner — STOP für CC bis Freigabe)
 
-| # | Frage | Default |
-|---|---|---|
-| O1 | **Option-B-Teil-Reversal** für additive Synthese (D6) in `01_strategy` dokumentiert + freigegeben? | ja |
-| O2 | `category` bleibt flach/single (D1)? | ja |
-| O4 | **2. Backup-Medium hergestellt + Recovery-Stichprobe** — jetzt **harte Vorbedingung** vor jeder vault-mutierenden Stufe (WP4)? | **Pflicht, ja** |
-| O5 (neu) | **G-1 akzeptiert:** LLM-restructure am Bestand nur für triage-geflaggte Files, nicht blind alle 186? | ja (sonst Vollpass = Owner-Entscheid) |
+> **Alle ratifiziert (2026-06-25).** O1 + O4 zusätzlich in der Post-WP4-Doku-Konsolidierung bestätigt.
 
-Ohne O1/O4/O5 startet CC nur WP0 + WP1 + WP2-Detection (alle nicht vault-mutierend).
+| # | Frage | Default | Stand |
+|---|---|---|---|
+| O1 | **Option-B-Teil-Reversal** für additive Synthese (D6) in `01_strategy` dokumentiert + freigegeben? | ja | ✅ ratifiziert |
+| O2 | `category` bleibt flach/single (D1)? | ja | ✅ ratifiziert |
+| O4 | **2. Backup-Medium hergestellt + Recovery-Stichprobe** — jetzt **harte Vorbedingung** vor jeder vault-mutierenden Stufe (WP4)? | **Pflicht, ja** | ✅ erfüllt (Time Machine, s. `07_backup_strategy`) |
+| O5 (neu) | **G-1 akzeptiert:** LLM-restructure am Bestand nur für triage-geflaggte Files, nicht blind alle 186? | ja (sonst Vollpass = Owner-Entscheid) | ✅ ratifiziert (WP4-T4: Cap-25-Triage) |
+
+Ohne O1/O4/O5 startet CC nur WP0 + WP1 + WP2-Detection (alle nicht vault-mutierend). — *historisch; alle Gates inzwischen frei.*
 
 ---
 
@@ -91,6 +109,12 @@ Ohne O1/O4/O5 startet CC nur WP0 + WP1 + WP2-Detection (alle nicht vault-mutiere
 ---
 
 ## 5. WP2 — Taxonomie-SSoT finalisieren (nicht-mutierend, **konditional auf WP0-Befund**)
+
+> [!note] **WP2 entfällt (2026-06-25).** WP0 hat gezeigt, dass **D1 bereits vollständig
+> erfüllt** war: SSoT = `config/categories.yaml` (18) + `config/tag_vocabulary.yaml` (149),
+> geladen über `pipeline.taxonomy`, Pydantic-Runtime-Check aktiv, `pkm taxonomy
+> add-category/add-tag/rename` vorhanden. Die untenstehende WP2-Spezifikation ist damit
+> **nicht ausgeführt** (gegenstandslos) — als Referenz erhalten.
 
 **Nur falls WP0 zeigt, dass D1 noch nicht vollständig erfüllt ist.** Sonst entfällt WP2.
 
@@ -219,14 +243,17 @@ WP0 (Verifikation + Backup O4 + Strategy-Update)
 
 ---
 
-## 11. Definition of Done (Gesamt)
+## 11. Definition of Done (Gesamt) — ✅ erfüllt (2026-06-25)
 
-- [ ] WP0: ein Zählstand + ein Vokabular-Stand verbindlich; Pfad-Drift weg; Backup O4 + Recovery-Stichprobe grün; `01_strategy` mit D6
-- [ ] WP1: `structlog` verdrahtet (`work/pipeline.log` lebt); tote/Altlast-Module entfernt/archiviert; Entrypoint-Redundanz geklärt
-- [ ] WP3: `redundancy_report.md` + `synthesis_candidates.md` scored+provenance; ≥1 additives MOC reviewed im Vault; Quell-Artikel byte-unverändert; `merged_from` leer
-- [ ] WP4: Tag-Vokabular-Konformität messbar gestiegen; Format idempotent; Schutzbereiche intakt; 0 SHA-Dubletten; alle Wikilinks auflösbar; Unsafe nur per Review
-- [ ] Tests grün, mypy + ruff clean; Reflexionsdoku je WP in `docs/learnings/`
-- [ ] alle WPs per PR auf main
+- [x] WP0: ein Zählstand + ein Vokabular-Stand verbindlich; Pfad-Drift weg; Backup O4 + Recovery-Stichprobe grün; `01_strategy` mit D6
+- [x] WP1: `structlog` verdrahtet (`work/pipeline.log` lebt); tote/Altlast-Module entfernt/archiviert; Entrypoint-Redundanz geklärt
+- [x] WP2: **entfällt** — D1 bereits erfüllt (s. §5)
+- [x] WP3: `redundancy_report.md` + `synthesis_candidates.md` scored+provenance; 5 additive MOC reviewed im Vault; Quell-Artikel byte-unverändert; `merged_from` leer
+- [x] WP4: Tag-strict = No-op (Content-Korpus 100 % konform); Format-Pass deferred (mdformat wikilink-unsafe, Backlog); Schutzbereiche intakt; 0 SHA-Dubletten; Wikilinks auflösbar; Unsafe nur per Review
+- [x] Tests grün (760), mypy + ruff clean; Reflexionsdoku je WP in `docs/learnings/` + `docs/handover/`
+- [x] alle WPs per PR auf main (zuletzt PR #39/#40/#41)
+
+> WP5 (Klassifikations-Optimierung, §8) **nicht getriggert** — keine Fehlzuweisung in der Stichprobe.
 
 ---
 
@@ -246,3 +273,4 @@ WP0 (Verifikation + Backup O4 + Strategy-Update)
 
 ## Änderungs-Log
 - 2026-06-23 — Initial v3. **Ersetzt v2 (2026-06-15).** Anlass: Basis-Pipeline fertig + v2 teil-umgesetzt; Owner-Entscheidung F1 additive Synthese voll / F2 Bestands-Remediation voll / F3 ein Plan. Neu ggü. v2: WP1 Stabilisierung (Audit-Backlog), D6 additive Synthese (Teil-Reversal Option B), D7 + WP4 Bestands-Remediation, G-1 restructure-Begrenzung, RV12/RV13.
+- 2026-06-25 — **Closeout: Plan erfüllt.** Frontmatter `status: draft→abgeschlossen`; Closeout-Banner (WP0–WP4 done, WP2 entfällt, WP5 nicht getriggert, 181+5 MOC / 760 Tests); §1-Header-Counts (186/399 → 181+5 MOC/760); §1 D1–D7 als ratifiziert+verankert markiert; §2 O1/O4/O5 ratifiziert; §5 WP2 als entfallen (D1 erfüllt) gekennzeichnet; §11 DoD vollständig abgehakt + Folge-WP Monolith-B (→ ideen-backlog) als planextern ausgewiesen. **Nicht archiviert** (bleibt Living-Referenz).

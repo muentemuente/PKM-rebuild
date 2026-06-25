@@ -8,7 +8,7 @@ Dieses Dokument ist der primäre Projekt-Kontext für Claude Code. Es wird zu Be
 
 PKM-rebuild ist eine Pipeline und ein Workflow zur Bereinigung einer bestehenden Markdown-Wissenssammlung (~200 Dateien). Das Ergebnis ist ein strukturierter Obsidian-Vault mit konsistentem Frontmatter, ohne Redundanzen, in einer kuratierten 16-Ordner-Struktur.
 
-**Aktueller Stand (2026-06-23):** Basis-Pipeline (Phasen 0–12, **Option B** — Pro-Doc, kein Cross-Doc-Merge) **abgeschlossen** → **181 Vault-Artikel** (Live-Messung) im Brain-Vault. Embedding-Clustering wurde verworfen (Korpus ohne inhärente Cluster-Struktur). **Aktiver Zyklus: v3** (Wissensqualität — additive Synthese/MOC, Tag-/Format-Remediation, Stabilisierung); Plan: `docs/Projektplan_pipeline-v3.md`, Realstand: `docs/handover/v3-startstand.md`. Details: `docs/PROJECT_STATUS.md`.
+**Aktueller Stand (2026-06-25):** Basis-Pipeline (Phasen 0–12, **Option B** — Pro-Doc, kein Cross-Doc-Merge) **abgeschlossen** → **181 Vault-Artikel + 5 MOC** (Live-Messung) im Brain-Vault. Embedding-Clustering wurde verworfen (Korpus ohne inhärente Cluster-Struktur). **v3-Zyklus: WP0–WP4 abgeschlossen + gemergt** (WP2 entfiel; Stabilisierung, additive Synthese/MOC, Bestands-Remediation); Vault idempotent. Plan: `docs/Projektplan_pipeline-v3.md`, aktueller Detailstand: `docs/handover/post-wp4-stand.md` + `docs/PROJECT_STATUS.md`.
 
 Vollständiger Kontext: `README.md`, `docs/01_strategy.md`.
 
@@ -18,7 +18,8 @@ Vollständiger Kontext: `README.md`, `docs/01_strategy.md`.
 
 Diese Dokumente werden in dieser Reihenfolge gelesen:
 
-1. `docs/00_persona_muente.md` — Persona, Setup, Arbeitsweise (**immer zuerst**)
+0. `docs/PROJECT_STATUS.md` + jüngstes `docs/handover/`-Stand-Doc — **aktueller Stand** (zuerst zur Orientierung)
+1. `docs/00_persona_muente.md` — Persona, Setup, Arbeitsweise (**immer zuerst** vor inhaltlicher Arbeit)
 2. `docs/01_strategy.md` — Projektziele, Scope, Definition of Done
 3. Task-spezifisch:
    - Pipeline-Code → `docs/02_pipeline_spec.md` + `pipeline/CLAUDE.md`
@@ -219,3 +220,4 @@ Die Tilde außerhalb von Assignments (etwa als Command-Argument, `ls ~/foo`) ist
 - 2026-06-04 — Ist-Stand: Phase 8 abgeschlossen (Option B), Phase 9 next; §1 Stand-Block; §6 type-Enum (4 Werte, gedanke); §7 Phasen + Review-Gates auf Option B + Clustering-Verwurf
 - 2026-06-07 — §11 Quick-Reference auf go-forward (`pkm run`/`review`, Gates A–D, Legacy `corpus-run`); Pipeline-Umbau zur Inkrement-Pipeline (Branch `rebuild-pipeline-*`, `_paths.py`, `config/`, `run_flow`/`review`/`orchestrator`)
 - 2026-06-23 — §1 Stand-Block auf v3: Basis-Pipeline abgeschlossen, **181 Vault-Artikel** (Live), aktiver Zyklus v3; Artikel-Count 180/~186→181 vereinheitlicht (WP0)
+- 2026-06-25 — §1 Stand-Block auf Post-WP4 (WP0–WP4 gemergt, 181 + 5 MOC, idempotent); §2 Pflicht-Lektüre um Stand-Orientierung (PROJECT_STATUS + jüngstes Handover) ergänzt; Detailstand-Pointer auf `post-wp4-stand.md`

@@ -3,7 +3,7 @@ title: PKM-rebuild Tool-Routing
 slug: 06b-tool-routing
 status: stable
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-06-25
 ---
 
 # Tool-Routing — Zed/Claude Code, App-Konversation, Ghostty
@@ -76,11 +76,11 @@ Wann immer einfacher Befehl reicht. Beispiele:
 # Status-Sanity-Check
 python -m pipeline status
 
-# Wie viele Cluster wurden gebildet?
-jq 'length' data/02_pipeline_output/cluster_proposals.json
+# Vault-Artikel zählen (Brain-Vault #3)
+find "$HOME/Zentrale/09_Brain-Vault" -name '*.md' | wc -l
 
-# Wie groß ist die letzte Batch-Datei?
-ls -lah data/02_pipeline_output/batches/ | tail -5
+# Letzte Pipeline-Work-Outputs (#2)
+ls -lt "$HOME/projects/aktiv/pkm-pipeline/work/" | head
 
 # Letzte 5 Commits
 git log --oneline -5
@@ -236,3 +236,4 @@ Aus `docs/00_persona_muente.md` Sektion 6: bei aktivem Qwen 27B sind ~4 GB RAM f
 ## 10. Änderungs-Log
 
 - 2026-05-28 — Initial-Version, basierend auf Praxis-Lücke vom 28.05.2026
+- 2026-06-25 — Ghostty-Beispiele auf aktuelle Pfade (`pkm-pipeline/` #2, Brain-Vault #3) statt toter `data/0X`-Legacy + verworfenem Clustering

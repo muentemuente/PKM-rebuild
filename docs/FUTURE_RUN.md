@@ -3,97 +3,120 @@ title: FUTURE_RUN — Inkrementeller Standard-Workflow
 slug: future-run
 status: stable
 created: 2026-06-04
-updated: 2026-06-05
+updated: 2026-06-25
 ---
 
 # FUTURE_RUN — Inkrementeller Standard-Workflow
 
-Der Projekt-Erstlauf ist abgeschlossen (180 Drafts → Vault). Dieses Dokument ist
-der **Standard-Workflow für laufende, inkrementelle Verarbeitung**: neue Notizen
-in die Inbox legen, durch die Per-Doc-Pipeline (Option B) schicken, Vokabular
-pflegen, in den Vault übernehmen.
+Der Projekt-Erstlauf ist abgeschlossen (181 Artikel + 5 MOC im Vault). Dieses
+Dokument ist der **Standard-Workflow für laufende, inkrementelle Verarbeitung**:
+neue Notizen erfassen, vault-ready machen, prüfen, in den Vault übernehmen.
 
-Die 180 bestehenden Drafts/Vault-Artikel werden dabei **nie** erneut verarbeitet
-(Hash-/Slug-Skip).
+Bestehende Artikel werden dabei **nie** erneut verarbeitet (Hash-/Slug-Skip).
+
+> **Orte (s. `WAYFINDING.md`):** #1 Repo `~/projects/aktiv/PKM-rebuild/` · #2 Daten
+> `~/projects/aktiv/pkm-pipeline/{input,work,drafts,review,output,archive}` · #3
+> Produktiv-Vault `~/Zentrale/09_Brain-Vault/`. CC/Pipeline schreibt nie autonom in #3.
 
 ---
 
-## Standard-Ablauf (inkrementell)
+## Kanonischer go-forward: `pkm process` (O1)
+
+`process` ist der **primäre** Weg — jedes File (egal welcher Ausgangszustand: fertig,
+gescrapt, copy-paste, unformatiert) läuft durch dieselbe feste Stage-Kette bis
+`review_ready`. Kein Vorab-Filter, kein Vault-Write, resume-fähig.
 
 ```
-1. Files          neue Roh-.md → data/00_inbox/
-2. ingest         python -m pipeline ingest
-                  → Phasen 1-4 (isoliert) + Phase 8 (Option B) → neue Drafts in 03_drafts/
-                  → data/02_pipeline_output/ingest_report.md
-3. ⏸ REVIEW       ingest_report.md lesen (Mensch):
-                  - neue category (🆕)? → scripts/manage_vocab.py add-category <name>
-                  - neue tags (🆕)?     → scripts/manage_vocab.py add-tag <tag> --reason "…"
-                  - ODER Draft auf bestehende category/Tags umbiegen
-                    (Frontmatter-Edit / scripts/apply_category_mapping.py)
-4. build-vault    python -m pipeline build-vault   (ergänzt nur neue Drafts)
-5. reports        python -m pipeline reports --force
-6. Docs           updated:-Frontmatter der berührten Docs ziehen
-7. Korpus         verarbeitete Inbox-Files → data/01_corpus_input/ verschieben
-                  (werden Teil des Korpus), danach pkm_triage zum Reconcile
+ingested → normalize → restructure → tags → assets → links → review_ready
+         → [human_reviewed] → promoted     ← Owner-Gates, außerhalb des Laufs
 ```
 
-**Vorab prüfen (kein Schreiben):** `python -m pipeline ingest --dry-run` zeigt,
-welche Inbox-Files verarbeitet würden, ruft kein Qwen auf, schreibt nichts.
+```
+1. Files      neue Roh-.md → pkm-pipeline/input/   (oder beliebiger Quell-Ordner)
+2. process    python -m pipeline process --source pkm-pipeline/input/
+              → Stage-Kette je File bis review_ready
+              → Drafts + Review-Sheet (.xlsx); State: pkm-pipeline/work/process/state.jsonl
+              → Wiederaufnahme nach Abbruch: --resume
+3. ⏸ REVIEW   Review-Sheet ausfüllen (Mensch): accept / reject / edit je Draft
+4. ingest     python -m pipeline review-ingest --sheet <sheet>.xlsx
+              → accept → review_status: human_reviewed; reject → archive; edit → Flag
+5. 🛑 PROMOTE  python -m pipeline promote --draft <draft>            (dry-run)
+              python -m pipeline promote --draft <draft> --execute   (D4-Owner-Gate)
+              → Snapshot + Write nach #3 + Index-Regen + Draft-Archivierung
+```
 
-**Voraussetzung für den realen (nicht-dry) Lauf:** LM Studio läuft mit dem
-konfigurierten Qwen-Modell (`qwen.endpoint`), übrige Apps geschlossen
-(Memory-Pressure, Persona §6).
+**Eigenschaften:** idempotent (unveränderte Datei überspringt erledigte Stages),
+resilient (Einzelfehler → Datei `needs_human`, Lauf fährt fort). `process` ruft
+**keinen** echten LLM-Call im Orchestrator und schreibt **nie** in den Vault — die
+Live-Mutation passiert ausschließlich im gegateten `promote` (D4).
 
-### Was `ingest` macht — und was nicht
+> **Synthese ist nachgelagert,** nicht Teil des Ingest: MOCs/Synthese-Dokumente
+> (`pkm synthesize-moc`, Option B) laufen auf bereits vault-ready Files — separates
+> WP mit eigenen Gates (D6, additiv).
 
-| Phase | im ingest? | Grund |
-|---|---|---|
-| 1 Inventar · 2 Normalisierung · 3 Struktur · 4 Segmentierung | ✅ | nötig für Per-Doc-Synthese |
-| 5 Redundanz · 6 Embeddings · 7 LLM-Batches | ❌ | Option B konsumiert sie nicht; Embedding-Clustering verworfen (R9) |
-| 8 Qwen-Veredelung (passthrough / stage3 / gedanken) | ✅ | erzeugt die Drafts |
+---
 
-Die Phasen 1-4 schreiben in ein **isoliertes** Work-Dir
-(`02_pipeline_output/ingest/`); die korpus-weiten Outputs bleiben unberührt.
-Phase 8 schreibt neue Drafts nach `03_drafts/`, bestehende Slugs werden
-übersprungen. Zweiter Lauf ohne neue Files = no-op.
+## Vokabular-Pflege (vor/bei Review)
 
-### Vokabular-Pflege (`scripts/manage_vocab.py`)
+Neue `category` (→ Vault-Ordner) oder neuer Tag tauchen im Review auf. Governed
+growth über die Taxonomie-SSoT (`config/`):
 
 | Befehl | Wirkung |
 |---|---|
-| `list` | aktuelle Kategorien (→ Ordner) + Tag-Vokabular |
-| `validate` | Drift: fehlen Vault-Ordner? Tags außerhalb des Vokabulars? |
-| `add-category <name>` | neue category an allen Stellen: `CATEGORY_TO_FOLDER` (+ nächste `NN_`-Nummer), `ALLOWED_CATEGORIES` (abgeleitet), Vault-Ordner, Doku §4. *Appendix-A-Tabelle ggf. manuell.* |
-| `add-tag <tag> --reason "…"` | Tag mit Begründung ins Kern-Vokabular (`00_Meta/tag-system.md`) |
+| `python -m pipeline taxonomy add-category <name>` | neue category in `config/categories.yaml` + Vault-Ordner (idempotent, `--dry-run`) |
+| `python -m pipeline taxonomy add-tag <tag> --reason "…"` | Tag ins YAML-SSoT (`config/tag_vocabulary.yaml`) + `tag-system.md`-Sync |
+| `python -m pipeline taxonomy rename <category\|tag> <old> <new>` | umbenennen + Bestand migrieren (Frontmatter + Ordner + Index) |
+| `python3 scripts/manage_vocab.py list \| validate` | Vokabular anzeigen / Drift prüfen (fehlende Ordner, OOV-Tags) |
 
-`add-*` sind idempotent (bestehende Einträge = no-op) und unterstützen `--dry-run`.
+Alternativ Draft auf bestehende category/Tags umbiegen (Frontmatter-Edit /
+`scripts/apply_category_mapping.py`), statt das Vokabular zu erweitern.
+
+---
+
+## Alternative: Option-B Synthese-Linie (`ingest` / `run`)
+
+Die ältere, staging-basierte Linie. Sinnvoll für Batch-/Cluster-Synthese, **nicht**
+der kanonische Einzelfile-Ingest.
+
+| Command | Verhalten |
+|---|---|
+| `python -m pipeline ingest [--dry-run]` | neue .md aus `input/` durch Phasen 1–4 + 8 (Option B) → neue Drafts in `pkm-pipeline/drafts/`; isoliertes Work-Dir, Korpus-Outputs unberührt; Bestands-Slugs übersprungen |
+| `python -m pipeline run` | go-forward `input/` → Review-Gates (decisions.md, A–D) → `output/` |
+| `python -m pipeline build-vault` | Phase 9: Drafts → `output/<NN_Cluster>/<slug>.md` (Staging) |
+| `python -m pipeline corpus-run` | **Legacy** Vollkorpus-Erstlauf (Archiv, nicht go-forward) |
+
+Diese Linie endet in `output/` (Staging); der Übertrag nach #3 ist ein manueller
+Schritt (s. `MANUAL_STEPS.md`). `ingest` konsumiert **nicht** die Phasen 5/6/7
+(Embedding-Clustering verworfen, R9).
+
+**Voraussetzung realer (nicht-dry) Läufe mit LLM:** LM Studio läuft mit dem
+konfigurierten Qwen-Modell (`qwen.endpoint`), übrige Apps geschlossen
+(Memory-Pressure, Persona §6).
 
 ---
 
 ## Backlog — geparkte Erstlauf-Reste
 
-Diese Posten stammen aus dem Erstlauf und können über denselben Inbox-Workflow
-nachgezogen werden (Inbox-File anlegen bzw. aus `_hold`/`_excluded` ziehen).
+Aus dem Erstlauf, über denselben Workflow nachziehbar.
 
-### 19 `_hold`-Gedanken (`03_drafts/_hold/`)
-Zurückgestellte Gedanken-Drafts, `type: gedanke`. Schema akzeptiert den Wert
-(E1). Manifest: `03_drafts/_hold/HOLD_MANIFEST.md`. Verarbeitung über den
-Gedanken-Sonderpfad (Minimal-Frontmatter, kein Stage 3).
+### 19 `_hold`-Gedanken (`pkm-pipeline/drafts/_hold/`)
+Zurückgestellte Gedanken-Drafts, `type: gedanke`. Schema akzeptiert den Wert (E1).
+Manifest: `_hold/HOLD_MANIFEST.md`. Verarbeitung über den Gedanken-Sonderpfad
+(Minimal-Frontmatter, kein Stage 3).
 
-### 2 Hangs (`01_corpus_input/_excluded/`)
-- `Prompt-Verbesserung.md` (`prompt-verbesserung`)
-- `prompts_text_stil_grammatik.md` (`prompts-text-stil-grammatik`)
+### 2 Hangs (im `_excluded/`-Set)
+- `Prompt-Verbesserung.md` · `prompts_text_stil_grammatik.md`
+- **Root-Cause:** Meta-/Prompt-Inhalt triggert im Stage-3-Call einen Reasoning-Loop.
+- **Mitigation:** hart auf `passthrough` routen **oder** Reasoning/`max_tokens` je Call
+  cappen. Timeout-Hochsetzen wirkt nicht.
 
-**Root-Cause:** Meta-/Prompt-Inhalt triggert im Stage-3-Call einen
-Reasoning-Loop. **Mitigation:** hart auf `passthrough` routen **oder**
-Reasoning/`max_tokens` je Call cappen. Timeout-Hochsetzen wirkt nicht.
-
-> `denkschulen_ueberblick_und_einfuehrung.md` ist ein bewusst exkludiertes
-> Survey-Doc (15.770 Wörter, 394 H2) — **kein** Hang, bleibt außerhalb der Pipeline.
+> `denkschulen_ueberblick_und_einfuehrung.md` ist ein bewusst exkludiertes Survey-Doc
+> (15.770 Wörter, 394 H2) — **kein** Hang, bleibt außerhalb der Pipeline.
 
 ---
 
 ## Änderungs-Log
 
-- 2026-06-04 — Initial-Version (Re-Run-Set: 19 Gedanken + 2 Hangs; E1/E2/Runner-Voraussetzungen; offene Schulden)
-- 2026-06-05 — Umgeschrieben zum **inkrementellen Standard-Workflow** (AP3): `00_inbox/` + `pipeline ingest` + `manage_vocab` + Übernahme-Pfad. Erstlauf-Reste als Backlog. Offene Schulden (`_pkm_common`, stage1/2-Config-Prune) sind erledigt (Phase 11).
+- 2026-06-04 — Initial-Version (Re-Run-Set: 19 Gedanken + 2 Hangs)
+- 2026-06-05 — Umgeschrieben zum inkrementellen Standard-Workflow (AP3): `ingest` + `manage_vocab` + Übernahme-Pfad
+- 2026-06-25 — Auf **`pkm process` als kanonischen go-forward** umgestellt (O1, code-verifiziert): Stage-Kette → Review-Sheet → `review-ingest` → `promote` (D4). `ingest`/`run` als Option-B-Synthese-Linie eingeordnet; Synthese als nachgelagert klargestellt; tote `data/0X`-Pfade → `pkm-pipeline/`-Layout; Count 180→181; `taxonomy`-CLI ergänzt

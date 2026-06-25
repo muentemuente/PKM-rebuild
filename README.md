@@ -3,11 +3,11 @@
 Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung. Ziel: aus ~200 unstrukturierten Markdown-Dateien einen sauber strukturierten Obsidian-Vault mit konsistentem Frontmatter, deduplizierten Inhalten und thematischer Ordner-Struktur generieren.
 
 - **Basis-Pipeline:** abgeschlossen (Phasen 0–12, 2026-06-06)
-- **Aktiver Zyklus:** v3 — Wissensqualität (additive Synthese · Tag-/Format-Remediation · Stabilisierung), siehe [`docs/Projektplan_pipeline-v3.md`](docs/Projektplan_pipeline-v3.md)
-- **Vault:** 181 Artikel in 14 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups); `17_unsortiert` aktuell leer (Stand 2026-06-23, Live-Messung)
+- **v3-Zyklus:** WP0–WP4 abgeschlossen + gemergt (WP2 entfiel) — Stabilisierung, additive Synthese/MOC, Bestands-Remediation; Plan [`docs/Projektplan_pipeline-v3.md`](docs/Projektplan_pipeline-v3.md), aktueller Detailstand [`docs/handover/post-wp4-stand.md`](docs/handover/post-wp4-stand.md)
+- **Vault:** 181 Artikel + 5 MOC in 14 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups); idempotent (`pkm regenerate-indices` = 0/14)
 - **Charakter:** Lernprojekt mit produktivem Output
 - **Laufender Betrieb:** [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md) (inkrementeller Standard-Workflow)
-- **Verbleibend:** menschliche Qualitätsstufe-2-Review + Backup 2. Medium ([`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md))
+- **Verbleibend:** menschliche Qualitätsstufe-2-Review ([`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)); Vault #3 per Time Machine täglich gesichert
 
 ---
 

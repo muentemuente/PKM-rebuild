@@ -296,28 +296,27 @@ Pydantic-Modelle „auf gut Glück" zu erweitern, Schemas ohne Doku-Update zu ä
 ## 12. Quick-Reference Befehle
 
 ```bash
-# Phasen einzeln
-python -m pipeline run --phase 1
-python -m pipeline run --from-phase 5
+# go-forward (kanonisch, O1)
+python -m pipeline process --source pkm-pipeline/input/   # universelle Erstverarbeitung → review_ready
+python -m pipeline review-ingest --sheet <sheet>.xlsx     # Owner-Entscheidungen einlesen
+python -m pipeline promote --draft <draft> --execute      # D4-Vault-Write (Owner-Gate)
 
-# Dry-run
-python -m pipeline run --dry-run
+# Option-B-Linie / Legacy
+python -m pipeline run                                    # input/ → Review-Gates → output/
+python -m pipeline ingest [--dry-run]                     # Phasen 1-4 + 8 (Option B)
+python -m pipeline corpus-run --phase 1                   # Legacy-Vollkorpus (auch --from-phase / --sample N)
+python -m pipeline build-vault [--dry-run]
 
-# Sample
-python -m pipeline run --sample 10
-
-# Status & Validierung
+# Status & Reports
 python -m pipeline status
-python -m pipeline validate
+python -m pipeline reports [--force]
 
 # Tests
 pytest -v
 pytest tests/test_phase_5_redundancy.py -v
-pytest --cov=pipeline --cov-report=term-missing
 
 # Qualität
-ruff check pipeline/ tests/
-ruff format pipeline/ tests/
+ruff check pipeline/ tests/ && ruff format pipeline/ tests/
 mypy pipeline/
 ```
 
@@ -326,3 +325,4 @@ mypy pipeline/
 ## Änderungs-Log
 
 - 2026-05-25 — Initial-Version (faktisch-deklarativ, Hard Constraints abgegrenzt)
+- 2026-06-25 — §12 Quick-Reference auf reale CLI (kanonisch `process`/`review-ingest`/`promote`; `run`/`ingest`/`corpus-run` getrennt; nicht-existentes `validate` entfernt)

@@ -156,11 +156,14 @@ Unterordner in `03_drafts/` für **zurückgestellte** Drafts (aktuell 19 Gedanke
 ### `_excluded/`
 Unterordner in `01_corpus_input/` für aus der Mainstream-Pipeline **ausgeschlossene** Korpus-Files (aktuell 3: `denkschulen_…` als Survey-Doc + 2 Stage-3-Hangs). Phase 1 überspringt `_*`-Prefix.
 
-### Inbox (`00_inbox/`)
-Ablage in `data/` für **neue Roh-`.md`** im inkrementellen Modus. `pipeline ingest` verarbeitet nur diese Files; nach Vault-Übernahme wandern sie nach `01_corpus_input/` (Korpus). Außerhalb Git (`.gitignore`).
+### Inbox (`pkm-pipeline/input/`)
+Ablage für **neue Roh-`.md`** im inkrementellen Modus (#2, außerhalb Git). `pipeline process`/`ingest` lesen von hier; verarbeitete Inputs wandern nach `archive/processed_<ts>/`. (Legacy-Erstlauf: `data/00_inbox/`.)
 
-### `ingest` (inkrementeller Modus)
-CLI-Kommando (`python -m pipeline ingest`): verarbeitet neue Files aus `00_inbox/` durch Phasen 1→4 (isoliertes Work-Dir) + Phase 8 (Option-B-Routing); Phasen 5/6/7 entfallen. Erzeugt `ingest_report.md` (category/tags neu-vs-bestehend). Bestehender Vault unberührt; idempotent. Workflow: `docs/FUTURE_RUN.md`.
+### `process` (kanonischer go-forward, O1)
+CLI-Kommando (`python -m pipeline process --source <dir>`): **primärer** Erstverarbeitungs-Pfad — jedes File läuft durch die feste Stage-Kette `ingested → normalize → restructure → tags → assets → links → review_ready`. Resume-fähig, idempotent, resilient; **kein Vault-Write**, stoppt bei `review_ready`. Erzeugt ein Review-Sheet; Downstream: `review-ingest` → `promote` (D4-Owner-Gate). Synthese ist **nachgelagert**, nicht Teil des Ingest. Workflow: `docs/FUTURE_RUN.md`.
+
+### `ingest` (Option-B-Synthese-Linie)
+CLI-Kommando (`python -m pipeline ingest`): verarbeitet neue Files aus `input/` durch Phasen 1→4 (isoliertes Work-Dir) + Phase 8 (Option-B-Routing); Phasen 5/6/7 entfallen. Erzeugt `ingest_report.md` (category/tags neu-vs-bestehend). Bestehender Vault unberührt; idempotent. Kanonischer go-forward ist `process`; `ingest`/`run` sind die Synthese-/Staging-Linie. Workflow: `docs/FUTURE_RUN.md`.
 
 ### Snapshot
 Manuelle oder automatische Sicherung des aktuellen Sessions-Kontexts oder Vault-Zustands. Wird vor Token-Limits, Pausen oder größeren Änderungen erstellt. Pfad: `.claude/snapshots/` (Session) oder `~/projects/aktiv/pkm-pipeline/archive/backups/` (Daten/Vault).
@@ -229,3 +232,4 @@ Neue Begriffe werden ergänzt, wenn sie im Projekt zum ersten Mal verwendet werd
 - 2026-06-04 — Option B + Clustering-Verwurf: Stage/Review-Gate/Cluster/category/type auf Ist-Stand; neue Begriffe Routing, passthrough, canonical_ck_slug, Triage-Action, _hold, _excluded, unsortiert, Ordner-Index
 - 2026-06-05 — Phase 12: `unsortiert` → `17_unsortiert`; neue Begriffe Inbox, `ingest`, `manage_vocab.py`, UMAP/HDBSCAN (nicht verwendet)
 - 2026-06-13 — Sektion „Asset-Begriffe": `_assets/`, Asset, Asset-Embed, Asset-Namensschema, Mermaid-Diagramm (WP1 Asset-Konvention)
+- 2026-06-25 — Inbox/`ingest` auf `pkm-pipeline/input/`-Layout (tote `00_inbox/`-Pfade raus); `process` als kanonischen go-forward ergänzt

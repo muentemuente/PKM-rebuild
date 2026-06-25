@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""rebuild_indices.py — _index.md pro Cluster-Ordner neu schreiben (nach Tag-Apply)."""
+"""rebuild_indices.py — DEPRECATED (WP4-T5a / D-WP4-2).
+
+NICHT mehr verwenden. Gründe:
+- Ziel war ``_paths.OUTPUT`` (Legacy-Staging, leer), nicht der Live-``BRAIN_VAULT``.
+- Direkter Write ohne dry-run / archive-before, abweichendes Index-Format.
+
+Ersatz: phase_9-Generator ``pipeline.phase_9_vault_build._render_index`` /
+``_write_indexes`` gegen ``BRAIN_VAULT`` (Adapter, byte-identisch + idempotent,
+exkludiert ``00_Meta``/Schutzbereiche). Nur archiviert für Nachvollziehbarkeit.
+"""
 import re, sys, unicodedata
 from collections import Counter
 from datetime import date

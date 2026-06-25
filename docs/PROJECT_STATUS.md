@@ -14,9 +14,11 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 
 ---
 
-## 0. Aktueller Stand (2026-06-23)
+## 0. Aktueller Stand (2026-06-25)
 
-**Basis-Pipeline abgeschlossen — Phasen 1–10 implementiert, Phase 11 (Cleanup) + Phase 12 (Finalisierung) erledigt; inkrementeller Modus live. v2 teil-umgesetzt (Taxonomie-SSoT, restructure, process-Orchestrator). Aktiver Zyklus: v3. Menschlich verbleibend: Qualitätsstufe-2-Review + Backup 2. Medium.**
+**Basis-Pipeline abgeschlossen — Phasen 1–10 implementiert, Phase 11 (Cleanup) + Phase 12 (Finalisierung) erledigt; inkrementeller Modus live. v2 teil-umgesetzt (Taxonomie-SSoT, restructure, process-Orchestrator). Aktiver Zyklus: v3. WP4 (Bestands-Remediation) abgeschlossen — PR #39 (`feat/wp4-t1-klassifikation`), Owner-Merge offen. Menschlich verbleibend: Qualitätsstufe-2-Review + Backup 2. Medium.**
+
+**WP4-Ergebnis (2026-06-25):** 7 Frontmatter-Klassifikations-Fixes live (5 → `00_Meta/_projektdoku/`); NLP-Dublette (D) distinkt; Tag-strict = No-op (Content 100 % konform); mdformat deferred (Wikilink-Schutz nötig); 1 Heading-Fix; Index-Regen via neuem `pkm regenerate-indices`. Detail: `handover/wp4-abschluss.md`.
 
 | Größe | Wert |
 |---|---|
@@ -25,7 +27,7 @@ Vollständige Übersicht aller implementierten Phasen, Tests, Qualitätsstatus u
 | Kontroll-Berichte | corpus / duplicate / cluster (Vault-Ground-Truth) + `DOD_CHECK.md` |
 | `17_unsortiert/` | 8 Artikel — vollwertiger nummerierter Cluster (AP2; vormals `unsortiert/`); Diagnose `unsortiert_diagnose.md` |
 | Reconcile | 199 Korpus-Slugs (180 ready + 19 hold) + 3 excluded = 202 |
-| Test-Suite | **738** grün (Stand 2026-06-23), ruff-Gate sauber, `mypy pipeline/` clean; `scripts/` 8 pre-existing mypy-Fehler (WP1-Backlog) |
+| Test-Suite | **757** grün (Stand 2026-06-25), ruff-Gate sauber, `mypy pipeline/` clean; `scripts/` 8 pre-existing mypy-Fehler (WP1-Backlog) |
 | Architektur | Option B (Pro-Doc, kein Merge); Embedding-Clustering **verworfen** (R9) |
 | Inkrementell | `pipeline ingest` (Inbox → Phasen 1–4 + 8) + `scripts/manage_vocab.py` (Vokabular-Pflege) — Phase 12 |
 | Cleanup (Phase 11) | AP1 `_pkm_common` (Drift weg) · AP2 Config-Prune · AP3 mypy-clean · AP4 unsortiert-Diagnose · AP5 Intermediates als Provenance behalten |

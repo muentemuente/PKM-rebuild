@@ -36,7 +36,7 @@ supersedes: Projektplan_pipeline-v2.md (2026-06-15)
 
 | ID | Entscheidung | Begründung |
 |---|---|---|
-| **D1** | **Ein SSoT** `pipeline/taxonomy.yaml` → generiert Kategorien, Ordner-Mapping, Tag-Vokabular, Validierung; Pydantic = Runtime-Membership-Check. `category` flach + single, `gedanke`-Type erhalten. | tötet Enum-Drift strukturell; Erweiterung = 1 Edit. *(WP0 verifiziert, ob durch v2/AP1 bereits erfüllt.)* |
+| **D1** | **Ein SSoT** → generiert Kategorien, Ordner-Mapping, Tag-Vokabular, Validierung; Pydantic = Runtime-Membership-Check. `category` flach + single, `gedanke`-Type erhalten. | tötet Enum-Drift strukturell; Erweiterung = 1 Edit. **Pfad-Korrektur (WP4-T0):** der realisierte SSoT ist `config/categories.yaml` (18 Kategorien) + `config/tag_vocabulary.yaml` (149 Tags), geladen über das Modul `pipeline.taxonomy` — **nicht** ein einzelnes `pipeline/taxonomy.yaml` (existiert nicht). |
 | **D2** | **P5 = Detection + Report.** Hash + TF-IDF + paarweise Embedding-Similarity, in-memory (numpy/sklearn), kein Vector-DB. | bei ~186 Files ist Vector-DB Over-Engineering. |
 | **D3** | **Format deterministisch via `mdformat`** (+gfm,+frontmatter), Obsidian-Syntax als Schutzbereiche. Semantische Restrukturierung = bestehender `restructure.py`/stage3-Pfad, kein neues LLM-Stage. | pure-Python (Persona), idempotent-by-design. Engine existiert bereits (WP3c). |
 | **D4** | **Jede Vault-Mutation nur über 3-State raw/work/export + Snapshot-before + Safe-auto/Unsafe-Review-Trennung.** Non-negotiable. | Vault außerhalb Git, enthält manuelle Reviews → Datenintegrität = höchstes Risiko. |
@@ -146,6 +146,28 @@ Ohne O1/O4/O5 startet CC nur WP0 + WP1 + WP2-Detection (alle nicht vault-mutiere
 | Risiken | Mass-Mutation auf produktivem Bestand → D4 + Snapshot + archive-before-delete non-negotiable |
 
 **REVIEW-Gate 4:** Diff/Patch + Tag-Remediation-Report freigegeben → Export. **Sessions:** 3–5 (Review-lastig).
+
+### Realstand WP4 (2026-06-25, abgeschlossen — `feat/wp4-t1-klassifikation` / PR #39)
+
+Die obige Tier-Annahme (mdformat-Bulk + Tag-strict über alle) traf so **nicht** zu;
+verifiziert statt unterstellt (T0). Tatsächlicher Verlauf, Detail in `docs/handover/wp4-abschluss.md`:
+
+- **T1 (Klassifikation):** 7 Frontmatter-Fixes; 5 Projekt-Artefakte → `00_Meta/_projektdoku/`
+  (`process-document`/`meta`), 2 type-only. Synthese-Ausschluss live (166/26), 7/7 Body byte-identisch.
+- **T2 (NLP-Dublette):** als **(D) distinkt** bestätigt, keine Mutation; Monolith-B-Dekomposition → Ideen-Backlog.
+- **T3 (Tags/Format):** Tag-strict = **No-op** (Content-Korpus 100 % konform; T0-„12 OOV" lagen alle in `00_Meta`).
+  `mdformat` = **STOP-FLAG** (zerstört Wikilinks: `[[x]]`→`\[[x]\]`) → **deferred Backlog**.
+- **T4 (restructure):** Cap-25-Triage; **1** echter Defekt (`datenaufnahme-und-verarbeitung`, 6×H1→H2), kein Qwen nötig.
+- **T5 (Indizes):** 3 stale Indizes regeneriert.
+
+**Neue Design-Punkte (in Code/Doku verankert):**
+- **D-WP4-1:** restructure-Triage = kalibrierte Norm (H1=1, summary 100 %, Wortzahl-P75) statt fixer Schwellen.
+- **D-WP4-2:** `scripts/rebuild_indices.py` deprecated → committetes Modul `pipeline/regenerate_indices.py`
+  (`pkm regenerate-indices`, phase_9-Format, getestet, idempotent).
+- **D-WP4-3:** Vault-Mutation per archive-before + Snapshot + Body-Byte-Test, Live-Write nur per Owner-`!`-Lauf.
+
+**Deferred (eigene WPs/Backlog):** mdformat wikilink-safe machen; `00_Meta`-Governance-Tag-Vokabular;
+Monolith-B → nlp-Serie zerlegen (`docs/handover/ideen-backlog.md`).
 
 ---
 

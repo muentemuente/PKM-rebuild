@@ -707,6 +707,59 @@ def vault_audit_cmd(vault_dir: str | None, work_dir: str | None, baseline: str |
     console.print(f"[green]✓[/green] {work / 'audit_report.md'} [dim](Vault unangetastet)[/dim]")
 
 
+@cli.command(name="regenerate-indices")
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(),
+    default=None,
+    help="Vault mit den _index.md (default: Brain-Vault)",
+)
+@click.option(
+    "--apply",
+    "do_apply",
+    is_flag=True,
+    help="Indizes wirklich schreiben (archive-before). Default: dry-run.",
+)
+def regenerate_indices_cmd(vault_dir: str | None, do_apply: bool) -> None:
+    """WP4/D-WP4-2: existierende per-Ordner _index.md aus dem Vault-Stand regenerieren.
+
+    phase_9-Format, idempotent. Schutzbereiche (00_Meta/_attic/15_Gedanken) und
+    bisher index-lose Ordner bleiben unberührt. Ersatz für rebuild_indices.py.
+    """
+    from datetime import datetime
+
+    from pipeline import _paths
+    from pipeline.regenerate_indices import regenerate_indices
+
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    if not vault.is_dir():
+        console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
+        raise SystemExit(2)
+    archive_root: Path | None = None
+    if do_apply:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_root = _paths.BACKUPS / f"index_regen_{ts}"
+    changes = regenerate_indices(vault, dry_run=not do_apply, archive_root=archive_root)
+    regenerated = [c for c in changes if c.status == "regenerated"]
+    table = Table(title=f"Index-Regen ({len(regenerated)}/{len(changes)} geändert)")
+    table.add_column("Ordner")
+    table.add_column("Status")
+    table.add_column("Artikel", justify="right")
+    for c in changes:
+        mark = (
+            "[yellow]regenerated[/yellow]" if c.status == "regenerated" else "[dim]unchanged[/dim]"
+        )
+        table.add_row(c.folder, mark, str(c.article_count))
+    console.print(table)
+    if do_apply:
+        console.print(
+            f"[green]✓[/green] {len(regenerated)} Indizes geschrieben (archive: {archive_root})"
+        )
+    else:
+        console.print("[dim]dry-run — nichts geschrieben (--apply zum Schreiben)[/dim]")
+
+
 @cli.command(name="vault-repair")
 @click.option(
     "--vault-dir",

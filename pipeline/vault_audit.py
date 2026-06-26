@@ -28,8 +28,10 @@ Frontmatter-Enums und folgt dem 3-State-/Schutzbereich-Muster aus
 from __future__ import annotations
 
 import difflib
+import hashlib
 import re
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -693,6 +695,439 @@ def read_cross_link_candidates(candidates_md: Path) -> list[Finding]:
     return out
 
 
+# === WP-N1: Deterministische NB-Report-Suite (read-only Detektoren) ===========
+# Fünf rein deterministische Detektoren (NB-1/2/6/7/12/14). Sie LESEN Vault-Notes
+# und emittieren Findings — kein Vault-Write, kein Qwen, kein Schema-Feld. Confidence
+# wird in die Message kodiert (``[confidence=…]``), da :class:`Finding` kein eigenes
+# Feld trägt (minimaler Diff). Toggles + Schwellen leben in :class:`NBReportConfig`.
+
+
+@dataclass(frozen=True)
+class NBReportConfig:
+    """Schwellen + Toggles der NB-Report-Suite (Defaults = Spec WP-N1)."""
+
+    # Regelgruppen-Toggles (Near-Dup + Akronyme bewusst default AUS).
+    fragment: bool = True
+    dup: bool = True
+    gap: bool = True
+    stale: bool = True
+    boilerplate: bool = True
+    near_dup: bool = False
+    acronyms: bool = False
+    # Schwellen.
+    fragment_min_words: int = 30
+    dup_min_words: int = 12
+    dup_near_threshold: float = 0.95
+    stale_age_days: int = 365
+    stale_year_gap: int = 2
+    boilerplate_link_run: int = 3
+    # Staleness-Bezugszeitpunkt (None → ``date.today()`` zur Laufzeit; Tests setzen fix).
+    now: date | None = None
+    # Embedding-Parameter für den optionalen Near-Dup-Pfad.
+    embed_model: str = "sentence-transformers/all-mpnet-base-v2"
+    embed_device: str = "auto"
+    embed_batch: int = 32
+
+
+#: Platzhalter-/Lücken-Marker (außerhalb Code/Inline-Code).
+_GAP_MARKER_RE = re.compile(r"\b(TODO|TBD|FIXME)\b|\?\?\?|[<\[](?:\.\.\.|…)[>\]]")
+#: Text-Referenz ohne auflösbares Ziel (numerierte/relative Verweise).
+_GAP_TEXTREF_RE = re.compile(r"\bsiehe\s+(oben|unten|abschnitt\s+\d+|kapitel\s+\d+)\b", re.IGNORECASE)
+#: Staleness-Textmarker: „Stand …/as of …" gefolgt von einer Jahreszahl.
+_STALE_MARKER_RE = re.compile(r"\b(?:Stand|as of)\b[^\n]{0,24}?(\d{4})", re.IGNORECASE)
+#: Consent/Cookie-Phrasen (hochspezifisch → Einzel-Signal genügt).
+_CONSENT_RE = re.compile(
+    r"verwendet cookies|cookie-einstellung|cookies? (?:zu )?akzeptier|nutzung von cookies",
+    re.IGNORECASE,
+)
+#: CTA-Floskeln (schwaches Signal → braucht ein zweites).
+_CTA_RE = re.compile(
+    r"\b(click here|weiterlesen|mehr erfahren|jetzt teilen|hier klicken)\b", re.IGNORECASE
+)
+#: Eine Zeile, die NUR ein Link/Wikilink ist (optional Bullet) — für Link-Run-Cluster.
+_LINK_ONLY_RE = re.compile(
+    r"^[-*]?\s*(?:!?\[\[[^\]]+\]\]|\[[^\]]+\]\([^)]+\)|https?://\S+)\s*$"
+)
+#: Undefiniertes All-Caps-Akronym (optional, hohes FP-Risiko → default AUS).
+_ACRONYM_RE = re.compile(r"\b([A-ZÄÖÜ]{3,})\b")
+
+
+def _is_table_line(raw: str) -> bool:
+    """``True`` für Markdown-Tabellenzeilen (beginnen mit ``|``)."""
+    return raw.lstrip().startswith("|")
+
+
+def _prose_paragraphs(text: str) -> list[tuple[str, int]]:
+    """Prosa-Absätze (Leerzeilen-getrennt) als ``(joined_text, start_line)``.
+
+    Code-Fences und Tabellenzeilen werden ausgeschlossen (FP-Schutz für NB-1/NB-2).
+    """
+    out: list[tuple[str, int]] = []
+    buf: list[str] = []
+    buf_start = 0
+    for bl in iter_body(text):
+        is_break = bl.in_fence or _is_table_line(bl.text) or not bl.text.strip()
+        if is_break:
+            if buf:
+                out.append((" ".join(buf), buf_start))
+                buf = []
+            continue
+        if not buf:
+            buf_start = bl.lineno
+        buf.append(bl.text.strip())
+    if buf:
+        out.append((" ".join(buf), buf_start))
+    return out
+
+
+def _norm_paragraph(p: str) -> str:
+    """Normalisiert einen Absatz für den Exakt-Dup-Vergleich (kein Lowercasing)."""
+    collapsed = re.sub(r"\s+", " ", p).strip()
+    return collapsed.strip(" \t.,;:!?\"'")
+
+
+def _confidence(msg: str, level: str) -> str:
+    """Hängt den Confidence-Tag an einen Befundtext (Finding hat kein eigenes Feld)."""
+    return f"{msg} [confidence={level}]"
+
+
+def check_fragment(
+    relpath: str, text: str, fm: dict[str, Any] | None, cfg: NBReportConfig
+) -> list[Finding]:
+    """NB-14 — Fragment: sehr kurz, ohne Headings, mit unvollständigem Frontmatter.
+
+    ``type: gedanke`` ist absichtlich kurz und wird **nie** geflaggt.
+    """
+    if not cfg.fragment:
+        return []
+    if fm and fm.get("type") == "gedanke":
+        return []
+    _, body, _ = split_frontmatter(text)
+    word_count = len(body.split())
+    if word_count >= cfg.fragment_min_words:
+        return []
+    has_heading = any(
+        _HEADING_RE.match(bl.text) for bl in iter_body(text) if not bl.in_fence
+    )
+    if has_heading:
+        return []
+    fm = fm or {}
+    title_empty = not str(fm.get("title") or "").strip()
+    summary_empty = not str(fm.get("summary") or "").strip()
+    if not (title_empty or summary_empty):
+        return []
+    lacks = "title" if title_empty else "summary"
+    return [
+        Finding(
+            "nb14-fragment",
+            "info",
+            relpath,
+            1,
+            _confidence(
+                f"Fragment-Verdacht: {word_count} Wörter, keine Headings, {lacks} leer", "high"
+            ),
+        )
+    ]
+
+
+def check_dup_paragraph(relpath: str, text: str, cfg: NBReportConfig) -> list[Finding]:
+    """NB-1 — innerhalb derselben Note wiederholte Absätze (exakt; optional near)."""
+    if not cfg.dup:
+        return []
+    paras = [
+        (norm, line, raw)
+        for raw, line in _prose_paragraphs(text)
+        if len((norm := _norm_paragraph(raw)).split()) > cfg.dup_min_words
+    ]
+    out: list[Finding] = []
+    seen: dict[str, int] = {}
+    reported: set[str] = set()
+    for norm, line, _raw in paras:
+        h = hashlib.sha256(norm.encode("utf-8")).hexdigest()
+        if h in seen and h not in reported:
+            snippet = norm[:60] + ("…" if len(norm) > 60 else "")
+            out.append(
+                Finding(
+                    "nb1-dup-paragraph",
+                    "info",
+                    relpath,
+                    line,
+                    _confidence(
+                        f"Absatz wiederholt (zuerst Zeile {seen[h]}): {snippet!r}", "high"
+                    ),
+                )
+            )
+            reported.add(h)
+        seen.setdefault(h, line)
+    if cfg.near_dup:
+        out += _check_near_dup(relpath, paras, reported, cfg)
+    return out
+
+
+def _check_near_dup(
+    relpath: str,
+    paras: list[tuple[str, int, str]],
+    exact_hashes: set[str],
+    cfg: NBReportConfig,
+) -> list[Finding]:
+    """Optionaler Near-Dup-Pfad (Embedding-Cosine ≥ Schwelle); Default AUS."""
+    texts = [norm for norm, _l, _r in paras]
+    if len(texts) < 2:
+        return []
+    from pipeline import redundancy_scan
+
+    sim = redundancy_scan.embed_similarity(
+        texts, model_name=cfg.embed_model, device=cfg.embed_device, batch_size=cfg.embed_batch
+    )
+    out: list[Finding] = []
+    for i in range(len(texts)):
+        for j in range(i + 1, len(texts)):
+            if float(sim[i][j]) >= cfg.dup_near_threshold:
+                # Exakte Dubletten (oben gemeldet) hier nicht doppelt aufführen.
+                if texts[i] == texts[j]:
+                    continue
+                line = paras[j][1]
+                out.append(
+                    Finding(
+                        "nb1-near-dup",
+                        "info",
+                        relpath,
+                        line,
+                        _confidence(
+                            f"Absatz semantisch ~ Zeile {paras[i][1]} "
+                            f"(cos {float(sim[i][j]):.3f})",
+                            "medium",
+                        ),
+                    )
+                )
+    return out
+
+
+def check_gap_markers(relpath: str, text: str, cfg: NBReportConfig) -> list[Finding]:
+    """NB-6/7 — Struktur-Lücken: Platzhalter-Marker, leere Sektionen, Textrefs."""
+    if not cfg.gap:
+        return []
+    out: list[Finding] = []
+    lines = iter_body(text)
+    for bl in lines:
+        if bl.in_fence:
+            continue
+        scan = _INLINE_CODE_RE.sub("", bl.text)
+        for m in _GAP_MARKER_RE.finditer(scan):
+            out.append(
+                Finding(
+                    "nb67-gap-marker",
+                    "info",
+                    relpath,
+                    bl.lineno,
+                    _confidence(f"Lücken-Marker: {m.group(0)!r}", "high"),
+                )
+            )
+        ref = _GAP_TEXTREF_RE.search(scan)
+        if ref:
+            out.append(
+                Finding(
+                    "nb67-gap-marker",
+                    "info",
+                    relpath,
+                    bl.lineno,
+                    _confidence(f"Textreferenz ohne Wikilink-Ziel: {ref.group(0)!r}", "high"),
+                )
+            )
+    out += _check_empty_sections(relpath, lines)
+    if cfg.acronyms:
+        out += _check_acronyms(relpath, lines)
+    return out
+
+
+def _check_empty_sections(relpath: str, lines: list[BodyLine]) -> list[Finding]:
+    """Heading, dem direkt das nächste Heading oder EOF folgt (kein Inhalt)."""
+    out: list[Finding] = []
+    heading_idx = [
+        i for i, bl in enumerate(lines) if not bl.in_fence and _HEADING_RE.match(bl.text)
+    ]
+    for k, i in enumerate(heading_idx):
+        next_i = heading_idx[k + 1] if k + 1 < len(heading_idx) else len(lines)
+        has_content = any(lines[j].text.strip() for j in range(i + 1, next_i))
+        if not has_content:
+            htext = _HEADING_RE.match(lines[i].text).group(2)  # type: ignore[union-attr]
+            out.append(
+                Finding(
+                    "nb67-gap-marker",
+                    "info",
+                    relpath,
+                    lines[i].lineno,
+                    _confidence(f"leere Sektion: {htext!r}", "high"),
+                )
+            )
+    return out
+
+
+def _check_acronyms(relpath: str, lines: list[BodyLine]) -> list[Finding]:
+    """Optional (Default AUS): All-Caps-Akronyme ohne Klammer-Definition. Niedrige Confidence."""
+    out: list[Finding] = []
+    seen: set[str] = set()
+    for bl in lines:
+        if bl.in_fence:
+            continue
+        scan = _INLINE_CODE_RE.sub("", bl.text)
+        for m in _ACRONYM_RE.finditer(scan):
+            token = m.group(1)
+            if token in seen:
+                continue
+            # Definition in Klammern in derselben Zeile → nicht undefiniert.
+            if re.search(rf"\(\s*{re.escape(token)}\s*\)", scan):
+                continue
+            seen.add(token)
+            out.append(
+                Finding(
+                    "nb67-acronym",
+                    "info",
+                    relpath,
+                    bl.lineno,
+                    _confidence(f"undefiniertes Akronym: {token!r}", "low"),
+                )
+            )
+    return out
+
+
+def check_staleness(
+    relpath: str, text: str, fm: dict[str, Any] | None, cfg: NBReportConfig
+) -> list[Finding]:
+    """NB-12 — Aktualitäts-**Proxy** (kein semantisches Veraltungs-Urteil)."""
+    if not cfg.stale:
+        return []
+    out: list[Finding] = []
+    now = cfg.now or date.today()
+    fm = fm or {}
+    ref = _as_date(fm.get("updated")) or _as_date(fm.get("created"))
+    if ref is not None and (now - ref).days > cfg.stale_age_days:
+        out.append(
+            Finding(
+                "nb12-stale-age",
+                "info",
+                relpath,
+                1,
+                _confidence(
+                    f"Aktualitäts-Proxy (keine semantische Veraltung): "
+                    f"{(now - ref).days} Tage seit {ref.isoformat()}",
+                    "medium",
+                ),
+            )
+        )
+    cutoff = now.year - cfg.stale_year_gap
+    for bl in iter_body(text):
+        if bl.in_fence:
+            continue
+        for m in _STALE_MARKER_RE.finditer(bl.text):
+            year = int(m.group(1))
+            if year < cutoff:
+                out.append(
+                    Finding(
+                        "nb12-stale-marker",
+                        "info",
+                        relpath,
+                        bl.lineno,
+                        _confidence(
+                            f"Aktualitäts-Proxy (Textmarker): {m.group(0)!r} (Jahr {year})",
+                            "medium",
+                        ),
+                    )
+                )
+    return out
+
+
+def _as_date(value: Any) -> date | None:
+    """Robuste Datum-Extraktion aus Frontmatter-Werten (date/datetime/ISO-String)."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def check_boilerplate(relpath: str, text: str, cfg: NBReportConfig) -> list[Finding]:
+    """NB-2 — Navi/Werbung/Consent **detect-only** (nie strippen).
+
+    FP-Guard: Befund nur bei ≥2 korrelierenden Signaltypen ODER einem hochspezifischen
+    Consent-Muster. Jeder Befund nennt Snippet + Muster-ID.
+    """
+    if not cfg.boilerplate:
+        return []
+    body_lines = [bl for bl in iter_body(text) if not bl.in_fence]
+    signals: list[tuple[str, int, str, str]] = []  # (pattern_id, line, snippet, confidence)
+
+    for bl in body_lines:
+        cm = _CONSENT_RE.search(bl.text)
+        if cm:
+            signals.append(("consent", bl.lineno, cm.group(0), "medium"))
+        ct = _CTA_RE.search(bl.text)
+        if ct:
+            signals.append(("cta", bl.lineno, ct.group(0), "low"))
+        if _is_nav_line(bl.text):
+            signals.append(("nav", bl.lineno, bl.text.strip()[:50], "low"))
+
+    # Link-Run: ≥ N aufeinanderfolgende reine Link-Zeilen.
+    run_start = 0
+    run_len = 0
+    for bl in body_lines:
+        if _LINK_ONLY_RE.match(bl.text.strip()):
+            if run_len == 0:
+                run_start = bl.lineno
+            run_len += 1
+        else:
+            if run_len >= cfg.boilerplate_link_run:
+                signals.append(("link-run", run_start, f"{run_len} Link-Zeilen", "low"))
+            run_len = 0
+    if run_len >= cfg.boilerplate_link_run:
+        signals.append(("link-run", run_start, f"{run_len} Link-Zeilen", "low"))
+
+    has_consent = any(s[0] == "consent" for s in signals)
+    distinct_types = {s[0] for s in signals}
+    if not has_consent and len(distinct_types) < 2:
+        return []  # FP-Guard: einzelnes schwaches Signal → unterdrücken
+    return [
+        Finding(
+            "nb2-boilerplate",
+            "info",
+            relpath,
+            line,
+            _confidence(f"Boilerplate-Verdacht [{pid}]: {snippet!r}", conf),
+        )
+        for pid, line, snippet, conf in signals
+    ]
+
+
+def _is_nav_line(raw: str) -> bool:
+    """Menü-/Nav-Zeile: Pipe-getrennte Kurzlabels (``Start | Über | Kontakt``)."""
+    s = raw.strip()
+    if _is_table_line(s) or s.count("|") < 2:
+        return False
+    segments = [seg.strip() for seg in s.split("|") if seg.strip()]
+    if len(segments) < 3 or len(segments) > 6:
+        return False
+    # Kurzlabels (≤ 20 Zeichen) statt Prosa-mit-Pipes → Nav-typisch.
+    return all(len(seg) <= 20 for seg in segments)
+
+
+def check_nb_report_suite(
+    relpath: str, text: str, fm: dict[str, Any] | None, cfg: NBReportConfig
+) -> list[Finding]:
+    """Bündelt die fünf NB-Detektoren für eine einzelne Note (read-only)."""
+    out: list[Finding] = []
+    out += check_fragment(relpath, text, fm, cfg)
+    out += check_dup_paragraph(relpath, text, cfg)
+    out += check_gap_markers(relpath, text, cfg)
+    out += check_staleness(relpath, text, fm, cfg)
+    out += check_boilerplate(relpath, text, cfg)
+    return out
+
+
 # === Vault-Index-Aufbau + Audit-Orchestrierung ================================
 
 
@@ -738,18 +1173,22 @@ def audit_vault(
     *,
     baseline: tuple[int, int] = DOC_COUNT_BASELINE,
     candidates_md: Path | None = None,
+    nb_config: NBReportConfig | None = None,
 ) -> list[Finding]:
-    """Führt alle neun Detektionsregeln read-only über den Vault aus.
+    """Führt alle Detektionsregeln read-only über den Vault aus (9 WP4 + NB-Suite).
 
     Args:
         vault_dir: Wurzel des produktiven Vaults.
         baseline: Handover-Doc-Count ``(content_main, attic)`` zum Reconcile.
         candidates_md: Pfad zu ``synthesis_candidates.md`` (Regel 8); ``None`` = skip.
+        nb_config: Schwellen/Toggles der deterministischen NB-Report-Suite
+            (WP-N1, read-only); ``None`` → :class:`NBReportConfig`-Defaults.
 
     Returns:
         Sortierte Liste aller :class:`Finding` (Datei-Befunde + Vault-Ebene).
     """
     index = build_index(vault_dir)
+    nb_cfg = nb_config or NBReportConfig()
     out: list[Finding] = []
     for rel, text in index.audit_files.items():
         fm = index.frontmatter.get(rel)
@@ -758,6 +1197,7 @@ def audit_vault(
         out += check_headings(rel, text)
         out += check_fences(rel, text)
         out += check_corruption(rel, text)
+        out += check_nb_report_suite(rel, text, fm, nb_cfg)
     # Regel 9 — Quarantäne (nicht-parsebar, isoliert melden statt stillem Skip)
     for rel, err in index.parse_errors.items():
         if rel not in index.audit_files:

@@ -34,7 +34,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import mdformat
 import mistune
 import structlog
 import yaml
@@ -112,6 +111,17 @@ def format_markdown(text: str) -> tuple[str, bool]:
     masked, spans, collision = _protect_links(text)
     if collision:
         return text, False
+    # Lazy-Import: mdformat ist bewusst nicht installiert (Wikilink-Schaden,
+    # ratifiziert abgelehnt). Top-Level-Import würde jeden `pkm`-Aufruf blockieren
+    # (R-1), obwohl die meisten Commands diesen Pfad nie betreten.
+    try:
+        import mdformat
+    except ImportError as e:
+        raise RuntimeError(
+            "mdformat ist nicht installiert. Die Markdown-Formatierung ist "
+            "bewusst deaktiviert (Wikilink-Schaden). Für diesen Pfad: "
+            "`pip install mdformat` — sonst format-Schritt überspringen."
+        ) from e
     formatted = mdformat.text(masked, extensions=_EXTENSIONS)
     formatted = _restore_thematic_breaks(formatted)
     return _restore_links(formatted, spans), True

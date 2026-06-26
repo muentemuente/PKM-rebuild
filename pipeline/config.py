@@ -143,6 +143,8 @@ class QwenConfig(BaseModel):
     max_tokens: QwenMaxTokensConfig
     restructure: QwenRestructureConfig
     keyphrase_top_n: int = 8  # WP-N2: deterministischer KeyBERT-Extraktor (Top-N Phrasen)
+    keyphrase_ngram_max: int = 3  # WP-N2b: obere n-Gram-Grenze (Range 1..n)
+    keyphrase_mmr_diversity: float = 0.6  # WP-N2b: MMR-Diversität (höher → weniger Redundanz)
 
 
 class EmbeddingsConfig(BaseModel):

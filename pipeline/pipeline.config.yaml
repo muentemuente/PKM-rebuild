@@ -150,6 +150,8 @@ qwen:
   retry_backoff_seconds: 5
   timeout_seconds: 1200          # Pro Qwen-Call; Pragmatik-Bump (WP3c-3): non-thinking ist schnell, Puffer für große Files
   keyphrase_top_n: 8             # WP-N2: deterministischer KeyBERT-Extraktor (Top-N keyphrases, kein Qwen)
+  keyphrase_ngram_max: 3         # WP-N2b: obere n-Gram-Grenze (Range 1..n)
+  keyphrase_mmr_diversity: 0.6   # WP-N2b: MMR-Diversität (höher → weniger redundante Phrasen)
 
   # Temperaturen pro Stage (siehe docs/04_qwen_prompts.md)
   # Option B (1 Doc → 1 Concept): nur Stage 3 (Synthese) + Stage 4 (Frontmatter).

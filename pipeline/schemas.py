@@ -5,7 +5,7 @@ Bei Schema-Änderung: schema_version in pipeline.config.yaml inkrementieren,
 Doku-Sektion 7 aktualisieren.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
@@ -185,6 +185,21 @@ class FrontmatterDraft(BaseModel):
     key_points: list[str] = []  # NB-4: Stage-4-Vorschlag (Draft-Niveau, human-reviewed)
     open_questions: list[str] = []  # NB-10: Stage-4-Vorschlag
     next_steps: list[str] = []  # NB-11: Stage-4-Vorschlag
+
+    @field_validator("created", "updated", "last_synthesized", mode="before")
+    @classmethod
+    def _coerce_date_str(cls, value: Any) -> Any:
+        """Coerct YAML-``date``/``datetime`` ins kanonische ``YYYY-MM-DD`` (WP-FX1).
+
+        YAML parst unquotierte Datumswerte (``created: 2026-06-26``) zu ``date``-
+        Objekten; das Schema erwartet ``str``. Bereits korrekte Strings und ``None``
+        bleiben **unverändert** (kein Reparse/Reformat, kein Vault-Write).
+        """
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        return value
 
     @field_validator("type", "status", "review_status", "confidence")
     @classmethod

@@ -36,6 +36,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import structlog
 import yaml
 from openai import APIConnectionError, APITimeoutError
 
@@ -50,6 +51,8 @@ from pipeline.phase_8_synthesis import (
 from pipeline.taxonomy import ALLOWED_CONFIDENCE, ALLOWED_TYPE
 from pipeline.transforms import TIER_REVIEW, TransformResult
 from pipeline.vault_audit import check_corruption, split_frontmatter
+
+log = structlog.get_logger()
 
 #: Default-Wert, wenn Stage 4 keine valide confidence liefert (konservativ).
 _CONFIDENCE_FALLBACK = "low"
@@ -287,6 +290,24 @@ def _source_slug(fm: dict[str, Any] | None, source_path: Path) -> str:
     return _slugify_ck(source_path.stem)
 
 
+def _as_str_list(value: Any) -> list[str]:
+    """Robuste Liste-von-Strings aus einem Qwen-JSON-Wert (graceful, nie Hard-Fail)."""
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _extract_keyphrases_safe(body: str, top_n: int) -> list[str]:
+    """Keyphrase-Extraktion mit Sicherheitsnetz (fehlende Dependency → leere Liste)."""
+    from pipeline.keyphrase import extract_keyphrases
+
+    try:
+        return extract_keyphrases(body, top_n=top_n)
+    except RuntimeError as exc:
+        log.warning("keyphrase_skipped", reason=str(exc)[:120])
+        return []
+
+
 def _build_draft_frontmatter(
     *,
     stage4: dict[str, Any],
@@ -299,12 +320,17 @@ def _build_draft_frontmatter(
     model: str,
     prompt_version: str,
     timestamp: str,
+    keyphrases: list[str] | None = None,
 ) -> dict[str, Any]:
     """Baut das Draft-Frontmatter (deterministische Schlüssel-Reihenfolge).
 
     ``type`` ist der **aufgelöste** Ziel-type (nicht der Stage-4-Rohwert);
     ``type_source`` macht die Herkunft Owner-sichtbar (frontmatter|classified|
     reclassified), ``restructure_action`` den Pfad (rewrite|passthrough).
+
+    WP-N2: ``keyphrases`` (deterministisch) sowie ``key_points``/``open_questions``/
+    ``next_steps`` (Stage-4-Vorschlag) werden **graceful** gemappt — fehlen sie,
+    bleibt die Liste leer (Abwärtskompatibilität, kein Hard-Fail).
     """
     fm: dict[str, Any] = {
         "title": stage4.get("title", source_slug),
@@ -316,6 +342,10 @@ def _build_draft_frontmatter(
         "confidence": confidence,
         "restructure_action": restructure_action,
         "prompt_version": prompt_version,
+        "keyphrases": keyphrases or [],
+        "key_points": _as_str_list(stage4.get("key_points")),
+        "open_questions": _as_str_list(stage4.get("open_questions")),
+        "next_steps": _as_str_list(stage4.get("next_steps")),
         "provenance": {
             "source": source_slug,
             "model": model,
@@ -423,6 +453,10 @@ def restructure_file(
     )
     confidence, fallback = _normalize_confidence(stage4_fm.get("confidence"))
 
+    # WP-N2 (2.1): deterministische Keyphrases aus dem Body (kein Qwen). Fehlende
+    # keybert-Dependency darf den Lauf nicht abbrechen → graceful leere Liste.
+    keyphrases = _extract_keyphrases_safe(restructured, qwen.keyphrase_top_n)
+
     draft_fm = _build_draft_frontmatter(
         stage4=stage4_fm,
         resolved_type=target_type,
@@ -434,6 +468,7 @@ def restructure_file(
         model=qwen.model,
         prompt_version=rc.prompt_version,
         timestamp=ts,
+        keyphrases=keyphrases,
     )
     out.mkdir(parents=True, exist_ok=True)
     draft_path = out / f"{src_slug}.md"

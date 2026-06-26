@@ -1,8 +1,8 @@
 ---
 prompt_id: stage4_frontmatter_json
-prompt_version: v1
+prompt_version: v2
 created: 2026-05-27
-updated: 2026-05-27
+updated: 2026-06-26
 target_model: qwen/qwen3.6-27b
 expected_input: concept_metadata_json + article_body_markdown
 expected_output: json
@@ -27,6 +27,11 @@ Vault-Standard (verbindlich):
 # Task
 
 Generiere das vollständige Frontmatter-JSON für den gegebenen Artikel. Alle Pflichtfelder müssen vorhanden sein. Leite `summary` und `tags` aus dem Artikel-Body ab. Übernimm `sources_docs` und `source_chunks` exakt aus den Konzept-Metadaten.
+
+Zusätzlich (NB-Felder, Draft-Vorschlag — leere Arrays sind erlaubt, wenn nichts zutrifft):
+- `key_points`: 2–5 zentrale Kernaussagen des Artikels, je 1 knapper deutscher Satz.
+- `open_questions`: offene/ungeklärte Fragen, die der Text aufwirft (oder `[]`).
+- `next_steps`: naheliegende Weiterverarbeitung/Folge-Schritte (oder `[]`).
 
 # Input-Format
 
@@ -61,7 +66,10 @@ Deine Ausgabe nach dem Denken ist **ausschließlich** ein JSON-Objekt in einem `
   "created": "2026-05-27",
   "updated": "2026-05-27",
   "last_synthesized": "2026-05-27",
-  "prompt_version": "v1"
+  "prompt_version": "v2",
+  "key_points": ["REST entkoppelt Client und Server über eine einheitliche HTTP-Schnittstelle.", "Zustandslosigkeit ist die zentrale Skalierungs-Eigenschaft."],
+  "open_questions": ["Wie verhält sich REST gegenüber GraphQL bei verschachtelten Ressourcen?"],
+  "next_steps": ["Vertiefung HATEOAS als eigener Artikel."]
 }
 ```
 
@@ -71,8 +79,9 @@ Deine Ausgabe nach dem Denken ist **ausschließlich** ein JSON-Objekt in einem `
 - `review_status` immer `"ai_drafted"`
 - `sources_docs` und `source_chunks` aus Konzept-Metadaten übernehmen
 - `created`, `updated`, `last_synthesized`: das mitgegebene aktuelle Datum (YYYY-MM-DD)
-- `prompt_version` immer `"v1"`
+- `prompt_version` immer `"v2"`
 - `parent_concept` und `subcategory` dürfen `null` sein
+- `key_points`, `open_questions`, `next_steps`: JSON-Arrays von Strings; leeres Array `[]` erlaubt
 - Alle Pflichtfelder müssen vorhanden sein
 
 # Failure-Hinweise

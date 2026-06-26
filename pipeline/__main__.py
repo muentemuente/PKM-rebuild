@@ -1510,6 +1510,153 @@ def frontmatter_audit(vault_dir: str | None, out_dir: str | None, want_xlsx: boo
         console.print(f"  Sheet: {xlsx_path}")
 
 
+def _quality_config(qc: Any) -> Any:
+    """Mappt die Pydantic-``quality_score``-Sektion auf die Engine-``QualityConfig``."""
+    from pipeline.quality_score import QualityConfig
+
+    return QualityConfig(
+        readiness_weights=dict(qc.readiness_weights),
+        integration_weights=dict(qc.integration_weights),
+        produktiv_min=qc.produktiv_min,
+        nutzbar_min=qc.nutzbar_min,
+        integration_insel_max=qc.integration_insel_max,
+        integration_hub_min=qc.integration_hub_min,
+        d1_severity_weights=dict(qc.d1_severity_weights),
+        d1_density_factor=qc.d1_density_factor,
+        d1_format_factor=qc.d1_format_factor,
+        d2_target_sections_min=qc.d2_target_sections_min,
+        d2_sections_max_by_type=dict(qc.d2_sections_max_by_type),
+        d2_sections_max_default=qc.d2_sections_max_default,
+        d2_length_softening_w=qc.d2_length_softening_w,
+        d2_section_penalty_cap=qc.d2_section_penalty_cap,
+        d2_target_words_min=qc.d2_target_words_min,
+        d2_target_words_max=qc.d2_target_words_max,
+        d2_jump_penalty=qc.d2_jump_penalty,
+        d2_section_penalty=qc.d2_section_penalty,
+        d2_length_penalty=qc.d2_length_penalty,
+        d3_required_weight=qc.d3_required_weight,
+        d3_optional_weight=qc.d3_optional_weight,
+        d3_invalid_penalty=qc.d3_invalid_penalty,
+        d3_optional_fields=tuple(qc.d3_optional_fields),
+        d4_band_scores=dict(qc.d4_band_scores),
+        d5_target_out_degree=qc.d5_target_out_degree,
+        d5_target_in_degree=qc.d5_target_in_degree,
+        d5_dangling_penalty=qc.d5_dangling_penalty,
+        d6_weight_membership=qc.d6_weight_membership,
+        d6_weight_keyphrase=qc.d6_weight_keyphrase,
+        d6_weight_thematic=qc.d6_weight_thematic,
+        d6_keyphrase_min_shared=qc.d6_keyphrase_min_shared,
+        d6_keyphrase_target_docs=qc.d6_keyphrase_target_docs,
+        d6_thematic_low=qc.d6_thematic_low,
+        d6_thematic_high=qc.d6_thematic_high,
+    )
+
+
+@cli.command(name="quality-score")
+@click.option(
+    "--vault-dir",
+    "vault_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Zu bewertender Vault (read-only). Default: Brain-Vault.",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Report-Zielordner (Default: work/quality/).",
+)
+@click.option("--xlsx", "want_xlsx", is_flag=True, help="Zusätzlich .xlsx schreiben.")
+@click.option(
+    "--reuse-redundancy",
+    "reuse_redundancy",
+    type=click.Path(),
+    default=None,
+    help="Pfad/Ordner mit redundancy_report.md + synthesis_candidates.md (Default: work/).",
+)
+@click.option("--top", "top_n", type=int, default=15, help="Worst-Offenders je Dimension.")
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def quality_score(
+    vault_dir: str | None,
+    out_dir: str | None,
+    want_xlsx: bool,
+    reuse_redundancy: str | None,
+    top_n: int,
+    config: str,
+) -> None:
+    """Read-only Quality-Scoring (6 Dimensionen + Composite + Band, deterministisch, kein LLM)."""
+    from datetime import UTC, datetime
+
+    from pipeline import _paths
+    from pipeline.quality_score import (
+        load_redundancy_data,
+        render_report,
+        resolve_redundancy_paths,
+        score_vault,
+        write_jsonl,
+        write_xlsx,
+    )
+
+    cfg = load_config(Path(config))
+    vault = Path(vault_dir) if vault_dir else _paths.BRAIN_VAULT
+    out = Path(out_dir) if out_dir else (_paths.WORK / "quality")
+    if not vault.is_dir():
+        console.print(f"[red]✗[/red] Vault-Verzeichnis fehlt: {vault}")
+        raise SystemExit(2)
+    out.mkdir(parents=True, exist_ok=True)
+
+    reuse = Path(reuse_redundancy) if reuse_redundancy else None
+    red_md, syn_md = resolve_redundancy_paths(reuse, _paths.WORK)
+    redundancy = load_redundancy_data(red_md, syn_md)
+    qcfg = _quality_config(cfg.quality_score)
+
+    console.print(
+        f"[cyan]quality-score:[/cyan] {vault} "
+        f"(redundancy={'aktiv' if redundancy is not None else 'n/a'})"
+    )
+    vq = score_vault(vault, redundancy=redundancy, cfg=qcfg)
+
+    ts = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
+    report_path = out / f"quality_report_{ts}.md"
+    report_path.write_text(render_report(vq, qcfg, top_n=top_n), encoding="utf-8")
+    jsonl_path = write_jsonl(vq, out / f"quality_scores_{ts}.jsonl")
+
+    bands = vq.readiness_band_counts()
+    tiers = vq.integration_tier_counts()
+    total = len(vq.files)
+    table = Table(title=f"Quality-Score ({total} Files · hash {vq.score_hash()})")
+    table.add_column("Achse A — Readiness-Band")
+    table.add_column("Files", justify="right")
+    table.add_column("Achse B — Integrations-Tertil")
+    table.add_column("Files", justify="right")
+    axis_a = [
+        ("produktiv", bands["produktiv"]),
+        ("nutzbar", bands["nutzbar"]),
+        ("nacharbeit", bands["nacharbeit"]),
+    ]
+    axis_b = [
+        ("hub-kandidat", tiers["hub-kandidat"]),
+        ("verknüpfbar", tiers["verknüpfbar"]),
+        ("insel", tiers["insel"]),
+    ]
+    for (ba, na), (tb, nb) in zip(axis_a, axis_b, strict=True):
+        table.add_row(ba, str(na), tb, str(nb))
+    console.print(table)
+    hv = vq.high_value_targets()
+    console.print(f"[bold]High-Value-Targets (produktiv/nutzbar x hub-kandidat):[/bold] {len(hv)}")
+    console.print(f"[green]✓[/green] {report_path}")
+    console.print(f"[green]✓[/green] {jsonl_path}")
+    if want_xlsx:
+        xlsx_path = write_xlsx(vq, out / f"quality_scores_{ts}.xlsx")
+        console.print(f"[green]✓[/green] {xlsx_path}")
+
+
 @cli.command()
 @click.option(
     "--source",

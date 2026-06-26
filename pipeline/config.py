@@ -142,6 +142,7 @@ class QwenConfig(BaseModel):
     temperature: QwenTemperatureConfig
     max_tokens: QwenMaxTokensConfig
     restructure: QwenRestructureConfig
+    keyphrase_top_n: int = 8  # WP-N2: deterministischer KeyBERT-Extraktor (Top-N Phrasen)
 
 
 class EmbeddingsConfig(BaseModel):

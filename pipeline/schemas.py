@@ -179,6 +179,12 @@ class FrontmatterDraft(BaseModel):
     updated: str
     last_synthesized: str
     prompt_version: str  # z.B. "v1"
+    # WP-N2: additive NB-Felder (Optional, Default leer → Bestands-Notes validieren
+    # unverändert weiter; KEINE Pflicht, KEIN field_validator, kein Taxonomie-Eintrag).
+    keyphrases: list[str] = []  # NB-3/9/15: deterministisch (KeyBERT, pipeline.keyphrase)
+    key_points: list[str] = []  # NB-4: Stage-4-Vorschlag (Draft-Niveau, human-reviewed)
+    open_questions: list[str] = []  # NB-10: Stage-4-Vorschlag
+    next_steps: list[str] = []  # NB-11: Stage-4-Vorschlag
 
     @field_validator("type", "status", "review_status", "confidence")
     @classmethod

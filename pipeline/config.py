@@ -182,6 +182,48 @@ class RedundancyScanConfig(BaseModel):
     exclude_categories: list[str] = []  # Frontmatter-category (z. B. meta)
 
 
+class QualityScoreConfig(BaseModel):
+    """Q1b: Zwei-Achsen-Quality-Scoring (Readiness ⊥ Integration), read-only."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    # Achse A (Readiness, D1-D4) bestimmt das Band; Achse B (Integration, D5/D6) separat.
+    readiness_weights: dict[str, float]  # Gewicht je Readiness-Dimension d1..d4
+    integration_weights: dict[str, float]  # Gewicht je Integrations-Dimension d5/d6
+    produktiv_min: float  # Readiness >= → produktiv
+    nutzbar_min: float  # Readiness >= → nutzbar (sonst nacharbeit)
+    integration_insel_max: float  # Integration < → insel
+    integration_hub_min: float  # Integration >= → hub-kandidat (dazwischen verknüpfbar)
+    d1_severity_weights: dict[str, float]  # error/warning/info → Defektgewicht
+    d1_density_factor: float  # Abzug je gewichtetem Defekt pro 1k Zeichen
+    d1_format_factor: float  # Abzug je Anteil format-geänderter Zeilen
+    d2_target_sections_min: int
+    d2_sections_max_by_type: dict[str, int]  # typ-bewusster Sektions-Cap
+    d2_sections_max_default: int  # Fallback (type fehlt/unbekannt)
+    d2_length_softening_w: int  # effektiver Cap >= round(word_count / W)
+    d2_section_penalty_cap: float  # Sektionszahl allein zieht d2 nie auf 0
+    d2_target_words_min: int
+    d2_target_words_max: int
+    d2_jump_penalty: float
+    d2_section_penalty: float
+    d2_length_penalty: float
+    d3_required_weight: float
+    d3_optional_weight: float
+    d3_invalid_penalty: float
+    d3_optional_fields: list[str]
+    d4_band_scores: dict[str, float]  # Restqualität je stärkstem Redundanz-Band
+    d5_target_out_degree: int
+    d5_target_in_degree: int
+    d5_dangling_penalty: float
+    d6_weight_membership: float
+    d6_weight_keyphrase: float
+    d6_weight_thematic: float
+    d6_keyphrase_min_shared: int
+    d6_keyphrase_target_docs: int
+    d6_thematic_low: float
+    d6_thematic_high: float
+
+
 class StructureConfig(BaseModel):
     extract_headings: bool
     extract_code_blocks: bool
@@ -248,6 +290,7 @@ class PipelineConfig(BaseModel):
     segmentation: SegmentationConfig
     redundancy: RedundancyConfig
     redundancy_scan: RedundancyScanConfig
+    quality_score: QualityScoreConfig
     embeddings: EmbeddingsConfig
     clustering: ClusteringConfig
     batching: BatchingConfig

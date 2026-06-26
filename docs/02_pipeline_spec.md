@@ -439,6 +439,37 @@ eine Empfehlung (Priorität owner > restructure > mechanical-fix > complete). Re
 restructure-Teilmenge, Owner-Liste, Fazit. **Ist-Stand (2026-06-22): 165/165 Files
 complete & valide, 0 Lücken** → kein Großlauf/Fix indiziert.
 
+### Quality-Score (`quality-score`, Q1b — zwei Achsen)
+
+Read-only, **deterministisch, kein LLM, kein Vault-Write**. Gibt jeder Vault-Content-Datei
+einen Qualitätsstatus über sechs Dimensionen (je 0–100, höher = besser), getrennt in **zwei
+orthogonale Achsen**: **Achse A — Readiness-Composite** (D1 formale MD-Qualität, D2 Struktur,
+D3 Metadaten, D4 Redundanzgrad invers) bestimmt das **Band** (`produktiv ≥ 80` · `nutzbar
+60–79` · `nacharbeit < 60`); **Achse B — Integrations-Index** (D5 Verknüpfbarkeit, D6
+Synthesepotenzial) ist ein **separates** Backlog-Signal mit Tertil (`insel < 20` ·
+`verknüpfbar 20–49` · `hub-kandidat ≥ 50`) und fließt bewusst **nicht** ins Band. Engine:
+`pipeline/quality_score.py` — **Reuse** bestehender Engines (`vault_audit`, `format_vault`,
+`frontmatter_audit`, `redundancy_scan`-Report), keine Parallel-Detektion. Keine
+`schemas.py`-Änderung (Dataclasses `FileQuality`/`DimensionScore`/`QualityConfig` → §7 n/a).
+
+```bash
+pkm quality-score [--vault-dir DIR] [--out work/quality/] [--xlsx]
+                  [--reuse-redundancy PATH] [--top N]
+```
+
+D4/D6 lesen den jüngsten `redundancy_report.md`/`synthesis_candidates.md` aus `work/`
+(oder `--reuse-redundancy PATH`); **kein** Embedding-Lauf im Default. Fehlt der Report →
+D4/D6 `n/a` (nie geschätzt), die jeweilige Achse wird proportional reskaliert. D2 ist
+typ-bewusst (`d2_sections_max_by_type`) mit Längen-Softening + gedeckeltem Sektions-Penalty
+(Sektionszahl allein zieht D2 nie auf 0). Report `work/quality/quality_report_<ts>.md`
+(Readiness-Band-Verteilung, Integrations-Tertil-Verteilung, **Leverage-Quadrant** A×B,
+Dimensions-Verteilung D1–D6, Worst-Readiness-Offenders, **High-Value-Liste** produktiv/nutzbar
+× hub-kandidat, Fazit) + `quality_scores_<ts>.jsonl` (1 Record/File: beide Achsen + sechs
+Sub-Scores + `evidence`) + optional `.xlsx`. Idempotent (`score_hash`, kein Wall-Clock im
+Body). Gewichte/Schwellen in `pipeline.config.yaml → quality_score` (§3). **Ist-Stand
+(2026-06-26, 165 Files): Readiness 155 produktiv / 10 nutzbar / 0 nacharbeit; Integration
+9 hub / 26 verknüpfbar / 130 insel; 9 High-Value-Targets.**
+
 ### Batch-restructure + Review-Sheet (`restructure-batch` / `review-ingest`, WP3c-6)
 
 Skaliert das typ-bewusste restructure auf mehrere Files mit Owner-Review-Schnittstelle.
@@ -1050,4 +1081,5 @@ Bei Schema-Änderungen: Schema-Version inkrementieren + Migration im Code. Bei P
 - 2026-06-24 — WP3b (Synthese-Korpus-Filter + additive MOC): §3 `redundancy_scan.exclude_folders`/`exclude_categories` (Synthese-Korpus = nur Wissensartikel, Ausschluss via Ordner/category, **kein** Slug-Filter, ausgeschlossene Docs transparent im Report). §4 CLI `pkm synthesize-moc [--approved FILE] [--vault-dir DIR] [--out-dir DIR] [--no-qwen]` — neue MOC-Drafts aus Gate-A-freigegebenen Clustern nach `drafts/_moc/` (D6 additiv, kein Vault-Write). Engine `pipeline/synthesis_moc.py`: Frontmatter (`doc_type: moc`, `merged_from: []`, `confidence`, `moc_members`) + 2-3-Satz-Qwen-Rahmung (`/no_think`, gecappt; Fehler → deterministische Fallback + `needs_human`) + Wikilinks; **Link-Descriptor = realer `summary` des Ziel-Docs (RV13, keine Generierung)**, kein Body-Kopieren, Quell-Artikel byte-unverändert. Keine `schemas.py`-Änderung (Draft-Frontmatter dict→YAML). 8 MOC-Tests (LLM injiziert) + 3 Korpus-Filter-Tests. **Gate 3b:** Owner prüft jedes MOC einzeln, Export separat.
 - 2026-06-24 — WP3b-Promote (MOC → Vault): `promotion.py` `FOLDER_BY_DOC_TYPE` (`doc_type: moc` → `00_Maps/`, Override **vor** dem category→Ordner-Mapping) + `PRESERVE_STATUS_DOC_TYPES` (`moc` bleibt `status: draft`, wird NICHT auto-`review`). `synthesis_moc.build_moc` emittiert jetzt zusätzlich die Vault-Pflichtfelder `summary` / `doc_role: [index]` / `sources_docs: []` / `source_chunks: []` → MOCs sind über `pkm promote` FrontmatterDraft-validiert promotierbar. 2 neue Promotion-Tests (Override-Routing 00_Maps + status-Erhalt draft). Keine `schemas.py`-Änderung.
 - 2026-06-21 — WP3c-1 (restructure-review Scaffold): §4 CLI `pkm restructure --file <path> [--out drafts/]` (review-only, **nie** Vault-Write, kein `--execute`). Neues Modul `pipeline/restructure.py`: `RestructureReviewTransform` (tier=**review**, mutating, registry-fähig → `driver._chain_writable` blockt Auto-Write) + `restructure_file()` Single-File-Orchestrator. **Reuse** der kanonischen v1-Prompts Stage 3 (Body) + Stage 4 (Frontmatter) und der injizierbaren Call-Layer (`_load_prompt`/`_run_text_stage`/`_run_json_stage` aus `phase_8_synthesis`) — kein neuer Prompt. Draft-Frontmatter: `review_status: ai_drafted` · `confidence: <low|medium|high>` (Vault-SSoT-Enum, kein Float; Stage-4-Wert auf Enum normalisiert) · `provenance` (Quelle-Slug/Modell/Prompt-Version/Timestamp); fehlende/ungültige confidence → `low` + `confidence_fallback: true`. Quell-File read-only, Output nur `drafts/`. Draft→Vault-Promotion = separater D4-Task (Folge-Inkrement). Keine `schemas.py`-Änderung (Draft-Frontmatter als dict→YAML, kein Pydantic → §7 n/a). 10 neue Tests (LLM gemockt: byte-stabiler Draft, Frontmatter-Kontrakt, confidence-Enum+Fallback, Quell-File-Snapshot, Driver-Invariante review→kein Write). Engine `pipeline/restructure.py`.
+- 2026-06-26 — Q1b (Quality-Score, zwei Achsen): §4 CLI `pkm quality-score` (read-only, deterministisch, kein LLM/Vault-Write). Sechs Dimensionen → **Achse A Readiness** (D1–D4, bestimmt das Band) ⊥ **Achse B Integrations-Index** (D5/D6, separates Tertil-Signal `insel`/`verknüpfbar`/`hub-kandidat`, NICHT im Band). Engine `pipeline/quality_score.py` = **Reuse** (`vault_audit`/`format_vault`/`frontmatter_audit`/`redundancy_scan`-Report-Parse), keine Parallel-Detektion. D4/D6 aus vorhandenem Redundanz-Report (kein Embedding-Lauf; fehlt → `n/a`, Achse reskaliert). D2 typ-bewusst (`d2_sections_max_by_type`) + Längen-Softening + gedeckelter Sektions-Penalty. Report mit Leverage-Quadrant + High-Value-Liste; JSONL je File beide Achsen + 6 Sub-Scores; idempotent (`score_hash`). §3 Config-Sektion `quality_score` (Gewichte/Schwellen). Keine `schemas.py`-Änderung (Dataclasses → §7 n/a). 13 Tests. Live: 155 produktiv / 10 nutzbar / 0 nacharbeit, 9 High-Value-Targets.
 - 2026-06-25 — Konsolidierung (verify-first gegen Repo): §3 toter `paths:`-Block entfernt (reale `pipeline.config.yaml` hat **keinen** `paths:`-Block, vgl. §2; Pfade in `pipeline/_paths.py`) + Hinweis mit realen Top-Level-Keys; `logging.file` `${pipeline_output}/…` → `work/pipeline.log`. **Verifiziert unverändert** (keine Drift): §4 CLI-Liste deckt sich mit `python -m pipeline --help`; §7 Schemas byte-deckungsgleich mit `pipeline/schemas.py` (FrontmatterDraft-Felder, DocTypeGuess-Labels). Die übrigen `data/0X`-Pfade bleiben als technische Historie hinter dem Legacy-Banner (§ Kopf) bewusst erhalten.

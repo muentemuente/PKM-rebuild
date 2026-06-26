@@ -114,6 +114,72 @@ redundancy_scan:
   exclude_categories: ["meta"]
 
 
+# === Quality-Score (Q1b — zwei Achsen) ========================================
+# Deterministischer Quality-Scoring-Layer (read-only, kein LLM, kein Vault-Write).
+# Zwei orthogonale Achsen:
+#   A) Readiness-Composite (D1-D4) → bestimmt das Band (intrinsische Datei-Qualität).
+#   B) Integrations-Index (D5/D6) → separates Backlog-Signal (Graph/Synthese-Hebel),
+#      fließt bewusst NICHT ins Band. n/a-Dimensionen reskalieren die jeweilige Achse.
+quality_score:
+  readiness_weights:              # Achse A — Default je 1/4
+    d1: 1.0
+    d2: 1.0
+    d3: 1.0
+    d4: 1.0
+  integration_weights:           # Achse B — Default je 1/2
+    d5: 1.0
+    d6: 1.0
+  produktiv_min: 80               # Readiness >= → produktiv
+  nutzbar_min: 60                 # Readiness >= → nutzbar (sonst nacharbeit)
+  integration_insel_max: 20       # Integration < → insel
+  integration_hub_min: 50         # Integration >= → hub-kandidat (dazwischen verknüpfbar)
+  # D1 — Formale MD-Qualität (Defektdichte + Format-Diff-Proxy)
+  d1_severity_weights:
+    error: 3.0
+    warning: 1.5
+    info: 0.5
+  d1_density_factor: 6.0          # Abzug je gewichtetem Defekt pro 1k Zeichen
+  d1_format_factor: 35.0          # Abzug je Anteil format-geänderter Zeilen
+  # D2 — Strukturqualität (typ-bewusster Sektions-Cap + Längen-Softening)
+  d2_target_sections_min: 2
+  d2_sections_max_by_type:        # typ-spezifischer Sektions-Cap
+    gedanke: 8
+    knowledge-article: 14
+    process-document: 28
+    compact-reference: 45
+  d2_sections_max_default: 14     # Fallback (type fehlt/unbekannt)
+  d2_length_softening_w: 120      # effektiver Cap >= round(word_count / W) (mildere Regel greift)
+  d2_section_penalty_cap: 40.0    # Sektionszahl allein zieht d2 nie auf 0
+  d2_target_words_min: 80
+  d2_target_words_max: 3000
+  d2_jump_penalty: 15.0           # je Heading-Hierarchie-Sprung
+  d2_section_penalty: 8.0         # je Sektion über dem effektiven Cap (gedeckelt)
+  d2_length_penalty: 12.0         # Länge außerhalb des Wortbands
+  # D3 — Metadaten-Vollständigkeit
+  d3_required_weight: 0.7
+  d3_optional_weight: 0.3
+  d3_invalid_penalty: 8.0         # je invalider Enum-/Slug-/Frontmatter-Lücke
+  d3_optional_fields: ["keyphrases", "related", "aliases", "tags", "subcategory", "parent_concept", "child_concepts", "used_in"]
+  # D4 — Redundanzgrad (invers): Restqualität je stärkstem Band
+  d4_band_scores:
+    exact: 0.0
+    near-dup: 25.0
+    semantic-dup: 50.0
+    thematic: 80.0
+  # D5 — Verknüpfbarkeit
+  d5_target_out_degree: 3
+  d5_target_in_degree: 2
+  d5_dangling_penalty: 20.0       # je unauflösbarem (echt-defektem) Wikilink
+  # D6 — Synthesepotenzial (Membership + Keyphrase-Overlap + thematische Ø-Sim)
+  d6_weight_membership: 40.0
+  d6_weight_keyphrase: 30.0
+  d6_weight_thematic: 30.0
+  d6_keyphrase_min_shared: 2      # geteilte Keyphrases, ab denen zwei Docs "überlappen"
+  d6_keyphrase_target_docs: 3     # Overlap-Docs für vollen Keyphrase-Score
+  d6_thematic_low: 0.70           # thematisches Band (= redundancy_scan)
+  d6_thematic_high: 0.85
+
+
 # === Embeddings (Phase 6) =====================================================
 embeddings:
   enabled: true

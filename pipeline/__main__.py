@@ -672,8 +672,25 @@ def format_vault_cmd(vault_dir: str | None, work_dir: str | None, examples: int)
     default=None,
     help="Doc-Count-Baseline 'content,attic' (default: vault_audit.DOC_COUNT_BASELINE)",
 )
-def vault_audit_cmd(vault_dir: str | None, work_dir: str | None, baseline: str | None) -> None:
-    """WP4: read-only Audit über den Vault (9 Regeln) → Befund-Report in work/."""
+@click.option(
+    "--near-dup",
+    "near_dup",
+    is_flag=True,
+    help="NB-1: optionalen Embedding-Near-Dup-Pfad aktivieren (default aus).",
+)
+@click.option(
+    "--acronyms",
+    is_flag=True,
+    help="NB-6/7: undefinierte All-Caps-Akronyme melden (default aus, hohes FP-Risiko).",
+)
+def vault_audit_cmd(
+    vault_dir: str | None,
+    work_dir: str | None,
+    baseline: str | None,
+    near_dup: bool,
+    acronyms: bool,
+) -> None:
+    """WP4: read-only Audit über den Vault (9 Regeln + NB-Suite) → Report in work/."""
     from pipeline import _paths
     from pipeline import vault_audit as va
 
@@ -691,6 +708,7 @@ def vault_audit_cmd(vault_dir: str | None, work_dir: str | None, baseline: str |
         vault,
         baseline=(base_content, base_attic),
         candidates_md=candidates if candidates.is_file() else None,
+        nb_config=va.NBReportConfig(near_dup=near_dup, acronyms=acronyms),
     )
     work.mkdir(parents=True, exist_ok=True)
     (work / "audit_report.md").write_text(va.render_report(findings), encoding="utf-8")

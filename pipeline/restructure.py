@@ -297,12 +297,17 @@ def _as_str_list(value: Any) -> list[str]:
     return [str(item).strip() for item in value if str(item).strip()]
 
 
-def _extract_keyphrases_safe(body: str, top_n: int) -> list[str]:
+def _extract_keyphrases_safe(body: str, qwen: QwenConfig) -> list[str]:
     """Keyphrase-Extraktion mit Sicherheitsnetz (fehlende Dependency → leere Liste)."""
     from pipeline.keyphrase import extract_keyphrases
 
     try:
-        return extract_keyphrases(body, top_n=top_n)
+        return extract_keyphrases(
+            body,
+            top_n=qwen.keyphrase_top_n,
+            ngram_max=qwen.keyphrase_ngram_max,
+            mmr_diversity=qwen.keyphrase_mmr_diversity,
+        )
     except RuntimeError as exc:
         log.warning("keyphrase_skipped", reason=str(exc)[:120])
         return []
@@ -455,7 +460,7 @@ def restructure_file(
 
     # WP-N2 (2.1): deterministische Keyphrases aus dem Body (kein Qwen). Fehlende
     # keybert-Dependency darf den Lauf nicht abbrechen → graceful leere Liste.
-    keyphrases = _extract_keyphrases_safe(restructured, qwen.keyphrase_top_n)
+    keyphrases = _extract_keyphrases_safe(restructured, qwen)
 
     draft_fm = _build_draft_frontmatter(
         stage4=stage4_fm,

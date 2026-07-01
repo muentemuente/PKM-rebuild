@@ -28,9 +28,6 @@ from pipeline.phase_8_synthesis import (
     _load_passthrough_doc_ids,
     _load_tag_synonym_map,
     _load_tag_vocabulary,
-    _QwenStageConfig,
-    _run_stage2,
-    _sha256_str,
     _slugify_ck,
     _unique_slug,
     _write_stage_meta,
@@ -39,51 +36,6 @@ from pipeline.phase_8_synthesis import (
 from pipeline.schemas import FrontmatterDraft, SegmentRecord, StructuredDocumentRecord
 
 # === Fixtures ==================================================================
-
-# Stage-1+2-Konstanten: deprecated (Option A), behalten fuer _run_stage2-Test
-STAGE1_JSON = {
-    "cluster_id": "C_test",
-    "main_topics": [
-        {"topic": "Test-Thema", "segment_ids": ["D_test-S0000"], "confidence": "medium"}
-    ],
-    "redundancies": [],
-    "contradictions": [],
-    "structure_proposal": {
-        "concept_candidates": [
-            {
-                "tentative_slug": "test-konzept",
-                "tentative_title": "Test Konzept",
-                "covers_segments": ["D_test-S0000"],
-                "type_guess": "knowledge-article",
-            }
-        ]
-    },
-    "overall_confidence": "medium",
-}
-
-STAGE2_JSON = {
-    "cluster_id": "C_test",
-    "proposed_concepts": [
-        {
-            "ck_id": "CK_test-konzept",
-            "title": "Test Konzept",
-            "slug": "test-konzept",
-            "type": "knowledge-article",
-            "doc_role": ["explanation"],
-            "category": "grundlagen",
-            "subcategory": None,
-            "sources_docs": ["D_test"],
-            "source_chunks": ["D_test-S0000"],
-            "merged_from": [],
-            "aliases_suggested": [],
-            "parent_concept_suggestion": None,
-            "child_concepts_suggestions": [],
-            "rationale": "Klares Thema.",
-        }
-    ],
-    "discarded_segments": [],
-    "overall_confidence": "medium",
-}
 
 STAGE3_BODY = "# Test Konzept\n\nEin Test-Artikel mit ausreichend Inhalt."
 
@@ -151,8 +103,6 @@ def _make_prompts_dir(tmp_path: Path) -> Path:
     v1 = tmp_path / "prompts" / "v1"
     v1.mkdir(parents=True)
     for name in [
-        "stage1_cluster_analysis.md",
-        "stage2_merge_proposal.md",
         "stage3_synthesis.md",
         "stage4_frontmatter_json.md",
     ]:
@@ -738,60 +688,6 @@ def test_run_phase_8_stage3_error_lands_in_errors(
     )
     assert result["errors"] >= 1
     assert result["concepts_drafted"] == 0
-
-
-# === Bug-B2: merge_decisions-Vorrang vor Cache (deprecated _run_stage2) =========
-
-
-def test_merge_decisions_override_wins_over_cache(tmp_path: Path) -> None:
-    """merge_decisions.json ueberschreibt Stage-2-Cache (Option-A-Referenztest)."""
-    batch_path = tmp_path / "batch_001_test.md"
-    batch_path.write_text("batch content", encoding="utf-8")
-    output_dir = tmp_path / "qwen" / "batch_001_test"
-    output_dir.mkdir(parents=True)
-
-    stage1_data: dict[str, object] = {"some": "stage1_data"}
-    input_hash = _sha256_str(json.dumps(stage1_data, ensure_ascii=False))
-
-    cached_content = {"proposed_concepts": [{"ck_id": "CK_from-cache", "title": "From Cache"}]}
-    (output_dir / "stage2_merges.json").write_text(json.dumps(cached_content), encoding="utf-8")
-    (output_dir / ".stage2.meta.json").write_text(
-        json.dumps({"input_hash": input_hash}), encoding="utf-8"
-    )
-
-    decisions_content = {
-        "proposed_concepts": [{"ck_id": "CK_from-decisions", "title": "From Decisions"}]
-    }
-    (output_dir / "merge_decisions.json").write_text(
-        json.dumps(decisions_content), encoding="utf-8"
-    )
-
-    cfg = _QwenStageConfig(
-        client=MagicMock(),
-        model="test",
-        context_window=49152,
-        max_retries=0,
-        backoff_seconds=0,
-        prompts_dir=tmp_path / "prompts",
-        prompt_version="v1",
-        needs_human_path=tmp_path / "needs_human.jsonl",
-        pipeline_version="0.1.0",
-        force=False,
-        today_str="2026-05-28",
-        temp_stage1=0.3,
-        temp_stage2=0.2,
-        temp_stage3=0.4,
-        temp_stage4=0.1,
-        max_tokens_stage1=20000,
-        max_tokens_stage2=14000,
-        max_tokens_stage3=24000,
-        max_tokens_stage4=10000,
-    )
-
-    result = _run_stage2(batch_path, stage1_data, output_dir, cfg)
-
-    assert result is not None
-    assert result["proposed_concepts"][0]["ck_id"] == "CK_from-decisions"
 
 
 # === Bug-B5: used_slugs aus bestehenden Drafts laden ============================

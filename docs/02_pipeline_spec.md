@@ -470,6 +470,25 @@ Body). Gewichte/Schwellen in `pipeline.config.yaml → quality_score` (§3). **I
 (2026-06-26, 165 Files): Readiness 155 produktiv / 10 nutzbar / 0 nacharbeit; Integration
 9 hub / 26 verknüpfbar / 130 insel; 9 High-Value-Targets.**
 
+### Vault-Health-Report (`vault-health`, R1 — Aggregation)
+
+Read-only **Aggregation/Veredelung** der `quality-score`-Historie, **kein** neues Scoring,
+**kein** LLM, **kein** Vault-Read, **kein** State-Store/Scheduler. Liest den jüngsten
+`quality_scores_<ts>.jsonl` in `work/quality/` (oder `--quality-dir DIR`) und, falls ein
+zweitjüngster **schema-kompatibler** Stand existiert, bildet er ein **Delta** (Band-/Tertil-
+Verschiebungen, neue/verschwundene Hub-Kandidaten). Nur ein Lauf → Snapshot ohne Delta
+(`erster Lauf — kein Vergleich möglich`). Ein Vorlauf im alten Single-Axis-Schema (ohne
+`readiness_band`/`integration_tier`) wird erkannt und **nicht** als irreführendes Voll-Delta
+gewertet (Snapshot + Hinweis). Engine: `pipeline/vault_health.py` (Dataclasses
+`HealthSnapshot`/`HealthDelta`/`HealthReport` → §7 n/a, kein Pydantic).
+
+```bash
+pkm vault-health [--quality-dir DIR] [--out DIR]
+```
+
+Schreibt `work/quality/health_report_<ts>.md` (Snapshot + optionales Delta). Fehlt jedes
+`quality_scores_*.jsonl` → Exit 2 mit Hinweis, erst `pkm quality-score` zu laufen.
+
 ### Batch-restructure + Review-Sheet (`restructure-batch` / `review-ingest`, WP3c-6)
 
 Skaliert das typ-bewusste restructure auf mehrere Files mit Owner-Review-Schnittstelle.

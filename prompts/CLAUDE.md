@@ -2,7 +2,7 @@
 
 Working Conventions für Qwen-Prompt-Files in diesem Verzeichnis. Die Regeln aus `/CLAUDE.md` (root) gelten zusätzlich.
 
-> **Aktive Stages (Option B):** Nur **Stage 3** (Pro-Doc-Veredelung, mit Routing passthrough/stage3) + **Stage 4** (Frontmatter, inkl. Gedanken-Variante `stage4_frontmatter_gedanken.md`). `stage1_cluster_analysis.md` und `stage2_merge_proposal.md` sind **deprecated** (Option A, kein Cross-Doc-Merge) — bleiben als historische Referenz, werden nicht gepflegt. Details: `docs/04_qwen_prompts.md`.
+> **Aktive Stages (Option B):** Nur **Stage 3** (Pro-Doc-Veredelung, mit Routing passthrough/stage3) + **Stage 4** (Frontmatter, inkl. Gedanken-Variante `stage4_frontmatter_gedanken.md`). Die früheren `stage1_cluster_analysis.md` und `stage2_merge_proposal.md` (Option A, Cross-Doc-Merge, R9) samt ihren `stage1_output.schema.json`/`stage2_output.schema.json` wurden **entfernt** (H1, 2026-07-01) — toter Code, kein aktiver Pfad. Details: `docs/04_qwen_prompts.md`.
 
 ---
 

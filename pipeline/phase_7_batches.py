@@ -148,8 +148,6 @@ def _build_batch_markdown(
         "",
         "<!-- QWEN-ANWEISUNG",
         "Dieser Batch enthaelt Cluster-Daten fuer die Qwen-Synthese (Phase 8).",
-        "Stage 1 Prompt: prompts/v1/stage1_cluster_analysis.md",
-        "Stage 2 Prompt: prompts/v1/stage2_merge_proposal.md",
         "Stage 3 Prompt: prompts/v1/stage3_synthesis.md",
         "Stage 4 Prompt: prompts/v1/stage4_frontmatter_json.md",
         "-->",

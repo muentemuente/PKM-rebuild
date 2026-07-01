@@ -525,12 +525,19 @@ def _run_text_stage(
     presence_penalty: float | None = None,
     reasoning_effort: str | None = None,
     extra_body: dict[str, Any] | None = None,
-) -> str:
+) -> tuple[str, bool]:
     """Ruft Qwen auf, erwartet Markdown-Body. Kein JSON-Parse.
 
     Optionale Sampler-/``reasoning_effort``-/``extra_body``-Parameter werden an
     :func:`_call_qwen_api` durchgereicht (Default ``None`` → Phase-8 unverändert).
+
+    Returns:
+        ``(body, truncated)`` — ``truncated`` ist ``True``, wenn der zurückgegebene
+        Output vom ``max_tokens``-Cap abgeschnitten wurde (``finish_reason ==
+        "length"``, H3-Hardening: Reasoning-Loop-Schutz). Der Aufrufer darf einen
+        abgeschnittenen Body **nicht** stillschweigend als valide übernehmen.
     """
+    truncated = False
     for attempt in range(max_retries + 1):
         if attempt > 0:
             time.sleep(backoff_seconds)
@@ -545,13 +552,14 @@ def _run_text_stage(
             reasoning_effort=reasoning_effort,
             extra_body=extra_body,
         )
-        if finish_reason == "length":
-            log.warning("qwen_stage3_truncated", attempt=attempt)
+        truncated = finish_reason == "length"
+        if truncated:
+            log.warning("qwen_stage3_truncated", attempt=attempt, max_tokens=max_tokens)
         extracted = _extract_markdown_body(raw)
         if extracted:
-            return extracted
+            return extracted, truncated
         log.warning("qwen_empty_body", attempt=attempt)
-    return ""
+    return "", truncated
 
 
 # === Stage 3+4 — aktiv in Option B ============================================
@@ -652,7 +660,7 @@ def _run_stage3_concept(
         {"role": "user", "content": user_message},
     ]
 
-    body = _run_text_stage(
+    body, truncated = _run_text_stage(
         cfg.client,
         cfg.model,
         messages,
@@ -661,6 +669,21 @@ def _run_stage3_concept(
         cfg.max_retries,
         cfg.backoff_seconds,
     )
+
+    if truncated:
+        # H3: Cap-Truncation (finish_reason=length) → nicht als valides Ergebnis
+        # akzeptieren. Schützt vor stillschweigend abgeschnittenem Output aus einem
+        # Reasoning-Loop bei meta-/prompt-artigem Content.
+        log.error("phase_8_stage3_truncated", slug=slug, max_tokens=cfg.max_tokens_stage3)
+        _log_needs_human(
+            cfg.needs_human_path,
+            doc_id,
+            concept["ck_id"],
+            "stage3",
+            "output_truncated",
+            f"finish_reason=length bei max_tokens={cfg.max_tokens_stage3}",
+        )
+        return None
 
     if not body:
         log.error("phase_8_stage3_empty", slug=slug)

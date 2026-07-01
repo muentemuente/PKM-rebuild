@@ -142,7 +142,7 @@ class RestructureReviewTransform:
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": _build_restructure_user_message(text, self.target_type)},
         ]
-        new_body = _run_text_stage(
+        new_body, truncated = _run_text_stage(
             self.client,
             self.model,
             messages,
@@ -155,6 +155,8 @@ class RestructureReviewTransform:
             reasoning_effort=self.reasoning_effort,
         )
         report = ["restructure-review: Body via Qwen Stage-3 re-strukturiert"]
+        if truncated:
+            report.append("WARN: Output am max_tokens-Cap abgeschnitten (finish_reason=length)")
         return TransformResult(text=new_body, changed=new_body != text, report=report)
 
 
@@ -197,7 +199,7 @@ def _classify_type(body: str, client: Any, qwen: QwenConfig) -> str:
         {"role": "system", "content": _CLASSIFY_SYSTEM_PROMPT},
         {"role": "user", "content": f"## Dokument\n\n{body[:4000]}"},
     ]
-    raw = _run_text_stage(
+    raw, _truncated = _run_text_stage(
         client,
         qwen.model,
         messages,

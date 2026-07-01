@@ -23,7 +23,7 @@ Aktueller Stand, Architektur, Qualität und offene Punkte. Maßgeblicher Details
 | Vault-Artikel (Brain-Vault #3) | **181 + 5 MOC** in 14 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups) |
 | Ordner-Struktur | 16 thematische + `17_unsortiert` (Catch-all) + `00_Maps/` (MOCs) + `00_Meta/` |
 | Idempotenz | `pkm regenerate-indices` = 0/14 (phase_9-Format, archive-before) |
-| Test-Suite | **760** grün, `ruff` clean, `mypy pipeline/` clean |
+| Test-Suite | **789** grün (`def test_`; 826 passed / 2 skipped parametrisiert), `ruff` clean, `mypy pipeline/` clean |
 | Code-Schuld | `scripts/` 8 pre-existing mypy-Fehler (WP1-Backlog, kein Blocker) |
 | Architektur | Option B (Pro-Doc, kein Merge); Embedding-Clustering **verworfen** (R9) |
 | Taxonomie-SSoT | `config/`: `tag_vocabulary.yaml` (149 Tags), `categories.yaml`, `enums.yaml` |
@@ -156,7 +156,7 @@ PKM-rebuild/                    ← Git, public (Ort #1)
 │   └── _paths.py  schemas.py  config.py
 ├── prompts/                    ← v1 (Phase 8) + v2 (restructure) + schemas/, CLAUDE.md
 ├── scripts/                    ← manage_vocab, pkm_triage, dod_check, snapshot/restore.sh, … (_deprecated/rebuild_indices.py)
-├── tests/                      ← 760 Tests (+ fixtures/)
+├── tests/                      ← 789 Tests (+ fixtures/)
 └── docs/                       ← Projekt-Doku (s.u.)
     ├── 00_persona / 00b_arbeitsvereinbarung / 01_strategy / 02_pipeline_spec
     ├── 03_vault_standard / 04_qwen_prompts / 05_glossary / 06_claude_code_workflow / 06b_tool_routing / 07_backup_strategy
@@ -176,7 +176,7 @@ PKM-rebuild/                    ← Git, public (Ort #1)
 
 | Tool | Status |
 |---|---|
-| `pytest` | ✅ **760** grün |
+| `pytest` | ✅ **789** grün (826 passed / 2 skipped parametrisiert) |
 | `ruff check` / `ruff format` | ✅ clean |
 | `mypy pipeline/` | ✅ clean |
 | `mypy scripts/` | ⚠️ 8 pre-existing Fehler (WP1-Backlog, kein Laufzeitrisiko) |
@@ -214,3 +214,4 @@ Vault-Mutationen weiterhin nur per Owner-`!`-Lauf (D-WP4-3), Gates heilig, kein 
 - 2026-06-05/06 — Phase 11/12 (Finalisierung); Vault gebaut + tag-bereinigt (149er Vokabular); Basis-Pipeline ABGESCHLOSSEN
 - 2026-06-23 — v3-Zyklus-Start (WP0): Realstand verifiziert (181 Artikel, Tests grün); Doku-Drift bereinigt; v2-Plan archiviert
 - 2026-06-25 — **Voll-Rewrite** auf Post-WP4-Stand: §0 aktualisiert (181 + 5 MOC, 760 Tests, idempotent); neue §2 v3-Zyklus (WP0–WP4 + WP4-Bilanz + Dispositionen); §3 Phasen-Referenz neu (ohne stale Metriken) + v3-Module; §5 gegen `pipeline.config.yaml` verifiziert (TF-IDF 0.85→**0.72** korrigiert); §6 Layout aktuell; §7 760 Tests / mypy pipeline clean; §8 Backup als erfüllt (Time Machine)
+- 2026-07-01 — T1: Test-Richtwert 760 → **789** nachgeführt (`def test_`-Zählung; parametrisiert 826 passed / 2 skipped) nach Tier-1-Sweep (H2-Regressiontest + R1 vault-health-Tests, H1-Cleanup). Nur Zahlen-Korrektur (§0-Tabelle, §-Layout, §-Tool-Status)

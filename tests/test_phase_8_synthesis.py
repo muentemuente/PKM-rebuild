@@ -28,6 +28,8 @@ from pipeline.phase_8_synthesis import (
     _load_passthrough_doc_ids,
     _load_tag_synonym_map,
     _load_tag_vocabulary,
+    _QwenStageConfig,
+    _run_stage3_concept,
     _slugify_ck,
     _unique_slug,
     _write_stage_meta,
@@ -1028,3 +1030,95 @@ def test_passthrough_body_written_verbatim(tmp_path: Path, mock_openai_infinite:
 
     body_content = (tmp_path / "drafts" / "CK_test.body.md").read_text(encoding="utf-8")
     assert original_text in body_content
+
+
+# === H3: Stage-3 Reasoning-Loop-Hardening =====================================
+
+
+def _make_mock_response_with_finish(content: str, finish_reason: str) -> MagicMock:
+    """Wie _make_mock_response, aber mit frei waehlbarem finish_reason."""
+    choice = MagicMock()
+    choice.message.content = content
+    choice.finish_reason = finish_reason
+    resp = MagicMock()
+    resp.choices = [choice]
+    return resp
+
+
+def _make_stage_cfg(client: MagicMock, tmp_path: Path) -> _QwenStageConfig:
+    """Minimale _QwenStageConfig fuer Stage-3-Direkttests (H3)."""
+    return _QwenStageConfig(
+        client=client,
+        model="test-model",
+        context_window=49152,
+        max_retries=1,
+        backoff_seconds=0,
+        prompts_dir=_make_prompts_dir(tmp_path),
+        prompt_version="v1",
+        needs_human_path=tmp_path / "needs_human.jsonl",
+        pipeline_version="0.1.0",
+        force=False,
+        today_str="2026-07-01",
+        temp_stage3=0.3,
+        temp_stage4=0.2,
+        max_tokens_stage3=4000,
+        max_tokens_stage4=2000,
+    )
+
+
+def _stage3_concept() -> dict[str, object]:
+    return {
+        "ck_id": "CK_test",
+        "title": "Test Konzept",
+        "type": "knowledge-article",
+        "doc_role": ["explanation"],
+        "category": "grundlagen",
+        "source_chunks": ["D_test-S0000"],
+        "sources_docs": ["D_test"],
+    }
+
+
+def test_stage3_truncation_flags_needs_human(tmp_path: Path) -> None:
+    """H3: Cap-Truncation (finish_reason=length) → needs_human, kein Body-Draft.
+
+    Simuliert einen Reasoning-Loop, der ueber den max_tokens-Cap hinaus 'weiterdenkt':
+    Der Call terminiert am Cap (kein Hang), das Ergebnis wird aber nicht als valide
+    uebernommen.
+    """
+    long_body = "```markdown\n# Loop\n" + ("bla " * 5000) + "\n```"
+    client = MagicMock()
+    client.chat.completions.create.return_value = _make_mock_response_with_finish(
+        long_body, "length"
+    )
+    cfg = _make_stage_cfg(client, tmp_path)
+    seg_map = {"D_test-S0000": _make_segment("D_test-S0000")}
+
+    result = _run_stage3_concept(
+        _stage3_concept(), seg_map, tmp_path / "drafts", "test", "D_test", cfg
+    )
+
+    assert result is None
+    assert not (tmp_path / "drafts" / "CK_test.body.md").exists()
+    assert cfg.needs_human_path.exists()
+    entry = json.loads(cfg.needs_human_path.read_text(encoding="utf-8").splitlines()[0])
+    assert entry["stage"] == "stage3"
+    assert entry["reason"] == "output_truncated"
+
+
+def test_stage3_normal_call_not_flagged(tmp_path: Path) -> None:
+    """H3: Regulaerer (finish_reason=stop) Stage-3-Call wird NICHT gecappt/geflaggt."""
+    client = MagicMock()
+    client.chat.completions.create.return_value = _make_mock_response_with_finish(
+        f"```markdown\n{STAGE3_BODY}\n```", "stop"
+    )
+    cfg = _make_stage_cfg(client, tmp_path)
+    seg_map = {"D_test-S0000": _make_segment("D_test-S0000")}
+
+    result = _run_stage3_concept(
+        _stage3_concept(), seg_map, tmp_path / "drafts", "test", "D_test", cfg
+    )
+
+    assert result is not None
+    assert STAGE3_BODY in result
+    assert (tmp_path / "drafts" / "CK_test.body.md").exists()
+    assert not cfg.needs_human_path.exists()

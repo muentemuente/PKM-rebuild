@@ -489,6 +489,29 @@ pkm vault-health [--quality-dir DIR] [--out DIR]
 Schreibt `work/quality/health_report_<ts>.md` (Snapshot + optionales Delta). Fehlt jedes
 `quality_scores_*.jsonl` → Exit 2 mit Hinweis, erst `pkm quality-score` zu laufen.
 
+### NB-Feld-Backfill (`backfill-nb-fields`, A2a — NB-4/10/11)
+
+Additiver Backfill der drei NB-Draft-Felder `key_points` (NB-4), `open_questions`
+(NB-10), `next_steps` (NB-11) für **Bestands-Notes**. Live-Qwen extrahiert die Felder
+aus dem **vollen Artikel-Body** über einen dedizierten Backfill-Prompt
+(`prompts/v2/backfill_nb_fields.md` + `schemas/backfill_nb_output.schema.json`) — Output
+enthält **nur** diese drei Felder, **kein** Voll-Frontmatter, **kein** Body-Rewrite.
+Bewusst **nicht** v2-`stage4_frontmatter_json.md` wiederverwendet: das erwartet
+Stage-2-Konzept-Metadaten (`sources_docs`/`source_chunks`) und generiert das komplette
+Frontmatter — für einen reinen Feld-Backfill ohne Synthese-Lauf ungeeignet. Engine:
+`pipeline/backfill_nb_fields.py` (Dataclasses `NbFields`/`BackfillResult` → §7 n/a);
+Insert **frontmatter-chirurgisch/byte-stabil** (wie A1b `backfill_write.py`), Existenz
+eines Feldes → Skip (kein Overwrite).
+
+```bash
+pkm backfill-nb-fields --file NOTE.md [--file NOTE2.md …] [--out drafts/a2a-hub/]
+```
+
+**Kein Vault-Write:** Quell-Notes read-only, Ergebnis = additive Drafts (Original + 3
+Felder, sonst byte-identisch) im isolierten `--out`. Promotion bleibt separater
+Owner-Gate-Schritt (`pkm promote`, gated auf `review_status ∈ {human_reviewed, verified}`).
+Phase 1 (A2a): die 9 Q1b-Hub-Kandidaten; Rest gestaffelt = A2b.
+
 ### Batch-restructure + Review-Sheet (`restructure-batch` / `review-ingest`, WP3c-6)
 
 Skaliert das typ-bewusste restructure auf mehrere Files mit Owner-Review-Schnittstelle.

@@ -1349,6 +1349,83 @@ def promote(draft_path: str, vault_dir: str | None, on_collision: str, do_execut
     )
 
 
+@cli.command(name="backfill-nb-fields")
+@click.option(
+    "--file",
+    "files",
+    multiple=True,
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Bestands-Note (mehrfach angebbar). Read-only Quelle; kein Vault-Write.",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Draft-Zielordner (Default: drafts/a2a-hub/). Schreibt NIE in den Vault.",
+)
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=_DEFAULT_CONFIG,
+    help=f"Pfad zur pipeline.config.yaml (default: {_DEFAULT_CONFIG})",
+)
+def backfill_nb_fields(files: tuple[str, ...], out_dir: str | None, config: str) -> None:
+    """A2a: additiver NB-Feld-Backfill (key_points/open_questions/next_steps) via Live-Qwen.
+
+    Liest die genannten Bestands-Notes read-only, extrahiert die drei Felder aus dem
+    vollen Body und schreibt additive Drafts (Original + 3 Felder, sonst byte-stabil)
+    nach ``--out``. KEIN Vault-Write; Promotion bleibt separater Owner-Gate-Schritt.
+    """
+    import openai
+
+    from pipeline import _paths
+    from pipeline.backfill_nb_fields import backfill_note_to_draft
+
+    cfg = load_config(Path(config))
+    client = openai.OpenAI(
+        base_url=cfg.qwen.endpoint,
+        api_key="local",
+        timeout=cfg.qwen.timeout_seconds,
+    )
+    out = Path(out_dir) if out_dir else (_paths.DRAFTS / "a2a-hub")
+
+    def _relpath(p: Path) -> str:
+        try:
+            return str(p.resolve().relative_to(_paths.BRAIN_VAULT.resolve()))
+        except ValueError:
+            return p.name
+
+    table = Table(title=f"A2a NB-Feld-Backfill ({len(files)} Files → {out})")
+    table.add_column("Slug")
+    table.add_column("Status")
+    table.add_column("key_points", justify="right")
+    table.add_column("open_q", justify="right")
+    table.add_column("next", justify="right")
+
+    drafted = 0
+    for f in files:
+        src = Path(f)
+        res = backfill_note_to_draft(src, out, client=client, qwen=cfg.qwen, relpath=_relpath(src))
+        if res.status == "drafted":
+            drafted += 1
+            table.add_row(
+                res.slug,
+                "[green]drafted[/green]",
+                str(len(res.fields.key_points)),
+                str(len(res.fields.open_questions)),
+                str(len(res.fields.next_steps)),
+            )
+        else:
+            table.add_row(res.slug, f"[yellow]{res.status}[/yellow]", "—", "—", "—")
+    console.print(table)
+    console.print(
+        f"[green]✓[/green] {drafted}/{len(files)} Drafts → {out} "
+        "(review-Tier: kein Vault-Write). Promotion = separater Owner-`!`-Lauf."
+    )
+
+
 @cli.command(name="restructure-batch")
 @click.option(
     "--file",

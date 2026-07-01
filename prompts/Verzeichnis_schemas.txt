@@ -9,10 +9,12 @@
 │   └── stage4_frontmatter_json.md
 ├── v2
 │   ├── schemas
+│   │   ├── backfill_nb_output.schema.json
 │   │   └── stage4_output.schema.json
 │   ├── MIGRATION.md
+│   ├── backfill_nb_fields.md
 │   ├── stage3_synthesis.md
 │   └── stage4_frontmatter_json.md
 └── Verzeichnis_schemas.txt
 
-5 directories, 11 files
+5 directories, 13 files

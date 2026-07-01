@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "backfill_nb_output",
+  "description": "A2a — Additiver NB-Feld-Backfill (key_points/open_questions/next_steps) für Bestands-Notes. Output enthält NUR die drei Felder, keine weitere Frontmatter.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key_points", "open_questions", "next_steps"],
+  "properties": {
+    "key_points": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "3–6 zentrale Kernaussagen; bei substantiellem Content nie leer.",
+      "minItems": 0,
+      "maxItems": 8
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "Offene/ungeklärte Fragen des Texts; leeres Array erlaubt.",
+      "minItems": 0
+    },
+    "next_steps": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "Naheliegende Weiterverarbeitung/Folge-Schritte; leeres Array erlaubt.",
+      "minItems": 0
+    }
+  }
+}

@@ -1702,9 +1702,7 @@ def vault_health(quality_dir: str | None, out_dir: str | None) -> None:
     if report.previous is None:
         console.print("[yellow]erster Lauf — kein Vergleich möglich[/yellow]")
     elif report.delta is None:
-        console.print(
-            "[yellow]Vorlauf inkompatibel (pre-zwei-Achsen) — nur Snapshot[/yellow]"
-        )
+        console.print("[yellow]Vorlauf inkompatibel (pre-zwei-Achsen) — nur Snapshot[/yellow]")
     else:
         d = report.delta
         console.print(

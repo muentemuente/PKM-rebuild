@@ -96,6 +96,20 @@ def test_render_filled_and_empty_mixed() -> None:
     assert "next_steps: []\n" in out
 
 
+def test_render_long_sentence_not_folded_roundtrips() -> None:
+    """Lange Sätze (>80 Zeichen) dürfen nicht über mehrere YAML-Zeilen gefaltet werden
+    — sonst schneidet ``splitlines()[0]`` den Scalar ab (Datenverlust). Regression."""
+    long_kp = (
+        "REST (Representational State Transfer) entkoppelt Client und Server über eine "
+        "einheitliche zustandslose HTTP-Schnittstelle und ist damit hoch skalierbar."
+    )
+    fields = NbFields(key_points=[long_kp], open_questions=[], next_steps=[])
+    written = add_nb_fields_to_frontmatter(_NOTE, fields)
+    data = yaml.safe_load(written.split("---\n")[1])
+    assert data["key_points"] == [long_kp]  # vollständig, nicht abgeschnitten
+    verify_additive(_NOTE, written, fields)
+
+
 def test_render_escapes_colon_and_umlaut() -> None:
     f = NbFields(key_points=["Merke: Zustand ist König"], open_questions=[], next_steps=[])
     block = _render_nb_blocks(f)

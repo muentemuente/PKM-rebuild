@@ -130,7 +130,10 @@ def _render_list_block(key: str, items: list[str]) -> str:
         return f"{key}: []\n"
     lines = [f"{key}:"]
     for item in items:
-        scalar = yaml.safe_dump(item, allow_unicode=True, default_flow_style=False)
+        # ``width`` sehr groß → PyYAML foldet lange Sätze NICHT über mehrere Zeilen
+        # (sonst würde ``splitlines()[0]`` den Scalar abschneiden → Datenverlust, A1b
+        # traf das nie, weil Keyphrases kurz sind; NB-Sätze sind lang).
+        scalar = yaml.safe_dump(item, allow_unicode=True, default_flow_style=False, width=10**9)
         scalar = scalar.strip().splitlines()[0]  # erste Zeile = der escapte Scalar
         lines.append(f"  - {scalar}")
     return "\n".join(lines) + "\n"

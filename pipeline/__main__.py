@@ -1405,9 +1405,20 @@ def backfill_nb_fields(files: tuple[str, ...], out_dir: str | None, config: str)
     table.add_column("next", justify="right")
 
     drafted = 0
+    errors = 0
     for f in files:
         src = Path(f)
-        res = backfill_note_to_draft(src, out, client=client, qwen=cfg.qwen, relpath=_relpath(src))
+        # Per-File-Guard: ein Qwen-Fehler (Timeout/JSON-Parse) auf einer Note darf
+        # den Batch nicht abbrechen — bereits erzeugte Drafts bleiben, Rest läuft weiter.
+        try:
+            res = backfill_note_to_draft(
+                src, out, client=client, qwen=cfg.qwen, relpath=_relpath(src)
+            )
+        except Exception as exc:  # bewusst breit: Batch-Resilienz pro File
+            errors += 1
+            console.print(f"[red]✗ {src.name}:[/red] {str(exc)[:160]}")
+            table.add_row(src.stem, "[red]error[/red]", "—", "—", "—")
+            continue
         if res.status == "drafted":
             drafted += 1
             table.add_row(
@@ -1420,6 +1431,8 @@ def backfill_nb_fields(files: tuple[str, ...], out_dir: str | None, config: str)
         else:
             table.add_row(res.slug, f"[yellow]{res.status}[/yellow]", "—", "—", "—")
     console.print(table)
+    if errors:
+        console.print(f"[yellow]{errors} Fehler[/yellow] — betroffene Files erneut aufrufbar.")
     console.print(
         f"[green]✓[/green] {drafted}/{len(files)} Drafts → {out} "
         "(review-Tier: kein Vault-Write). Promotion = separater Owner-`!`-Lauf."

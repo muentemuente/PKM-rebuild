@@ -1657,6 +1657,63 @@ def quality_score(
         console.print(f"[green]✓[/green] {xlsx_path}")
 
 
+@cli.command(name="vault-health")
+@click.option(
+    "--quality-dir",
+    "quality_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Ordner mit quality_scores_*.jsonl (Default: work/quality/).",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Report-Zielordner (Default: = --quality-dir).",
+)
+def vault_health(quality_dir: str | None, out_dir: str | None) -> None:
+    """R1: Health-Report aus der quality-score-Historie (read-only, Aggregation, kein Scoring)."""
+    from datetime import UTC, datetime
+
+    from pipeline import _paths
+    from pipeline.vault_health import build_report
+
+    qdir = Path(quality_dir) if quality_dir else (_paths.WORK / "quality")
+    try:
+        report = build_report(qdir)
+    except FileNotFoundError as exc:
+        console.print(f"[red]✗[/red] {exc}")
+        raise SystemExit(2) from exc
+
+    out = Path(out_dir) if out_dir else qdir
+    out.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
+    report_path = out / f"health_report_{ts}.md"
+    report_path.write_text(report.markdown, encoding="utf-8")
+
+    cur = report.current
+    table = Table(title=f"Vault-Health ({cur.total} Files · {cur.timestamp or 'n/a'})")
+    table.add_column("Readiness-Band")
+    table.add_column("Files", justify="right")
+    for b in ("produktiv", "nutzbar", "nacharbeit"):
+        table.add_row(b, str(cur.band_counts.get(b, 0)))
+    console.print(table)
+    if report.previous is None:
+        console.print("[yellow]erster Lauf — kein Vergleich möglich[/yellow]")
+    elif report.delta is None:
+        console.print(
+            "[yellow]Vorlauf inkompatibel (pre-zwei-Achsen) — nur Snapshot[/yellow]"
+        )
+    else:
+        d = report.delta
+        console.print(
+            f"[bold]Δ gegen {report.previous.timestamp or 'n/a'}:[/bold] "
+            f"neue Hubs {len(d.new_hubs)}, verschwundene Hubs {len(d.vanished_hubs)}"
+        )
+    console.print(f"[green]✓[/green] {report_path}")
+
+
 @cli.command()
 @click.option(
     "--source",

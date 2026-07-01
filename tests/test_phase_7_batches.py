@@ -164,7 +164,7 @@ def test_batch_has_qwen_instruction_header() -> None:
         pipeline_version="0.1.0",
     )
     assert "QWEN-ANWEISUNG" in content
-    assert "prompts/v1/stage1_cluster_analysis.md" in content
+    assert "prompts/v1/stage3_synthesis.md" in content
 
 
 def test_batch_contains_segment_text() -> None:

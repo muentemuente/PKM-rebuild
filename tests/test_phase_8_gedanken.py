@@ -168,12 +168,8 @@ def test_stage4_gedanken_forces_required_fields(tmp_path: Path) -> None:
             pipeline_version="0.1.0",
             force=False,
             today_str="2026-05-30",
-            temp_stage1=0.3,
-            temp_stage2=0.2,
             temp_stage3=0.4,
             temp_stage4=0.1,
-            max_tokens_stage1=20000,
-            max_tokens_stage2=14000,
             max_tokens_stage3=24000,
             max_tokens_stage4=10000,
         )

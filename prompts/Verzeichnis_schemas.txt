@@ -1,15 +1,18 @@
 .
 ├── CLAUDE.md
 ├── v1
-│   ├── examples
-│   ├── schemas
-│   │   ├── stage1_output.schema.json
-│   │   ├── stage2_output.schema.json
-│   │   └── stage4_output.schema.json
-│   ├── stage1_cluster_analysis.md
-│   ├── stage2_merge_proposal.md
-│   ├── stage3_synthesis.md
-│   └── stage4_frontmatter_json.md
+│   ├── schemas
+│   │   ├── stage4_gedanken_output.schema.json
+│   │   └── stage4_output.schema.json
+│   ├── stage3_synthesis.md
+│   ├── stage4_frontmatter_gedanken.md
+│   └── stage4_frontmatter_json.md
+├── v2
+│   ├── schemas
+│   │   └── stage4_output.schema.json
+│   ├── MIGRATION.md
+│   ├── stage3_synthesis.md
+│   └── stage4_frontmatter_json.md
 └── Verzeichnis_schemas.txt
 
-4 directories, 9 files
+5 directories, 11 files

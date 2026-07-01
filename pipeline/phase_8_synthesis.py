@@ -60,14 +60,10 @@ class _QwenStageConfig:
     pipeline_version: str
     force: bool
     today_str: str
-    # Temperaturen (Stage 1+2 deprecated, nicht verwendet in Option B)
-    temp_stage1: float
-    temp_stage2: float
+    # Temperaturen
     temp_stage3: float
     temp_stage4: float
-    # Token-Budgets (Stage 1+2 deprecated, nicht verwendet in Option B)
-    max_tokens_stage1: int
-    max_tokens_stage2: int
+    # Token-Budgets
     max_tokens_stage3: int
     max_tokens_stage4: int
     # Tag-Vokabular (leer = Validation deaktiviert)
@@ -556,106 +552,6 @@ def _run_text_stage(
             return extracted
         log.warning("qwen_empty_body", attempt=attempt)
     return ""
-
-
-# === Stage 1+2 (deprecated — Option A, nicht verwendet in Option B) ============
-
-
-def _run_stage1(
-    batch_path: Path,
-    output_dir: Path,
-    cfg: _QwenStageConfig,
-) -> dict[str, Any] | None:
-    """Stage 1: Batch-File → stage1_analysis.json. (deprecated — Option A)."""
-    output_path = output_dir / "stage1_analysis.json"
-    meta_path = output_dir / ".stage1.meta.json"
-    batch_content = batch_path.read_text(encoding="utf-8")
-    input_hash = _sha256_str(batch_content)
-
-    if not cfg.force and _is_cached(output_path, meta_path, input_hash):
-        log.info("phase_8_skipped", stage=1, batch=batch_path.stem)
-        return cast(dict[str, Any], json.loads(output_path.read_text(encoding="utf-8")))
-
-    system_prompt = _load_prompt(cfg.prompts_dir, cfg.prompt_version, "stage1_cluster_analysis.md")
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": batch_content},
-    ]
-
-    try:
-        data = _run_json_stage(
-            cfg.client,
-            cfg.model,
-            messages,
-            cfg.temp_stage1,
-            cfg.max_tokens_stage1,
-            cfg.max_retries,
-            cfg.backoff_seconds,
-        )
-    except (ValueError, Exception) as exc:
-        log.error("phase_8_stage1_error", batch=batch_path.stem, error=str(exc)[:200])
-        return None
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    _write_stage_meta(meta_path, input_hash, "stage1")
-    log.info(
-        "phase_8_stage1_done",
-        batch=batch_path.stem,
-        concepts=len(data.get("structure_proposal", {}).get("concept_candidates", [])),
-    )
-    return data
-
-
-def _run_stage2(
-    batch_path: Path,
-    stage1_data: dict[str, Any],
-    output_dir: Path,
-    cfg: _QwenStageConfig,
-) -> dict[str, Any] | None:
-    """Stage 2: Stage-1-Output → stage2_merges.json. (deprecated — Option A)."""
-    output_path = output_dir / "stage2_merges.json"
-    meta_path = output_dir / ".stage2.meta.json"
-    input_str = json.dumps(stage1_data, ensure_ascii=False)
-    input_hash = _sha256_str(input_str)
-
-    decisions_path = output_dir / "merge_decisions.json"
-    if decisions_path.exists():
-        log.info("phase_8_merge_decisions_found", batch=batch_path.stem)
-        return cast(dict[str, Any], json.loads(decisions_path.read_text(encoding="utf-8")))
-
-    if not cfg.force and _is_cached(output_path, meta_path, input_hash):
-        log.info("phase_8_skipped", stage=2, batch=batch_path.stem)
-        return cast(dict[str, Any], json.loads(output_path.read_text(encoding="utf-8")))
-
-    system_prompt = _load_prompt(cfg.prompts_dir, cfg.prompt_version, "stage2_merge_proposal.md")
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": input_str},
-    ]
-
-    try:
-        data = _run_json_stage(
-            cfg.client,
-            cfg.model,
-            messages,
-            cfg.temp_stage2,
-            cfg.max_tokens_stage2,
-            cfg.max_retries,
-            cfg.backoff_seconds,
-        )
-    except (ValueError, Exception) as exc:
-        log.error("phase_8_stage2_error", batch=batch_path.stem, error=str(exc)[:200])
-        return None
-
-    output_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    _write_stage_meta(meta_path, input_hash, "stage2")
-    log.info(
-        "phase_8_stage2_done",
-        batch=batch_path.stem,
-        proposed=len(data.get("proposed_concepts", [])),
-    )
-    return data
 
 
 # === Stage 3+4 — aktiv in Option B ============================================
@@ -1223,12 +1119,8 @@ def run_phase_8(  # noqa: C901
     tag_vocab_path: Path | None = None,
     tag_strict_vocabulary: bool = False,
     filter_doc_ids: set[str] | None = None,
-    # Deprecated (Option A) — werden ignoriert:
+    # Deprecated (Option A) — wird ignoriert:
     batches_dir: Path | None = None,
-    temperature_stage1: float = 0.3,
-    temperature_stage2: float = 0.2,
-    max_tokens_stage1: int = 20000,
-    max_tokens_stage2: int = 14000,
 ) -> dict[str, Any]:
     """Phase 8 ausfuehren: Pro-Doc-Veredelung (Option B) fuer alle Docs in segments.jsonl.
 
@@ -1256,10 +1148,6 @@ def run_phase_8(  # noqa: C901
             Wenn False (default): nur loggen, nichts aendern.
         filter_doc_ids: Wenn gesetzt, werden nur diese Doc-IDs verarbeitet (alle anderen skip).
         batches_dir: Ignoriert (deprecated, Option A).
-        temperature_stage1: Ignoriert (deprecated, Option A).
-        temperature_stage2: Ignoriert (deprecated, Option A).
-        max_tokens_stage1: Ignoriert (deprecated, Option A).
-        max_tokens_stage2: Ignoriert (deprecated, Option A).
 
     Returns:
         Summary-Dict mit docs_processed, concepts_drafted, needs_human, errors.
@@ -1333,12 +1221,8 @@ def run_phase_8(  # noqa: C901
         pipeline_version=pipeline_version,
         force=force,
         today_str=today_str,
-        temp_stage1=temperature_stage1,
-        temp_stage2=temperature_stage2,
         temp_stage3=temperature_stage3,
         temp_stage4=temperature_stage4,
-        max_tokens_stage1=max_tokens_stage1,
-        max_tokens_stage2=max_tokens_stage2,
         max_tokens_stage3=max_tokens_stage3,
         max_tokens_stage4=max_tokens_stage4,
         tag_vocab=tag_vocab,

@@ -60,6 +60,13 @@ _DRAFT_OVERLAY_FIELDS = (
     "review_status",
     "provenance",
     "confidence_fallback",
+    # Additive NB-Feld-Ebene (WP-N2 / A1b / A2a-b): beim Update-Merge sonst verworfen,
+    # weil die Bestands-Note diese Felder (noch) nicht trägt. Ohne diese Einträge
+    # annulliert ein Update-Promote den NB-/Keyphrase-Backfill still.
+    "keyphrases",  # NB-3/9/15 (deterministisch, A1b)
+    "key_points",  # NB-4 (Stage-4-Vorschlag, A2a-b)
+    "open_questions",  # NB-10
+    "next_steps",  # NB-11
 )
 
 

@@ -326,3 +326,4 @@ mypy pipeline/
 
 - 2026-05-25 — Initial-Version (faktisch-deklarativ, Hard Constraints abgegrenzt)
 - 2026-06-25 — §12 Quick-Reference auf reale CLI (kanonisch `process`/`review-ingest`/`promote`; `run`/`ingest`/`corpus-run` getrennt; nicht-existentes `validate` entfernt)
+- 2026-07-02 — fix(promote): `_DRAFT_OVERLAY_FIELDS` (`pipeline/promotion.py`) um die additive NB-/Keyphrase-Ebene (`keyphrases`/`key_points`/`open_questions`/`next_steps`) ergänzt. Bug: ein Update-Promote nahm das Bestands-Frontmatter als Basis und überlagerte nur die Whitelist — die drei NB-Felder fehlten dort, also wurde der A2a/A2b-Backfill beim Promote **still verworfen** (Live-Vault: 0 Notes mit NB-Feldern trotz 165 OK im Promote-Log). Drafts im `archive/promoted_drafts/` intakt → Re-Promote stellt die Felder her. +1 Regressionstest (Update trägt NB-/Keyphrase-Felder). Keine `schemas.py`-Änderung. Spec §4 (Promote-Update-Modell) angepasst

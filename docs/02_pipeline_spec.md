@@ -556,8 +556,12 @@ Draft, Taxonomie/Verlinkung/Quellen aus Bestand); `suffix` = `slug_2.md`. Finali
 Frontmatter wird gegen `schemas.FrontmatterDraft` (Pydantic-SSoT) validiert (unvollständig
 → Abbruch). **D4 (`--execute`):** `driver.snapshot_vault` → Write → Verify (FrontmatterDraft)
 → mandatorische Index-Regen (`phase_9._render_index`, G8) → Draft nach `archive/promoted_drafts/`;
-jeder Fehler → `restore_snapshot`. `provenance`/`type_source`/`restructure_action`/
-`prompt_version` aus dem Draft bleiben erhalten. Draft→stable bleibt separater Owner-Schritt.
+jeder Fehler → `restore_snapshot`. Beim Update überlagert der Draft nur die Felder in
+`_DRAFT_OVERLAY_FIELDS`: `provenance`/`type_source`/`restructure_action`/`prompt_version`
+sowie die **additive NB-/Keyphrase-Ebene** (`keyphrases`/`key_points`/`open_questions`/
+`next_steps`) — sonst würde ein Update-Promote eines NB-Backfill-Drafts (A1b/A2a-b) genau
+diese Felder still verwerfen, weil die Bestands-Note sie noch nicht trägt.
+Draft→stable bleibt separater Owner-Schritt.
 
 ### Semantische Re-Strukturierung (`restructure`, WP3c — review-Tier)
 

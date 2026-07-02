@@ -210,6 +210,37 @@ def test_collision_replace_updates_preserving_existing_taxonomy(tmp_path: Path) 
     assert "Neuer Body." in report.target_path.read_text(encoding="utf-8")
 
 
+def test_update_carries_nb_backfill_fields(tmp_path: Path) -> None:
+    """Update-Promote überlagert die additive NB-/Keyphrase-Ebene aus dem Draft.
+
+    Regression: der A2a/A2b-Backfill-Draft trägt key_points/open_questions/next_steps
+    (+ keyphrases), die Bestands-Note nicht. Ohne diese Felder in _DRAFT_OVERLAY_FIELDS
+    verwarf der Update-Merge genau den Backfill still.
+    """
+    vault = _vault(tmp_path)
+    # Bestands-Note OHNE NB-Felder (wie der Live-Vault vor A2).
+    _write_md(vault / "01_Grundlagen" / "test-artikel.md", _complete_fm(review="ai_drafted"))
+    draft = _write_md(
+        tmp_path / "drafts" / "test-artikel.md",
+        _complete_fm(
+            key_points=["Punkt A", "Punkt B"],
+            open_questions=["Frage 1"],
+            next_steps=["Schritt 1"],
+            keyphrases=["phrase eins", "phrase zwei"],
+        ),
+    )
+
+    plan = plan_promotion(draft, vault, on_collision="replace", today=_TODAY)
+    assert plan.is_update is True
+    report = execute_promotion(plan, vault, archive_dir=tmp_path / "archive")
+
+    fm = _parse(report.target_path)
+    assert fm["key_points"] == ["Punkt A", "Punkt B"]
+    assert fm["open_questions"] == ["Frage 1"]
+    assert fm["next_steps"] == ["Schritt 1"]
+    assert fm["keyphrases"] == ["phrase eins", "phrase zwei"]
+
+
 def test_collision_suffix_writes_new_slug(tmp_path: Path) -> None:
     """on_collision=suffix → neuer Slug `_2`, Bestand unberührt."""
     vault = _vault(tmp_path)

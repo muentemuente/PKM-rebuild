@@ -3,27 +3,27 @@ title: PKM-rebuild — Projektstand
 slug: project-status
 status: stable
 created: 2026-05-28
-updated: 2026-06-25
+updated: 2026-07-02
 ---
 
-# PKM-rebuild — Projektstand (2026-06-25)
+# PKM-rebuild — Projektstand (2026-07-02)
 
 Aktueller Stand, Architektur, Qualität und offene Punkte. Maßgeblicher Detailstand der letzten Session: `docs/handover/post-wp4-stand.md`.
 
-> **Zyklen:** Basis-Pipeline (Phasen 0–12) **abgeschlossen** (Fundament). Darauf der **v3-Zyklus** (Wissensqualität — Stabilisierung, additive Synthese/MOC, Bestands-Remediation): **WP0–WP4 abgeschlossen + gemergt** (WP2 entfiel). Plan: `Projektplan_pipeline-v3.md`.
+> **Zyklen:** Basis-Pipeline (Phasen 0–12) **abgeschlossen** (Fundament). Darauf der **v3-Zyklus** (Wissensqualität — Stabilisierung, additive Synthese/MOC, Bestands-Remediation): **WP0–WP4 abgeschlossen + gemergt** (WP2 entfiel). Darauf aufgesetzt: **Q1/Q1b** (read-only Quality-Layer), **Tier-1-Sweep** (H1/H2/O1/R1/T1), **H3** (Stage-3-Hardening) und die **A2-Linie** (NB-Feld-Backfill A2a/A2b). Plan: `Projektplan_pipeline-v3.md`.
 
 ---
 
-## 0. Aktueller Stand (2026-06-25)
+## 0. Aktueller Stand (2026-07-02)
 
-**Basis-Pipeline (0–12, Option B — Pro-Doc, kein Cross-Doc-Merge) abgeschlossen. v3-Zyklus WP0–WP4 gemergt. Vault produktiv und idempotent. Menschlich verbleibend: Qualitätsstufe-2-Review.**
+**Basis-Pipeline (0–12, Option B — Pro-Doc, kein Cross-Doc-Merge) abgeschlossen. v3-Zyklus WP0–WP4 gemergt. Q1/Q1b + Tier-1-Sweep + H3 gemergt. A2a/A2b NB-Backfill als Drafts bei `review_ready` (Owner-Review + promote ausstehend). Vault produktiv und idempotent. Menschlich verbleibend: Qualitätsstufe-2-Review + A2-Draft-Sichtung.**
 
 | Größe | Wert |
 |---|---|
-| Vault-Artikel (Brain-Vault #3) | **181 + 5 MOC** in 14 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups) |
+| Vault-Artikel (Brain-Vault #3) | **181 + 5 MOC** in 14 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups) — A2b schreibt **nur** Drafts, kein Vault-Write |
 | Ordner-Struktur | 16 thematische + `17_unsortiert` (Catch-all) + `00_Maps/` (MOCs) + `00_Meta/` |
 | Idempotenz | `pkm regenerate-indices` = 0/14 (phase_9-Format, archive-before) |
-| Test-Suite | **789** grün (`def test_`; 826 passed / 2 skipped parametrisiert), `ruff` clean, `mypy pipeline/` clean |
+| Test-Suite | **805** grün (`def test_`; 842 passed / 2 skipped parametrisiert), `ruff` clean, `mypy pipeline/` clean |
 | Code-Schuld | `scripts/` 8 pre-existing mypy-Fehler (WP1-Backlog, kein Blocker) |
 | Architektur | Option B (Pro-Doc, kein Merge); Embedding-Clustering **verworfen** (R9) |
 | Taxonomie-SSoT | `config/`: `tag_vocabulary.yaml` (149 Tags), `categories.yaml`, `enums.yaml` |
@@ -82,6 +82,25 @@ Aufgesetzt auf der abgeschlossenen Basis-Pipeline. Fokus: Stabilität, additive 
 **Kernlearning:** Verify-first hat den halben Backlog als stale entlarvt (Dubletten 6→0, Fehlklass. ~8→7, „12 OOV"-Content-Tags→0, restructure-Roh 26→1). Größte Hebelwirkung lag im Prüfen, nicht im Mutieren.
 
 **Post-WP4-Dispositionen:** mdformat-wikilink-safe **DECLINED** (Vault bleibt unformatiert, funktional ok); 00_Meta-Governance-Tags **CLOSED** (niedriger Wert); Monolith-B → nlp-Serie **deferred** (eigenes Synthese-WP, `docs/handover/ideen-backlog.md`).
+
+---
+
+## 2b. Post-WP4-Arbeit (Q1b · Tier-1 · H3 · A2-Linie · Spikes)
+
+Aufgesetzt auf dem stabilen Vault, alle read-only oder draft-erzeugend — **kein** Vault-Write ohne Owner-`promote`.
+
+| Posten | Inhalt | Stand |
+|---|---|---|
+| **Q1/Q1b** Quality-Layer | read-only `pkm quality-score` (2 Achsen: Readiness-Band ⊥ Integrations-Tertil, deterministisch, kein LLM) + `pkm vault-health` (aggregiert Score-Historie) | ✅ gemergt |
+| **Tier-1-Sweep** | H2 (CLI-Import-Regressiontest), H1 (toter Cluster-Merge-Pfad entfernt, R9), R1 (`vault-health`), O1 (Keyphrase-Konsolidierung **verworfen** — 2 Modelle behalten, Jaccard 0.036), T1 (Test-Richtwert) | ✅ gemergt (PR #52) |
+| **H3** Stage-3-Hardening | `_run_text_stage` → `(body, truncated)`; Cap-Truncation (`finish_reason=length`) → `needs_human` statt still abgeschnittenem Draft. +2 Tests | ✅ gemergt (PR #54) |
+| **A2a** NB-Backfill (Hub) | additiver Feld-Backfill (`key_points`/`open_questions`/`next_steps`) für 9 Hub-Kandidaten; Code + 9 Drafts | ✅ Code gemergt (PR #53); **Drafts `review_ready`, Owner-Sichtung offen** |
+| **A2b** NB-Backfill (Band) | selber Mechanismus über **156 Files** (produktiv+nutzbar − 9 A2a-Hub); 0 nacharbeit-Band in diesem Score-Run | ✅ **156/156 gedraftet, 0 Fehler** (Live-Qwen, Ø 108,6 s/File); Drafts `pkm-pipeline/drafts/a2b-batch/`, **Owner-Sichtung + promote offen** |
+| **Spikes** | O1 (Keyphrase) → verworfen, s. Tier-1; **N4** (NLI-Feasibility) → Spike gelaufen, Report lag in `scratch/n4-spike/` (im Repo-Cleanup entfernt), Disposition Owner-/Architect-seitig (nicht in-repo dokumentiert) | O1 CLOSED; N4 Owner-seitig |
+
+**A2-Eigenschaften (verifiziert):** Body byte-identisch (nur 3 FM-Felder additiv ergänzt); Anti-Halluzination greift (`open_questions: []` wenn nichts Grounded); `verify_additive` per File; read-only Quelle, kein Vault-Write. Review-Sheet: `docs/handover/a2b-nb-backfill-review.md`. Promote-dry-run-Befehle vorbereitet, **nicht** ausgeführt.
+
+**Repo-Reconciliation (2026-07-02):** 5 gemergte + 2 stale Branches (local+remote) bereinigt, 9 stale Remote-Tracking-Refs geprunt; 2 untracked Artefakte (`docs/audit/gate_nb-verify_2026-06-26.md`, `scripts/a1b-vault-gate.sh`) ins Repo aufgenommen (PR #55). Remote nur noch `main`.
 
 ---
 
@@ -176,7 +195,7 @@ PKM-rebuild/                    ← Git, public (Ort #1)
 
 | Tool | Status |
 |---|---|
-| `pytest` | ✅ **789** grün (826 passed / 2 skipped parametrisiert) |
+| `pytest` | ✅ **805** grün (842 passed / 2 skipped parametrisiert) |
 | `ruff check` / `ruff format` | ✅ clean |
 | `mypy pipeline/` | ✅ clean |
 | `mypy scripts/` | ⚠️ 8 pre-existing Fehler (WP1-Backlog, kein Laufzeitrisiko) |
@@ -187,7 +206,10 @@ PKM-rebuild/                    ← Git, public (Ort #1)
 
 | Punkt | Status |
 |---|---|
+| **A2a-Draft-Sichtung** (9 Hub-Kandidaten, `pkm-pipeline/drafts/a2a-hub/`) | offen, menschlich — Review-Report `docs/handover/a2a-hub-backfill-review.md` |
+| **A2b-Draft-Sichtung + promote** (156 Files, `pkm-pipeline/drafts/a2b-batch/`) | offen, menschlich — Review-Sheet `docs/handover/a2b-nb-backfill-review.md`, promote-dry-run vorbereitet |
 | **Qualitätsstufe-2-Review** der Artikel (`draft → review/stable`) | offen, menschlich — **kein** Auto-Promote durch CC |
+| N4 (NLI-Feasibility) Disposition | Owner-/Architect-seitig (Report war in `scratch/`, im Cleanup entfernt) |
 | `scripts/` mypy (8 pre-existing) | Backlog, kein Blocker |
 | Time-Machine-Restore-Verifikation (Vault #3) | niedrige Prio, Owner-Check (früherer Mount-Fehler Code 18) |
 | Backup 2. Medium (O4) | erfüllt — Vault #3 per Time Machine täglich gesichert |
@@ -196,10 +218,11 @@ PKM-rebuild/                    ← Git, public (Ort #1)
 
 ## 9. Nächste Schritte
 
-Im WP4-Scope ist **keine** offene Arbeit. Optionen für ein nächstes WP:
+Der echte Rest — alles Owner-gegatet, kein Auto-Write:
 
-- **Monolith-B → nlp-Serie zerlegen** (additives Synthese-WP, eigener Plan + Gates; `docs/handover/ideen-backlog.md`). Bewusst NICHT als Cleanup-Nebenbei.
-- **Konditionales WP5** (Klassifikations-Optimierung) — nur falls eine Stichprobe Fehlzuweisungen zeigt.
+- **A2-Drafts sichten + promoten** (A2a 9 + A2b 156). Pro Draft `promote --dry-run` → bei OK `--execute` (D4-Owner-Gate). Sheets s. §8. Das ist der unmittelbar nächste menschliche Schritt.
+- **Qualitätsstufe-2-Review** der Bestandsartikel (`draft → review/stable`) — manuell, kein CC-Auto-Promote.
+- **Ruhende Posten:** Monolith-B → nlp-Serie zerlegen (additives Synthese-WP, eigener Plan + Gates; `docs/handover/ideen-backlog.md`); konditionales WP5 (Klassifikations-Optimierung) nur bei belegten Fehlzuweisungen; N4-Disposition (Owner). Pre-existing Format-Drift (`vault_audit.py`, `test_nb_report_suite.py`, `test_schema_date_coercion.py`) — separater Chore, bewusst nicht mit-reformatiert.
 
 Vault-Mutationen weiterhin nur per Owner-`!`-Lauf (D-WP4-3), Gates heilig, kein Auto-Merge nach `main`.
 
@@ -215,3 +238,4 @@ Vault-Mutationen weiterhin nur per Owner-`!`-Lauf (D-WP4-3), Gates heilig, kein 
 - 2026-06-23 — v3-Zyklus-Start (WP0): Realstand verifiziert (181 Artikel, Tests grün); Doku-Drift bereinigt; v2-Plan archiviert
 - 2026-06-25 — **Voll-Rewrite** auf Post-WP4-Stand: §0 aktualisiert (181 + 5 MOC, 760 Tests, idempotent); neue §2 v3-Zyklus (WP0–WP4 + WP4-Bilanz + Dispositionen); §3 Phasen-Referenz neu (ohne stale Metriken) + v3-Module; §5 gegen `pipeline.config.yaml` verifiziert (TF-IDF 0.85→**0.72** korrigiert); §6 Layout aktuell; §7 760 Tests / mypy pipeline clean; §8 Backup als erfüllt (Time Machine)
 - 2026-07-01 — T1: Test-Richtwert 760 → **789** nachgeführt (`def test_`-Zählung; parametrisiert 826 passed / 2 skipped) nach Tier-1-Sweep (H2-Regressiontest + R1 vault-health-Tests, H1-Cleanup). Nur Zahlen-Korrektur (§0-Tabelle, §-Layout, §-Tool-Status)
+- 2026-07-02 — Refresh nach Post-WP4-Arbeit: §0 (Datum, **805**/842 Tests, A2-Status); neue §2b (Q1/Q1b, Tier-1-Sweep, H3, A2a/A2b, N4/O1-Spikes, Repo-Reconciliation); §7 805/842; §8 A2-Draft-Sichtung + N4 ergänzt; §9 „Nächste Schritte" durch echten Rest ersetzt (A2-Promote, Q-Stufe-2, ruhende Posten). A2b: 156/156 Drafts, 0 Fehler, kein Vault-Write

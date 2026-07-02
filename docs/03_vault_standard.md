@@ -89,8 +89,21 @@ created: "YYYY-MM-DD"
 updated: "YYYY-MM-DD"              # menschliche Edit-Zeit
 last_synthesized: "YYYY-MM-DD"     # letzte Qwen-Synthese
 prompt_version: "v1"               # Prompt-Set zur Synthese
+
+# === Notizbuch-Ebene (additiv, NB) ===
+keyphrases: []                     # NB-3/9/15 — deterministisch (KeyBERT, `pipeline.keyphrase`), kein LLM
+key_points: []                     # NB-4  — Stage-4-/Backfill-Vorschlag (Draft-Niveau, human-reviewed)
+open_questions: []                 # NB-10 — Stage-4-/Backfill-Vorschlag ([] wenn nichts Grounded)
+next_steps: []                     # NB-11 — Stage-4-/Backfill-Vorschlag ([] wenn nichts Grounded)
 ---
 ```
+
+> **NB-Felder (`keyphrases`/`key_points`/`open_questions`/`next_steps`):** additive
+> Ebene, nachträglich per Backfill ergänzt (`keyphrases` = A1b deterministisch;
+> die drei Notizbuch-Felder = A2a/A2b via Live-Qwen, Anti-Halluzination → leere Liste
+> statt Erfindung). Sie sind **optional**, überschreiben nie den Body und werden beim
+> Promote-Update mit übernommen (s. `docs/02_pipeline_spec.md` §4). Stand 2026-07-02:
+> auf allen **165** produktiv+nutzbaren Notes gesetzt.
 
 ### Pflichtfelder vs. optional
 
@@ -100,8 +113,8 @@ prompt_version: "v1"               # Prompt-Set zur Synthese
 | `type`, `doc_role`, `category` | `subcategory`, `tags`, `related` |
 | `sources_docs`, `source_chunks` | `merged_from`, `used_in`, `parent_concept`, `child_concepts` |
 | `status`, `review_status`, `confidence` | `technology_versions` |
-| `doc_version`, `created`, `updated` | |
-| `last_synthesized`, `prompt_version` (wenn KI-erstellt) | |
+| `doc_version`, `created`, `updated` | `keyphrases`, `key_points` (NB-Ebene, additiv) |
+| `last_synthesized`, `prompt_version` (wenn KI-erstellt) | `open_questions`, `next_steps` (NB-Ebene, additiv) |
 
 ### Enum-Werte
 

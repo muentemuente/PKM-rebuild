@@ -3,9 +3,11 @@
 Pipeline und Bereinigungs-Workflow für eine bestehende Markdown-Wissenssammlung. Ziel: aus ~200 unstrukturierten Markdown-Dateien einen sauber strukturierten Obsidian-Vault mit konsistentem Frontmatter, deduplizierten Inhalten und thematischer Ordner-Struktur generieren.
 
 - **Basis-Pipeline:** abgeschlossen (Phasen 0–12, 2026-06-06)
-- **v3-Zyklus:** WP0–WP4 abgeschlossen + gemergt (WP2 entfiel) — Stabilisierung, additive Synthese/MOC, Bestands-Remediation; Plan [`docs/Projektplan_pipeline-v3.md`](docs/Projektplan_pipeline-v3.md), aktueller Detailstand [`docs/handover/post-wp4-stand.md`](docs/handover/post-wp4-stand.md)
+- **v3-Zyklus:** WP0–WP4 abgeschlossen + gemergt (WP2 entfiel) — Stabilisierung, additive Synthese/MOC, Bestands-Remediation; Plan [`docs/Projektplan_pipeline-v3.md`](docs/Projektplan_pipeline-v3.md), Detailstand [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
+- **Post-WP4:** read-only Quality-Layer (`quality-score`/`vault-health`), Stage-3-Hardening (H3) und **NB-Feld-Backfill (A2a/A2b) promotet** — `key_points`/`open_questions`/`next_steps`/`keyphrases` auf allen 165 produktiv+nutzbaren Notes (NB-Linie geschlossen)
 - **Vault:** 181 Artikel + 5 MOC in 14 genutzten Ordnern (0 Pydantic-Fails, 0 SHA-Dups); idempotent (`pkm regenerate-indices` = 0/14)
 - **Charakter:** Lernprojekt mit produktivem Output
+- **Erstnutzung:** [`docs/MANUAL.md`](docs/MANUAL.md) (Bedienungsanleitung: Walkthrough + CLI-Referenz + Troubleshooting)
 - **Laufender Betrieb:** [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md) (inkrementeller Standard-Workflow)
 - **Verbleibend:** menschliche Qualitätsstufe-2-Review ([`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)); Vault #3 per Time Machine täglich gesichert
 
@@ -32,7 +34,8 @@ Orientierung pro Ort: `WAYFINDING.md` (im jeweiligen Root). Schreibzugriff von C
 | **A. Vorbereitung (Python)** | Inventar, Normalisierung, Strukturextraktion, Segmentierung, Redundanz-Erkennung (Hash → TF-IDF → Embeddings) |
 | **B. Veredelung (Qwen 3.6 27B lokal, Option B)** | **Pro-Doc** statt Cross-Doc-Merge. Routing je Doc: `passthrough` (Code/Tabellen/Headings → Body 1:1 + Frontmatter) · `stage3` (Prosa → LLM-Veredelung + Frontmatter) · `gedanken` (Sonderpfad, Minimal-Frontmatter). Kein Cluster-Merge, `merged_from` immer leer. |
 | **C. Vault-Aufbau** | bereinigte Artikel in Obsidian-Vault; `category` aus Qwen-Stage-4 + deterministischem Mapping auf 16 thematische Ordner (+ `17_unsortiert` Catch-all), Wikilinks, Tag-Vokabular |
-| **D. Inkrementell** | neue `.md` → `pkm-pipeline/input/` → **`pipeline process`** (universelle Erstverarbeitung, **kanonischer go-forward-Pfad**) → Review → `build-vault`. `pipeline ingest`/`run` (Phasen 1–4 + 8, Option B) = Synthese-Linie; `ingest_md_download` = §3-Vorverarbeitung; `corpus-run` = Legacy/Batch. Pfad-Begründung: [`docs/handover/v3-entrypoints.md`](docs/handover/v3-entrypoints.md). Vokabular-Pflege über `scripts/manage_vocab.py`. |
+| **D. Inkrementell** | neue `.md` → `pkm-pipeline/input/` → **`pipeline process`** (universelle Erstverarbeitung, **kanonischer go-forward-Pfad**) → Review → `promote` (Owner-Gate). `pipeline ingest`/`run` (Phasen 1–4 + 8, Option B) = Synthese-Linie; `ingest_md_download` = §3-Vorverarbeitung; `corpus-run` = Legacy/Batch. Pfad-Begründung: [`docs/handover/v3-entrypoints.md`](docs/handover/v3-entrypoints.md). Vokabular-Pflege über `scripts/manage_vocab.py`. |
+| **E. Qualität & Backfill** | read-only Quality-Layer: `pipeline quality-score` (6 Dimensionen + Composite + Band, deterministisch, kein LLM) und `pipeline vault-health` (aggregiert die Score-Historie). Additiver NB-Feld-Backfill (`key_points`/`open_questions`/`next_steps` via Live-Qwen, `keyphrases` deterministisch) — abgeschlossen und in den Vault promotet. |
 
 ---
 
@@ -72,31 +75,53 @@ python -m pipeline --version
 python -m pipeline status
 ```
 
-> **Hinweis:** Der go-forward-Flow (`pkm run`, Option B) liest aus `~/projects/aktiv/pkm-pipeline/input/` (außerhalb des Repos). Daten-Root überschreibbar per `PKM_PIPELINE_ROOT`; zentrale Pfad-Auflösung in `pipeline/_paths.py`. Details: [`docs/RUNBOOK_new_files.md`](docs/RUNBOOK_new_files.md).
+### Neue Dateien verarbeiten — `process` (der Weg)
+
+`pipeline process` ist der **kanonische** Weg: jede neue `.md` (egal welcher Ausgangszustand) läuft durch dieselbe Stage-Kette bis `review_ready`. Kein Vault-Write — der Live-Vault wird erst im gegateten `promote` geschrieben.
 
 ```bash
-# Dry-Run (zeigt Phasen, schreibt nichts)
-python -m pipeline run --dry-run
+# 1. Neue Roh-Dateien ablegen
+#    → ~/projects/aktiv/pkm-pipeline/input/   (Daten-Root, außerhalb des Repos)
 
-# Sample-Run (10 Files, setzt Daten voraus)
-python -m pipeline run --phase 1 --sample 10
+# 2. Verarbeiten (braucht laufendes LM Studio mit Qwen-Modell)
+python -m pipeline process --source ~/projects/aktiv/pkm-pipeline/input/
+#    → Drafts + Review-Sheet (.xlsx); resume-fähig via --resume
 
-# Ab Phase 5 weiterlaufen
-python -m pipeline run --from-phase 5
+# 3. Review-Sheet ausfüllen (Mensch), dann einlesen
+python -m pipeline review-ingest --sheet <sheet>.xlsx
 
-# Inkrementell: neue .md aus pkm-pipeline/input/ verarbeiten (Option B)
-python -m pipeline ingest --dry-run     # Plan zeigen, nichts schreiben
-python -m pipeline ingest               # verarbeiten (braucht laufendes LM Studio)
-# Universelle Erstverarbeitung (jedes File → vault-ready, resume-fähig)
-python -m pipeline process --source <dir>
-
-# Vault bauen + Vokabular pflegen
-python -m pipeline build-vault
-python3 scripts/manage_vocab.py list
-python3 scripts/manage_vocab.py validate
+# 4. In den Vault übernehmen (Owner-Gate)
+python -m pipeline promote --draft <draft>            # dry-run: Plan + Diff
+python -m pipeline promote --draft <draft> --execute  # Live-Write nach #3
 ```
 
-Details zu Setup, Daten-Layout und Datenpfaden: [`docs/02_pipeline_spec.md`](docs/02_pipeline_spec.md); inkrementeller Workflow: [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md).
+Vollständiger Schritt-für-Schritt-Walkthrough mit Beispiel: **[`docs/MANUAL.md`](docs/MANUAL.md)**. Inkrementeller Workflow im Detail: [`docs/FUTURE_RUN.md`](docs/FUTURE_RUN.md).
+
+> **Datenpfad:** `process` liest aus `~/projects/aktiv/pkm-pipeline/input/` (außerhalb des Repos). Daten-Root überschreibbar per `PKM_PIPELINE_ROOT`; zentrale Pfad-Auflösung in `pipeline/_paths.py`.
+
+<details>
+<summary><b>Legacy / Sonderfall</b> — nicht der Standard-Weg</summary>
+
+```bash
+# Option-B-Synthese-Linie (staging-basiert, für Batch-/Cluster-Synthese)
+python -m pipeline ingest --dry-run          # Phasen 1–4 + 8 → Drafts
+python -m pipeline run --dry-run             # input/ → Review-Gates → output/
+python -m pipeline build-vault --dry-run     # Phase 9: Drafts → output/ (Staging)
+
+# Legacy-Vollkorpus-Erstlauf (Archiv, NICHT go-forward)
+python -m pipeline corpus-run --sample 10
+
+# Read-only Reports & Vokabular
+python -m pipeline quality-score             # Quality-Scoring (deterministisch)
+python -m pipeline vault-health              # Health aus Score-Historie
+python3 scripts/manage_vocab.py list         # Vokabular anzeigen
+python3 scripts/manage_vocab.py validate     # Drift prüfen
+```
+
+Einordnung der Entrypoints: [`docs/handover/v3-entrypoints.md`](docs/handover/v3-entrypoints.md).
+</details>
+
+Details zu Setup, Daten-Layout und Datenpfaden: [`docs/02_pipeline_spec.md`](docs/02_pipeline_spec.md).
 
 ---
 
@@ -109,6 +134,7 @@ PKM-rebuild/
 ├── README.md                  ← hier
 ├── CLAUDE.md                  ← Working Rules für Claude Code
 ├── docs/                      ← Projekt-Dokumentation
+│   ├── MANUAL.md              ← Bedienungsanleitung (Walkthrough + CLI-Referenz)
 │   ├── 00_persona_muente.md   ← gitignored
 │   ├── 01_strategy.md
 │   ├── 02_pipeline_spec.md
@@ -117,6 +143,8 @@ PKM-rebuild/
 │   ├── 05_glossary.md
 │   ├── 06_claude_code_workflow.md
 │   ├── 07_backup_strategy.md
+│   ├── PROJECT_STATUS.md      ← aktueller Stand
+│   ├── FUTURE_RUN.md          ← inkrementeller Workflow
 │   └── learnings/
 ├── pipeline/                  ← Python-Modul
 │   ├── CLAUDE.md
@@ -163,6 +191,7 @@ Reihenfolge zum Einstieg (auch für Claude Code als Lese-Kontext):
 
 | Datei | Zweck |
 |---|---|
+| [`docs/MANUAL.md`](docs/MANUAL.md) | **Bedienungsanleitung** — Einstieg für Erstnutzung (Walkthrough + CLI-Referenz + Troubleshooting) |
 | [`CLAUDE.md`](CLAUDE.md) | Working Rules für Claude Code |
 | [`docs/00_persona_muente.md`](docs/00_persona_muente.md) | Wer arbeitet hier, Constraints (lokal, gitignored) |
 | [`docs/01_strategy.md`](docs/01_strategy.md) | Ziele, Scope, Definition of Done, Risiken |

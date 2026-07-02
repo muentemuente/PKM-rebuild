@@ -3,7 +3,7 @@ title: FUTURE_RUN — Inkrementeller Standard-Workflow
 slug: future-run
 status: stable
 created: 2026-06-04
-updated: 2026-06-25
+updated: 2026-07-02
 ---
 
 # FUTURE_RUN — Inkrementeller Standard-Workflow
@@ -107,8 +107,11 @@ Manifest: `_hold/HOLD_MANIFEST.md`. Verarbeitung über den Gedanken-Sonderpfad
 ### 2 Hangs (im `_excluded/`-Set)
 - `Prompt-Verbesserung.md` · `prompts_text_stil_grammatik.md`
 - **Root-Cause:** Meta-/Prompt-Inhalt triggert im Stage-3-Call einen Reasoning-Loop.
-- **Mitigation:** hart auf `passthrough` routen **oder** Reasoning/`max_tokens` je Call
-  cappen. Timeout-Hochsetzen wirkt nicht.
+- **Mitigation (H3 gelandet, PR #54):** `_run_text_stage` cappt `max_tokens` je Stage-3-Call
+  (`max_tokens_stage3`, config-driven); ein abgeschnittener Output (`finish_reason=length`)
+  wird nicht mehr still übernommen, sondern → `needs_human` (reason `output_truncated`), kein
+  Draft. Der Hang wird damit zu einem sauberen Skip statt Endlos-Loop. Alternativ weiter: hart
+  auf `passthrough` routen. Timeout-Hochsetzen wirkt nicht.
 
 > `denkschulen_ueberblick_und_einfuehrung.md` ist ein bewusst exkludiertes Survey-Doc
 > (15.770 Wörter, 394 H2) — **kein** Hang, bleibt außerhalb der Pipeline.
@@ -120,3 +123,4 @@ Manifest: `_hold/HOLD_MANIFEST.md`. Verarbeitung über den Gedanken-Sonderpfad
 - 2026-06-04 — Initial-Version (Re-Run-Set: 19 Gedanken + 2 Hangs)
 - 2026-06-05 — Umgeschrieben zum inkrementellen Standard-Workflow (AP3): `ingest` + `manage_vocab` + Übernahme-Pfad
 - 2026-06-25 — Auf **`pkm process` als kanonischen go-forward** umgestellt (O1, code-verifiziert): Stage-Kette → Review-Sheet → `review-ingest` → `promote` (D4). `ingest`/`run` als Option-B-Synthese-Linie eingeordnet; Synthese als nachgelagert klargestellt; tote `data/0X`-Pfade → `pkm-pipeline/`-Layout; Count 180→181; `taxonomy`-CLI ergänzt
+- 2026-07-02 — Hangs-Mitigation auf H3-Ist-Stand nachgeführt (PR #54): `max_tokens`-Cap + Truncation→`needs_human` ist implementiert, nicht mehr nur Vorschlag
